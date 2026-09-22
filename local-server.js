@@ -7,6 +7,7 @@ let PORT = parseInt(process.env.PORT, 10) || 3001;
 const DATA_DIR = path.join(__dirname, 'data');
 const PAYMENTS_FILE = path.join(DATA_DIR, 'payments.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'payment-settings.json');
+const ATHLETES_FILE = path.join(DATA_DIR, 'athletes.json');
 
 // Ensure data directory and file exist
 if (!fs.existsSync(DATA_DIR)) {
@@ -14,6 +15,9 @@ if (!fs.existsSync(DATA_DIR)) {
 }
 if (!fs.existsSync(PAYMENTS_FILE)) {
     fs.writeFileSync(PAYMENTS_FILE, '[]', 'utf8');
+}
+if (!fs.existsSync(ATHLETES_FILE)) {
+    fs.writeFileSync(ATHLETES_FILE, '[]', 'utf8');
 }
 if (!fs.existsSync(SETTINGS_FILE)) {
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify({
@@ -79,6 +83,30 @@ function savePayments(payments) {
         return true;
     } catch (e) {
         console.error('Error saving payments:', e);
+        return false;
+    }
+}
+
+// Helper to get athletes
+function getAthletesServer() {
+    try {
+        if (fs.existsSync(ATHLETES_FILE)) {
+            const raw = fs.readFileSync(ATHLETES_FILE, 'utf8');
+            return JSON.parse(raw);
+        }
+    } catch (e) {
+        console.error('Error reading athletes:', e);
+    }
+    return [];
+}
+
+// Helper to save athletes
+function saveAthletesServer(athletes) {
+    try {
+        fs.writeFileSync(ATHLETES_FILE, JSON.stringify(athletes, null, 2), 'utf8');
+        return true;
+    } catch (e) {
+        console.error('Error saving athletes:', e);
         return false;
     }
 }
@@ -230,13 +258,66 @@ const server = http.createServer(async (req, res) => {
                 rejectReason: null
             };
 
+            // If athleteData or entityType === 'athlete', persist athlete in server storage
+            let savedAthlete = null;
+            try {
+                const athletes = getAthletesServer();
+                let athData = body.athleteData || body.athlete;
+                if (!athData && (body.entityType === 'athlete' || !body.entityType)) {
+                    athData = {
+                        id: body.entityId || ('ath-' + Date.now().toString(36)),
+                        athleteId: body.athleteId || ('ATH-' + Math.floor(100000 + Math.random() * 900000)),
+                        name: userName.trim(),
+                        phone: (mobile || '').toString().trim(),
+                        email: (email || '').toString().trim(),
+                        dojangName: 'Individual Competitor',
+                        dojangId: 'ind-competitor',
+                        dojangCode: 'IND',
+                        tournId: body.tournamentId || 'tourn-state-2026',
+                        registeredTournaments: [body.tournamentId || 'tourn-state-2026'],
+                        status: 'Pending',
+                        paymentStatus: 'Pending',
+                        feeStatus: 'Pending',
+                        utr: utr
+                    };
+                }
+                if (athData) {
+                    const athIdx = athletes.findIndex(a => 
+                        (athData.id && a.id === athData.id) || 
+                        (athData.athleteId && a.athleteId === athData.athleteId) ||
+                        (a.name && a.name.toLowerCase() === athData.name.toLowerCase()) ||
+                        (athData.phone && a.phone && a.phone.includes(athData.phone))
+                    );
+                    const mergedAth = {
+                        ...(athIdx >= 0 ? athletes[athIdx] : {}),
+                        ...athData,
+                        paymentStatus: 'Pending',
+                        feeStatus: 'Pending',
+                        utr: utr,
+                        lastSubmittedUtr: utr,
+                        updatedAt: new Date().toISOString()
+                    };
+                    if (athIdx >= 0) {
+                        athletes[athIdx] = mergedAth;
+                    } else {
+                        athletes.unshift(mergedAth);
+                    }
+                    saveAthletesServer(athletes);
+                    savedAthlete = mergedAth;
+                }
+            } catch (errAth) {
+                console.warn('Could not auto-save athlete on payment submission:', errAth);
+            }
+
+            newPayment.athleteData = savedAthlete;
             payments.unshift(newPayment);
             savePayments(payments);
 
             return sendJson(res, 201, {
                 success: true,
                 message: 'Payment proof submitted successfully! Verification in progress.',
-                payment: newPayment
+                payment: newPayment,
+                athlete: savedAthlete
             });
         } catch (err) {
             console.error('Submit UTR Error:', err);
@@ -294,10 +375,78 @@ const server = http.createServer(async (req, res) => {
         payments[index].rejectReason = null;
         savePayments(payments);
 
+        // Also update athlete record in server storage
+        let updatedAthlete = null;
+        try {
+            const athletes = getAthletesServer();
+            const pay = payments[index];
+            const athIdx = athletes.findIndex(a => 
+                (pay.entityId && (a.id === pay.entityId || a.athleteId === pay.entityId)) ||
+                (pay.userName && a.name && a.name.toLowerCase() === pay.userName.toLowerCase()) ||
+                (pay.mobile && a.phone && a.phone.includes(pay.mobile))
+            );
+            if (athIdx >= 0) {
+                const targetTourn = pay.tournamentId || athletes[athIdx].tournId || 'tourn-state-2026';
+                const curRegs = Array.isArray(athletes[athIdx].registeredTournaments) ? athletes[athIdx].registeredTournaments : [];
+                const updatedRegs = Array.from(new Set([...curRegs, targetTourn, 'tourn-state-2026']));
+                athletes[athIdx] = {
+                    ...athletes[athIdx],
+                    paymentStatus: 'Paid',
+                    feeStatus: 'Paid',
+                    paidDate: payments[index].approvedAt.split('T')[0],
+                    txnId: payments[index].id,
+                    utr: payments[index].utr,
+                    tournId: targetTourn,
+                    registeredTournaments: updatedRegs,
+                    updatedAt: new Date().toISOString()
+                };
+                saveAthletesServer(athletes);
+                updatedAthlete = athletes[athIdx];
+            } else if (pay.entityType === 'athlete' || !pay.dojangId) {
+                const athData = pay.athleteData || {};
+                const targetTourn = pay.tournamentId || athData.tournId || 'tourn-state-2026';
+                const newAth = {
+                    id: pay.entityId || athData.id || ('ath-' + Date.now().toString(36)),
+                    athleteId: pay.athleteId || athData.athleteId || ('ATH-' + Math.floor(100000 + Math.random() * 900000)),
+                    name: pay.userName || athData.name || 'Competitor',
+                    phone: pay.mobile || athData.phone || '',
+                    email: pay.email || athData.email || '',
+                    dojangName: athData.dojangName || 'Individual Competitor',
+                    dojangId: athData.dojangId || 'ind-competitor',
+                    dojangCode: athData.dojangCode || 'IND',
+                    category: athData.category || 'Junior (15–17 yrs)',
+                    weightClass: athData.weightClass || 'Junior Male U-55 kg',
+                    weight: athData.weight || 54.0,
+                    beltId: athData.beltId || 'white',
+                    beltName: athData.beltName || 'White Belt',
+                    gender: athData.gender || 'Male',
+                    photo: athData.photo || '',
+                    aadharDoc: athData.aadharDoc || '',
+                    birthCertDoc: athData.birthCertDoc || '',
+                    docStatus: athData.docStatus || 'Pending',
+                    status: 'Passed',
+                    paymentStatus: 'Paid',
+                    feeStatus: 'Paid',
+                    paidDate: payments[index].approvedAt.split('T')[0],
+                    txnId: payments[index].id,
+                    utr: payments[index].utr,
+                    tournId: targetTourn,
+                    registeredTournaments: Array.from(new Set([targetTourn, 'tourn-state-2026'])),
+                    createdAt: new Date().toISOString()
+                };
+                athletes.unshift(newAth);
+                saveAthletesServer(athletes);
+                updatedAthlete = newAth;
+            }
+        } catch (errAth) {
+            console.warn('Could not update athlete on payment approval:', errAth);
+        }
+
         return sendJson(res, 200, {
             success: true,
             message: 'Payment approved successfully.',
-            payment: payments[index]
+            payment: payments[index],
+            athlete: updatedAthlete
         });
     }
 
@@ -391,6 +540,99 @@ const server = http.createServer(async (req, res) => {
             });
         } catch (err) {
             return sendJson(res, 500, { success: false, error: 'Failed to update payment settings.' });
+        }
+    }
+
+    // 8. GET /api/athletes
+    if (method === 'GET' && pathname === '/api/athletes') {
+        const athletes = getAthletesServer();
+        const tournId = parsedUrl.query.tournId;
+        const q = (parsedUrl.query.q || '').toLowerCase().trim();
+        let filtered = athletes;
+        if (tournId && tournId !== 'all') {
+            filtered = filtered.filter(a => 
+                (Array.isArray(a.registeredTournaments) && a.registeredTournaments.includes(tournId)) ||
+                a.tournId === tournId ||
+                !a.registeredTournaments ||
+                a.registeredTournaments.length === 0 ||
+                a.dojangId === 'ind-competitor' ||
+                a.dojangName === 'Individual Competitor' ||
+                a.isIndividual
+            );
+        }
+        if (q) {
+            filtered = filtered.filter(a => 
+                (a.name && a.name.toLowerCase().includes(q)) ||
+                (a.athleteId && a.athleteId.toLowerCase().includes(q)) ||
+                (a.id && a.id.toLowerCase().includes(q)) ||
+                (a.phone && a.phone.includes(q))
+            );
+        }
+        return sendJson(res, 200, { success: true, count: filtered.length, athletes: filtered });
+    }
+
+    // 9. POST /api/athletes
+    if (method === 'POST' && pathname === '/api/athletes') {
+        try {
+            const body = await parseJsonBody(req);
+            if (!body || !body.name) {
+                return sendJson(res, 400, { success: false, error: 'Athlete name is required.' });
+            }
+            const athletes = getAthletesServer();
+            const athId = body.id || ('ath-' + Date.now().toString(36));
+            const athIdx = athletes.findIndex(a => 
+                (body.id && a.id === body.id) ||
+                (body.athleteId && a.athleteId === body.athleteId) ||
+                ((a.name || '').trim().toLowerCase() === (body.name || '').trim().toLowerCase() && body.phone && a.phone && a.phone.includes(body.phone))
+            );
+            const savedAth = {
+                id: athId,
+                athleteId: body.athleteId || ('ATH-' + Math.floor(100000 + Math.random() * 900000)),
+                status: 'Pending',
+                paymentStatus: 'Pending',
+                feeStatus: 'Pending',
+                dojangName: 'Individual Competitor',
+                dojangId: 'ind-competitor',
+                dojangCode: 'IND',
+                tournId: body.tournId || 'tourn-state-2026',
+                registeredTournaments: [body.tournId || 'tourn-state-2026'],
+                createdAt: new Date().toISOString(),
+                ...(athIdx >= 0 ? athletes[athIdx] : {}),
+                ...body,
+                updatedAt: new Date().toISOString()
+            };
+            if (athIdx >= 0) {
+                athletes[athIdx] = savedAth;
+            } else {
+                athletes.unshift(savedAth);
+            }
+            saveAthletesServer(athletes);
+            return sendJson(res, 201, { success: true, athlete: savedAth });
+        } catch (err) {
+            return sendJson(res, 500, { success: false, error: 'Failed to save athlete.' });
+        }
+    }
+
+    // 10. PATCH /api/athletes/:id
+    const athPatchMatch = pathname.match(/^\/api\/athletes\/([^\/]+)$/);
+    if ((method === 'PATCH' || method === 'PUT') && athPatchMatch) {
+        try {
+            const targetId = athPatchMatch[1];
+            const body = await parseJsonBody(req);
+            const athletes = getAthletesServer();
+            const idx = athletes.findIndex(a => a.id === targetId || a.athleteId === targetId);
+            if (idx === -1) {
+                return sendJson(res, 404, { success: false, error: 'Athlete not found.' });
+            }
+            athletes[idx] = {
+                ...athletes[idx],
+                ...body,
+                updatedAt: new Date().toISOString()
+            };
+            saveAthletesServer(athletes);
+            return sendJson(res, 200, { success: true, athlete: athletes[idx] });
+        } catch (err) {
+            return sendJson(res, 500, { success: false, error: 'Failed to update athlete.' });
         }
     }
 
@@ -527,7 +769,7 @@ function render404Html(requestPath) {
             </a>
         </div>
         <div class="footer-brand">
-            Kyorix Sport Technology Private Limited
+            Kyorix Sports Technology Private Limited
         </div>
     </div>
 </body>
@@ -552,6 +794,11 @@ function render404Html(requestPath) {
     fs.stat(filePath, (err, stats) => {
         let actualFilePath = filePath;
         if (!err && stats.isDirectory()) {
+            if (!pathname.endsWith('/')) {
+                res.writeHead(301, { Location: pathname + '/' + (parsedUrl.search || '') });
+                res.end();
+                return;
+            }
             const dirIndex = path.join(filePath, 'index.html');
             if (fs.existsSync(dirIndex)) {
                 actualFilePath = dirIndex;

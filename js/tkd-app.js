@@ -110,6 +110,22 @@
             if (!localStorage.getItem('tkd_draws'))       localStorage.setItem('tkd_draws',       JSON.stringify(SEED_DRAWS));
             if (!localStorage.getItem('tkd_results'))     localStorage.setItem('tkd_results',     JSON.stringify(SEED_RESULTS));
             if (!localStorage.getItem('tkd_fee_notifs'))  localStorage.setItem('tkd_fee_notifs',  JSON.stringify(SEED_FEE_NOTIFICATIONS));
+
+            // Normalize any legacy ind-1 competitor dojangIds to canonical ind-competitor
+            try {
+                const rawA = localStorage.getItem('tkd_athletes');
+                if (rawA) {
+                    const parsed = JSON.parse(rawA);
+                    let changed = false;
+                    parsed.forEach(a => {
+                        if (a && a.dojangId === 'ind-1') {
+                            a.dojangId = 'ind-competitor';
+                            changed = true;
+                        }
+                    });
+                    if (changed) localStorage.setItem('tkd_athletes', JSON.stringify(parsed));
+                }
+            } catch (e) {}
         }
 
         resetAllData() {
@@ -314,10 +330,20 @@
             const all = this.getAthletes();
             if (!tournId || tournId === 'all') return all;
             return all.filter(a => {
+                if (a.dojangId === 'ind-competitor' || a.isIndividual || a.dojangName === 'Individual Competitor') {
+                    if (Array.isArray(a.registeredTournaments) && a.registeredTournaments.length > 0) {
+                        return a.registeredTournaments.includes(tournId) || a.registeredTournaments.includes('tourn-state-2026') || a.tournId === tournId || a.tournId === 'tourn-state-2026';
+                    }
+                    return true;
+                }
                 if (Array.isArray(a.registeredTournaments) && a.registeredTournaments.length > 0) {
                     return a.registeredTournaments.includes(tournId);
                 }
                 if (a.tournId) return a.tournId === tournId;
+                // If athlete is unattached or has no specific tournament restricted, include in active tournament
+                if (!a.registeredTournaments || a.registeredTournaments.length === 0) {
+                    return true;
+                }
                 return false;
             });
         }
@@ -426,28 +452,47 @@
         addAthlete(aData) {
             const list = this.getAthletes();
             const inputName = (aData.name || '').trim().toLowerCase();
-            const tournId = (aData.registeredTournaments && aData.registeredTournaments[0]) || this.getSelectedTournamentId() || 'tourn-state-2026';
+            const tournId = (aData.registeredTournaments && aData.registeredTournaments[0]) || aData.tournId || this.getSelectedTournamentId() || 'tourn-state-2026';
             
-            // If athlete with same name already exists in this tournament/club, update it to prevent duplicates
-            const existingIdx = list.findIndex(a => (a.name || '').trim().toLowerCase() === inputName && 
-                ((a.registeredTournaments || []).includes(tournId) || a.dojangId === aData.dojangId));
+            // If athlete with same id or name already exists in this tournament/club, update it to prevent duplicates
+            const existingIdx = list.findIndex(a => {
+                if (!a) return false;
+                if (aData.id && (a.id === aData.id || a.athleteId === aData.id)) return true;
+                if (aData.athleteId && (a.athleteId === aData.athleteId || a.id === aData.athleteId)) return true;
+                const matchName = inputName && (a.name || '').trim().toLowerCase() === inputName;
+                if (matchName && aData.phone && a.phone && a.phone.includes(aData.phone.slice(-8))) return true;
+                return false;
+            });
+
             if (existingIdx !== -1) {
-                list[existingIdx] = { ...list[existingIdx], ...aData };
+                list[existingIdx] = { 
+                    ...list[existingIdx], 
+                    ...aData,
+                    tournId: aData.tournId || list[existingIdx].tournId || tournId,
+                    registeredTournaments: aData.registeredTournaments || list[existingIdx].registeredTournaments || [tournId]
+                };
                 localStorage.setItem('tkd_athletes', JSON.stringify(list));
                 this.notify();
+                try {
+                    fetch(`/api/athletes/${list[existingIdx].id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(list[existingIdx])
+                    }).catch(() => {});
+                } catch (e) {}
                 return list[existingIdx];
             }
 
             const newA = {
-                id: 'ath-' + Date.now().toString(36),
+                id: aData.id || ('ath-' + Date.now().toString(36)),
                 athleteId: aData.athleteId || ('ATH-' + Math.floor(100000 + Math.random() * 900000)),
                 discipline: aData.discipline || 'Kyorugi',
                 competitionFormat: aData.competitionFormat || 'Official',
                 group4Category: aData.group4Category || null,
-                status: 'Pending',
-                paymentStatus: 'Pending',
-                feeStatus: 'Pending',
-                avatar: '',
+                status: aData.status || 'Pending',
+                paymentStatus: aData.paymentStatus || 'Pending',
+                feeStatus: aData.feeStatus || 'Pending',
+                avatar: aData.avatar || '',
                 photo: aData.photo || '',
                 aadharDoc: aData.aadharDoc || '',
                 birthCertDoc: aData.birthCertDoc || '',
@@ -455,13 +500,24 @@
                 docVerifiedBy: aData.docVerifiedBy || '',
                 docVerifiedAt: aData.docVerifiedAt || '',
                 docNotes: aData.docNotes || '',
-                registeredTournaments: aData.registeredTournaments || (this.getSelectedTournamentId() ? [this.getSelectedTournamentId()] : ['tourn-state-2026']),
+                dojangName: aData.dojangName || 'Individual Competitor',
+                dojangId: aData.dojangId || 'ind-competitor',
+                dojangCode: aData.dojangCode || 'IND',
+                tournId: tournId,
+                registeredTournaments: aData.registeredTournaments || [tournId],
                 stats: { matches: 0, wins: 0, ko: 0, ranking: 'Competitor' },
                 ...aData
             };
             list.push(newA);
             localStorage.setItem('tkd_athletes', JSON.stringify(list));
             this.notify();
+            try {
+                fetch('/api/athletes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newA)
+                }).catch(() => {});
+            } catch (e) {}
             return newA;
         }
 
@@ -475,6 +531,13 @@
                 if (typeof window.syncTournamentAthletesToDraws === 'function') {
                     try { window.syncTournamentAthletesToDraws(false); } catch (e) {}
                 }
+                try {
+                    fetch(`/api/athletes/${list[idx].id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    }).catch(() => {});
+                } catch (e) {}
             }
         }
 
@@ -574,16 +637,6 @@
                 matchedAthlete = athletes.find(a => a.phone && a.phone.toString().includes(mobile));
             }
 
-            if (matchedAthlete) {
-                this.updateAthlete(matchedAthlete.id, {
-                    paymentStatus: 'Paid',
-                    feeStatus: 'Paid',
-                    paidDate: payment.approvedAt.split('T')[0],
-                    txnId: generatedTxnId,
-                    utr: payment.utr
-                });
-            }
-
             const dojangs = this.getDojangs();
             let matchedDojang = null;
             if (entityId && entityType === 'dojang') {
@@ -594,6 +647,57 @@
                     const dName = (d.name || '').toLowerCase();
                     const cName = (d.coachName || '').toLowerCase();
                     return (dName && userNameLower.includes(dName)) || (cName && userNameLower.includes(cName));
+                });
+            }
+
+            if (matchedAthlete) {
+                const selTournId = this.getSelectedTournamentId();
+                const targetTournId = payment.tournamentId || matchedAthlete.tournId || selTournId || 'tourn-state-2026';
+                const curRegs = Array.isArray(matchedAthlete.registeredTournaments) && matchedAthlete.registeredTournaments.length > 0
+                    ? matchedAthlete.registeredTournaments
+                    : [targetTournId];
+                const regTourns = Array.from(new Set([...curRegs, targetTournId, selTournId, 'tourn-state-2026'].filter(Boolean)));
+                this.updateAthlete(matchedAthlete.id, {
+                    paymentStatus: 'Paid',
+                    feeStatus: 'Paid',
+                    paidDate: (payment.approvedAt || new Date().toISOString()).split('T')[0],
+                    txnId: generatedTxnId,
+                    utr: payment.utr,
+                    tournId: targetTournId,
+                    registeredTournaments: regTourns
+                });
+            } else if (entityType === 'athlete' || (!matchedDojang && !entityType)) {
+                // Auto-create/restore individual athlete so they immediately appear in the athletes roster!
+                const selTournId = this.getSelectedTournamentId();
+                const targetTournId = payment.tournamentId || selTournId || 'tourn-state-2026';
+                const athData = payment.athleteData || {};
+                matchedAthlete = this.addAthlete({
+                    id: entityId || athData.id || ('ath-' + Date.now().toString(36)),
+                    athleteId: payment.athleteId || athData.athleteId || ('ATH-' + Math.floor(100000 + Math.random() * 900000)),
+                    name: payment.userName || athData.name || 'Competitor',
+                    phone: mobile || athData.phone || '',
+                    email: payment.email || athData.email || '',
+                    dojangName: athData.dojangName || 'Individual Competitor',
+                    dojangId: athData.dojangId || 'ind-competitor',
+                    dojangCode: 'IND',
+                    category: athData.category || 'Junior (15–17 yrs)',
+                    weightClass: athData.weightClass || 'Junior Male U-55 kg',
+                    weight: athData.weight || 54.0,
+                    beltId: athData.beltId || 'white',
+                    beltName: athData.beltName || 'White Belt',
+                    gender: athData.gender || 'Male',
+                    photo: athData.photo || '',
+                    aadharDoc: athData.aadharDoc || '',
+                    birthCertDoc: athData.birthCertDoc || '',
+                    docStatus: athData.docStatus || 'Pending',
+                    status: 'Passed',
+                    paymentStatus: 'Paid',
+                    feeStatus: 'Paid',
+                    paidDate: (payment.approvedAt || new Date().toISOString()).split('T')[0],
+                    txnId: generatedTxnId,
+                    utr: payment.utr,
+                    tournId: targetTournId,
+                    registeredTournaments: Array.from(new Set([targetTournId, selTournId, 'tourn-state-2026'].filter(Boolean)))
                 });
             }
 
@@ -628,6 +732,50 @@
             this.notify();
         }
 
+        async syncAthletesWithServer() {
+            try {
+                const res = await fetch('/api/athletes');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && Array.isArray(data.athletes) && data.athletes.length > 0) {
+                        const localList = this.getAthletes();
+                        const merged = [...localList];
+
+                        data.athletes.forEach(srvAth => {
+                            if (!srvAth) return;
+                            const srvId = (srvAth.id || '').toString().trim();
+                            const srvAthId = (srvAth.athleteId || '').toString().trim();
+                            const srvName = (srvAth.name || '').trim().toLowerCase();
+                            const srvPhone = (srvAth.phone || '').replace(/\D/g, '').slice(-10);
+
+                            const existingIdx = merged.findIndex(a => {
+                                if (!a) return false;
+                                const aId = (a.id || '').toString().trim();
+                                const aAthId = (a.athleteId || '').toString().trim();
+                                if (srvId && (aId === srvId || aAthId === srvId)) return true;
+                                if (srvAthId && (aId === srvAthId || aAthId === srvAthId)) return true;
+                                const aName = (a.name || '').trim().toLowerCase();
+                                const aPhone = (a.phone || '').replace(/\D/g, '').slice(-10);
+                                if (srvName && aName === srvName && srvPhone && aPhone && srvPhone === aPhone) return true;
+                                return false;
+                            });
+
+                            if (existingIdx !== -1) {
+                                merged[existingIdx] = { ...merged[existingIdx], ...srvAth };
+                            } else {
+                                merged.push(srvAth);
+                            }
+                        });
+
+                        localStorage.setItem('tkd_athletes', JSON.stringify(merged));
+                        this.notify();
+                        return merged;
+                    }
+                }
+            } catch (e) {}
+            return this.getAthletes();
+        }
+
         async syncWithServerPayments() {
             try {
                 const res = await fetch('/api/payments/user-history');
@@ -655,6 +803,69 @@
                 // local fallback
             }
             return this.getUpiPayments();
+        }
+
+        async syncWithServer() {
+            try {
+                await Promise.allSettled([
+                    this.syncAthletesWithServer(),
+                    this.syncWithServerPayments()
+                ]);
+
+                // Ensure any athlete mentioned in payments is present in athlete roster
+                const payments = this.getUpiPayments();
+                const athletes = this.getAthletes();
+                let addedAny = false;
+                payments.forEach(p => {
+                    if (!p || p.status === 'Rejected') return;
+                    const pName = (p.userName || '').trim().toLowerCase();
+                    const pMob = (p.mobile || '').trim();
+                    const pId = p.entityId || p.athleteId;
+                    const exists = athletes.find(a => 
+                        (pId && (a.id === pId || a.athleteId === pId)) ||
+                        (pName && (a.name || '').trim().toLowerCase() === pName) ||
+                        (pMob && a.phone && a.phone.includes(pMob.slice(-8)))
+                    );
+                    if (!exists && (p.entityType === 'athlete' || (!p.dojangId && p.amount <= 3000))) {
+                        const selTournId = this.getSelectedTournamentId();
+                        const tournId = p.tournamentId || selTournId || 'tourn-state-2026';
+                        const athData = p.athleteData || {};
+                        const newAth = {
+                            id: pId || athData.id || ('ath-' + Date.now().toString(36)),
+                            athleteId: p.athleteId || athData.athleteId || ('ATH-' + Math.floor(100000 + Math.random() * 900000)),
+                            name: p.userName || athData.name || 'Competitor',
+                            phone: p.mobile || athData.phone || '',
+                            email: p.email || athData.email || '',
+                            dojangName: athData.dojangName || 'Individual Competitor',
+                            dojangId: athData.dojangId || 'ind-competitor',
+                            dojangCode: 'IND',
+                            category: athData.category || 'Junior (15–17 yrs)',
+                            weightClass: athData.weightClass || 'Junior Male U-55 kg',
+                            weight: athData.weight || 54.0,
+                            beltId: athData.beltId || 'white',
+                            beltName: athData.beltName || 'White Belt',
+                            gender: athData.gender || 'Male',
+                            photo: athData.photo || '',
+                            aadharDoc: athData.aadharDoc || '',
+                            birthCertDoc: athData.birthCertDoc || '',
+                            docStatus: athData.docStatus || 'Pending',
+                            status: 'Passed',
+                            paymentStatus: p.status === 'Approved' ? 'Paid' : 'Pending',
+                            feeStatus: p.status === 'Approved' ? 'Paid' : 'Pending',
+                            txnId: p.status === 'Approved' ? (p.id || `TXN-${p.utr}`) : null,
+                            utr: p.utr,
+                            tournId: tournId,
+                            registeredTournaments: Array.from(new Set([tournId, selTournId, 'tourn-state-2026'].filter(Boolean)))
+                        };
+                        athletes.push(newAth);
+                        addedAny = true;
+                    }
+                });
+                if (addedAny) {
+                    localStorage.setItem('tkd_athletes', JSON.stringify(athletes));
+                    this.notify();
+                }
+            } catch (e) {}
         }
 
         getPaymentSettings() {
@@ -688,7 +899,7 @@
 
         resetToDefault() {
             localStorage.clear();
-            localStorage.setItem('tkd_data_version', 'v5');
+            localStorage.setItem('tkd_data_version', 'v12_zero_data_prod');
             localStorage.setItem('tkd_tournaments', JSON.stringify(SEED_TOURNAMENTS));
             localStorage.setItem('tkd_dojangs',     JSON.stringify(SEED_DOJANGS));
             localStorage.setItem('tkd_athletes',    JSON.stringify(SEED_ATHLETES));
@@ -1282,7 +1493,8 @@
                     ageCategory = a.group4Category || 'U-10';
                 } else if (a.category) {
                     const rawCat = a.category.toLowerCase();
-                    if (rawCat.includes('sub-junior') || rawCat.includes('under 12') || rawCat.includes('u-12') || rawCat.includes('u-10') || rawCat.includes('u-8')) ageCategory = 'Sub-Junior';
+                    if (rawCat.includes('dasara')) ageCategory = 'Dasara';
+                    else if (rawCat.includes('sub-junior') || rawCat.includes('under 12') || rawCat.includes('u-12') || rawCat.includes('u-10') || rawCat.includes('u-8')) ageCategory = 'Sub-Junior';
                     else if (rawCat.includes('cadet') || rawCat.includes('12-14') || rawCat.includes('12–14')) ageCategory = 'Cadet';
                     else if (rawCat.includes('junior') || rawCat.includes('15-17') || rawCat.includes('15–17')) ageCategory = 'Junior';
                     else if (rawCat.includes('senior') || rawCat.includes('18+') || rawCat.includes('adult')) ageCategory = 'Senior';
@@ -1292,18 +1504,28 @@
                 const isFem = (a.gender === 'Female' || a.gender === 'F' || (a.gender && a.gender.toLowerCase().includes('female')));
                 let weightClass = '';
 
-                // 1. Check weightClass string (e.g. -54 kg, -55 kg, +37 kg)
+                // 1. Check weightClass string (e.g. -54 kg, -55 kg, +37 kg, Under 56kg)
                 if (a.weightClass) {
                     const raw = a.weightClass.toString().trim();
-                    const kgMatch = raw.match(/([+-]?\s*\d+(?:\.\d+)?)\s*kg/i);
-                    if (kgMatch) {
-                        const num = parseFloat(kgMatch[1].replace(/[^0-9.]/g, ''));
-                        const isAge = (ageCategory === 'Senior' && num === 18) ||
-                                      (ageCategory === 'Junior' && (num === 15 || num === 17 || num === 18)) ||
-                                      ((ageCategory === 'Sub-Junior' || ageCategory === 'Cadet') && (num === 12 || num === 14));
-                        if (num && !isAge) {
-                            const isOver = kgMatch[1].includes('+') || /over/i.test(raw);
-                            weightClass = (isOver ? 'Over ' : 'U-') + Math.round(num) + ' kg';
+                    if (ageCategory === 'Dasara') {
+                        const m = raw.match(/(\d+)/);
+                        const isPlus = raw.includes('+') || /above|over/i.test(raw);
+                        if (m) {
+                            weightClass = (isPlus ? 'Above ' : 'Under ') + m[1] + 'kg';
+                        } else {
+                            weightClass = raw;
+                        }
+                    } else {
+                        const kgMatch = raw.match(/([+-]?\s*\d+(?:\.\d+)?)\s*kg/i);
+                        if (kgMatch) {
+                            const num = parseFloat(kgMatch[1].replace(/[^0-9.]/g, ''));
+                            const isAge = (ageCategory === 'Senior' && num === 18) ||
+                                          (ageCategory === 'Junior' && (num === 15 || num === 17 || num === 18)) ||
+                                          ((ageCategory === 'Sub-Junior' || ageCategory === 'Cadet') && (num === 12 || num === 14));
+                            if (num && !isAge) {
+                                const isOver = kgMatch[1].includes('+') || /over/i.test(raw);
+                                weightClass = (isOver ? 'Over ' : 'U-') + Math.round(num) + ' kg';
+                            }
                         }
                     }
                 }
@@ -1315,14 +1537,21 @@
                                    (ageCategory === 'Junior' && (nw === 15 || nw === 17 || nw === 18)) ||
                                    ((ageCategory === 'Sub-Junior' || ageCategory === 'Cadet') && (nw === 12 || nw === 14));
                     if (!isNaN(nw) && nw > 0 && !isAge2) {
-                        const isOver2 = a.weightClass && (a.weightClass.includes('+') || /over/i.test(a.weightClass));
-                        weightClass = (isOver2 ? 'Over ' : 'U-') + Math.round(nw) + ' kg';
+                        if (ageCategory === 'Dasara') {
+                            const isOver2 = a.weightClass && (a.weightClass.includes('+') || /above|over/i.test(a.weightClass));
+                            weightClass = (isOver2 ? 'Above ' : 'Under ') + Math.round(nw) + 'kg';
+                        } else {
+                            const isOver2 = a.weightClass && (a.weightClass.includes('+') || /over/i.test(a.weightClass));
+                            weightClass = (isOver2 ? 'Over ' : 'U-') + Math.round(nw) + ' kg';
+                        }
                     }
                 }
 
                 // 3. Fallbacks according to age & gender
                 if (!weightClass) {
-                    if (ageCategory === 'Senior') {
+                    if (ageCategory === 'Dasara') {
+                        weightClass = isFem ? 'Under 50kg' : 'Under 56kg';
+                    } else if (ageCategory === 'Senior') {
                         weightClass = isFem ? 'U-49 kg' : 'U-54 kg';
                     } else if (ageCategory === 'Junior') {
                         weightClass = isFem ? 'U-49 kg' : 'U-55 kg';
@@ -2055,7 +2284,7 @@
                 </div>
 
                 <div style="margin-top: 10px; text-align: center; font-size: 8.5px; color: #94A3B8;">
-                    Kyorix Sport Technology Private Limited • Official Weigh-In Scale Roster • Compete. Connect. Elevate.
+                    Kyorix Sports Technology Private Limited • Official Weigh-In Scale Roster • Compete. Connect. Elevate.
                 </div>
             </div>
         `;
@@ -2100,6 +2329,7 @@
                 else if (division === 'cadet') divMatch = catLower.includes('cadet') || (a.age && a.age >= 12 && a.age <= 14);
                 else if (division === 'junior') divMatch = catLower.includes('junior') || (a.age && a.age >= 15 && a.age <= 17);
                 else if (division === 'senior') divMatch = catLower.includes('senior') || (a.age && a.age >= 18);
+                else if (division === 'dasara') divMatch = catLower.includes('dasara');
                 else divMatch = catLower.includes(division);
                 if (!divMatch) return false;
 
@@ -2895,6 +3125,11 @@
             label: 'Senior (18+ yrs)',
             Male:   ['-54 kg', '-58 kg', '-63 kg', '-68 kg', '-74 kg', '-80 kg', '-87 kg', '+87 kg'],
             Female: ['-46 kg', '-49 kg', '-53 kg', '-57 kg', '-62 kg', '-67 kg', '-73 kg', '+73 kg']
+        },
+        'dasara': {
+            label: 'Dasara (Open/District)',
+            Male:   ['Under 45kg', 'Under 50kg', 'Under 56kg', 'Under 62kg', 'Under 69kg', 'Under 76kg', 'Under 82kg', 'Above 82kg'],
+            Female: ['Under 42kg', 'Under 46kg', 'Under 50kg', 'Under 55kg', 'Under 60kg', 'Under 65kg', 'Under 70kg', 'Above 70kg']
         }
     };
 
@@ -3542,6 +3777,7 @@
                                         <option value="cadet">Cadet (12–14 yrs)</option>
                                         <option value="junior" selected>Junior (15–17 yrs)</option>
                                         <option value="senior">Senior (18+ yrs)</option>
+                                        <option value="dasara">Dasara (Open/District)</option>
                                     </select>
                                 </div>
                                 <div>
@@ -3923,7 +4159,7 @@
                 aadharDoc: finalAadhar,
                 birthCertDoc: finalBirthCert,
                 docStatus: 'Pending',
-                dojangId: (currentUser && currentUser.role === 'dojang' && currentDojang) ? currentDojang.id : (loggedAth ? (loggedAth.dojangId || 'ind-1') : 'ind-1'),
+                dojangId: (currentUser && currentUser.role === 'dojang' && currentDojang) ? currentDojang.id : ((loggedAth && loggedAth.dojangId && loggedAth.dojangId !== 'ind-1') ? loggedAth.dojangId : 'ind-competitor'),
                 dojangName: (currentUser && currentUser.role === 'dojang' && currentDojang) ? currentDojang.name : (loggedAth ? (loggedAth.dojangName || 'Individual Competitor') : 'Individual Competitor'),
                 dojangCode: (currentUser && currentUser.role === 'dojang' && currentDojang) ? currentDojang.shortCode : (loggedAth ? (loggedAth.dojangCode || 'IND') : 'IND'),
                 registeredTournaments: [tournId]
@@ -4234,6 +4470,25 @@
                             </div>
                         </div>
 
+                        <!-- 6. Division & Weight Category -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="clean-input-label">Age Division *</label>
+                                <select class="clean-input" id="edit-ath-category">
+                                    <option value="sub-junior" ${((athlete.category || '').toLowerCase().includes('sub-junior') || (athlete.age && athlete.age < 12)) ? 'selected' : ''}>Sub-Junior (Under 12)</option>
+                                    <option value="cadet" ${((athlete.category || '').toLowerCase().includes('cadet') || (athlete.age && athlete.age >= 12 && athlete.age <= 14)) ? 'selected' : ''}>Cadet (12–14 yrs)</option>
+                                    <option value="junior" ${((athlete.category || '').toLowerCase().includes('junior') || (athlete.age && athlete.age >= 15 && athlete.age <= 17) || (!athlete.category && !athlete.age)) ? 'selected' : ''}>Junior (15–17 yrs)</option>
+                                    <option value="senior" ${((athlete.category || '').toLowerCase().includes('senior') || (athlete.age && athlete.age >= 18)) ? 'selected' : ''}>Senior (18+ yrs)</option>
+                                    <option value="dasara" ${(athlete.category || '').toLowerCase().includes('dasara') ? 'selected' : ''}>Dasara (Open/District)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="clean-input-label">Weight Category *</label>
+                                <select class="clean-input" id="edit-ath-weightclass">
+                                </select>
+                            </div>
+                        </div>
+
                         <div class="pt-2 flex items-center justify-end gap-2.5 border-t border-slate-100">
                             <button type="button" class="tkd-btn tkd-btn-outline font-bold text-xs" id="btn-cancel-edit-ath">Cancel</button>
                             <button type="submit" class="btn-register-proceed !py-2 !text-xs font-bold" id="btn-save-ath-changes">
@@ -4329,6 +4584,22 @@
             openDocLightbox(editBirthCertBase64, athlete.name + ' — Birth Certificate');
         });
 
+        const updateEditWeightDropdown = () => {
+            const cat = document.getElementById('edit-ath-category')?.value || 'junior';
+            const gen = document.getElementById('edit-ath-gender')?.value || athlete.gender || 'Male';
+            const wSelect = document.getElementById('edit-ath-weightclass');
+            if (wSelect) {
+                wSelect.innerHTML = getWeightOptions(cat, gen);
+                if (athlete.weightClass) {
+                    const matchOpt = Array.from(wSelect.options).find(o => o.value === athlete.weightClass || (athlete.weightClass && athlete.weightClass.includes(o.value)));
+                    if (matchOpt) matchOpt.selected = true;
+                }
+            }
+        };
+        updateEditWeightDropdown();
+        document.getElementById('edit-ath-category')?.addEventListener('change', updateEditWeightDropdown);
+        document.getElementById('edit-ath-gender')?.addEventListener('change', updateEditWeightDropdown);
+
         const closeEditModal = () => { mc.innerHTML = ''; };
         document.getElementById('btn-close-edit-ath-modal')?.addEventListener('click', closeEditModal);
         document.getElementById('btn-cancel-edit-ath')?.addEventListener('click', closeEditModal);
@@ -4351,6 +4622,9 @@
             const beltId = document.getElementById('edit-ath-belt').value;
             const discipline = document.getElementById('edit-ath-discipline').value;
             const weight = parseFloat(document.getElementById('edit-ath-weight').value) || 54.0;
+            const editCat = document.getElementById('edit-ath-category')?.value || 'junior';
+            const editWeightClass = document.getElementById('edit-ath-weightclass')?.value || athlete.weightClass || '-55 kg';
+            const catLabel = TKD_WEIGHT_CATEGORIES[editCat]?.label || athlete.category || 'Junior (15–17 yrs)';
 
             if (!validateStrictPhone(phone)) {
                 showToast('Please enter a valid 10-digit mobile number.', 'error');
@@ -4388,6 +4662,8 @@
                 gender,
                 discipline,
                 weight,
+                category: catLabel,
+                weightClass: editWeightClass,
                 photo: editPhotoBase64,
                 aadharDoc: editAadharBase64,
                 birthCertDoc: editBirthCertBase64
@@ -5555,15 +5831,18 @@
                         const belt = TKD_BELTS.find(b => b.id === beltId) || TKD_BELTS[0];
                         let age = 17;
                         if (year) age = 2026 - parseInt(year);
-                        const generatedAthId = 'ATH-' + Math.floor(100000 + Math.random() * 900000);
-
+                        const targetTournId = store.getSelectedTournamentId() || 'tourn-state-2026';
                         const newAth = store.addAthlete({
                             name, dob, age, gender, phone: `${cc} ${phone}`, email, weight,
                             beltId: belt.id, beltName: belt.name,
                             category: 'Junior (15–17 yrs)',
                             weightClass: `Junior ${gender} -55 kg`,
                             athleteId: generatedAthId,
-                            dojangName,
+                            dojangName: dojangName || 'Individual Competitor',
+                            dojangId: 'ind-competitor',
+                            dojangCode: 'IND',
+                            tournId: targetTournId,
+                            registeredTournaments: [targetTournId],
                             status: 'Pending',
                             paymentStatus: 'Pending',
                             feeStatus: 'Pending',
@@ -6220,6 +6499,15 @@
     // 4B. TOURNAMENT DIRECTOR & MASTER ADMIN PORTAL
     // ────────────────────────────────────────────────────────────────────────
     function renderAdminDashboard(container, activeSubTab = 'overview', user) {
+        if (!window._admSyncedTime || (Date.now() - window._admSyncedTime > 5000)) {
+            window._admSyncedTime = Date.now();
+            store.syncWithServer().then(() => {
+                if (['athletes', 'payments', 'fees', 'weighin', 'overview'].includes(activeSubTab)) {
+                    renderAdminDashboard(container, activeSubTab, user);
+                }
+            }).catch(() => {});
+        }
+
         const tournaments = store.getTournaments();
         const selectedTournId = store.getSelectedTournamentId();
         const activeTourn = store.getTournament(selectedTournId) || tournaments[0] || {};
@@ -6363,11 +6651,23 @@
         document.getElementById('btn-adm-tab-overview')?.addEventListener('click', () => renderAdminDashboard(container, 'overview', user));
         document.getElementById('btn-adm-tab-tournaments')?.addEventListener('click', () => renderAdminDashboard(container, 'tournaments', user));
         document.getElementById('btn-adm-tab-academies')?.addEventListener('click', () => renderAdminDashboard(container, 'academies', user));
-        document.getElementById('btn-adm-tab-athletes')?.addEventListener('click', () => renderAdminDashboard(container, 'athletes', user));
-        document.getElementById('btn-adm-tab-weighin')?.addEventListener('click', () => renderAdminDashboard(container, 'weighin', user));
-        document.getElementById('btn-adm-tab-fees')?.addEventListener('click', () => renderAdminDashboard(container, 'fees', user));
+        document.getElementById('btn-adm-tab-athletes')?.addEventListener('click', async () => {
+            await store.syncWithServer();
+            renderAdminDashboard(container, 'athletes', user);
+        });
+        document.getElementById('btn-adm-tab-weighin')?.addEventListener('click', async () => {
+            await store.syncWithServer();
+            renderAdminDashboard(container, 'weighin', user);
+        });
+        document.getElementById('btn-adm-tab-fees')?.addEventListener('click', async () => {
+            await store.syncWithServer();
+            renderAdminDashboard(container, 'fees', user);
+        });
         document.getElementById('btn-adm-tab-payment-settings')?.addEventListener('click', () => renderAdminDashboard(container, 'payment_settings', user));
-        document.getElementById('btn-adm-tab-payments')?.addEventListener('click', () => renderAdminDashboard(container, 'payments', user));
+        document.getElementById('btn-adm-tab-payments')?.addEventListener('click', async () => {
+            await store.syncWithServer();
+            renderAdminDashboard(container, 'payments', user);
+        });
         document.getElementById('btn-adm-tab-security')?.addEventListener('click', () => renderAdminDashboard(container, 'security', user));
 
         // Fetch and display pending verification count in tab pill
@@ -7175,6 +7475,10 @@
                             const p = store.getUpiPayments().find(x => x.id === id || x.utr === utr);
                             if (p) store.applyPaymentApproval(p);
                         }
+                        if (data && data.athlete) {
+                            store.addAthlete(data.athlete);
+                        }
+                        await store.syncAthletesWithServer();
                         showToast(`Payment UTR ${utr} successfully approved & settled!`, 'success');
                     } else {
                         // Local fallback
@@ -7183,6 +7487,7 @@
                         if (p) {
                             store.applyPaymentApproval(p);
                         }
+                        await store.syncAthletesWithServer();
                         showToast(`Payment UTR ${utr} approved!`, 'success');
                     }
                 } catch (err) {
@@ -7193,6 +7498,7 @@
                     }
                     showToast('Approval recorded locally.', 'success');
                 }
+                store.notify();
                 loadAdminPaymentsData();
             };
         });
@@ -7490,6 +7796,11 @@
                     submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> Submitting Proof...';
                 }
 
+                const targetAth = (options.type === 'athlete' && options.id)
+                    ? store.getAthlete(options.id)
+                    : (store.getCurrentUser()?.role === 'athlete' ? store.getAthlete(store.getCurrentUser().athleteId) : null);
+                const targetTournId = options.tournamentId || (targetAth && targetAth.tournId) || store.getSelectedTournamentId() || 'tourn-state-2026';
+
                 const payload = {
                     utr: utrVal,
                     userName: pName,
@@ -7497,10 +7808,43 @@
                     email: pEmail,
                     purpose: pPurpose,
                     amount: amount,
-                    entityId: options.id || null,
+                    entityId: options.id || (targetAth ? targetAth.id : null),
                     entityType: options.type || 'athlete',
-                    athleteId: options.type === 'athlete' ? options.id : null
+                    athleteId: options.type === 'athlete' ? (options.id || (targetAth ? targetAth.athleteId : null)) : null,
+                    tournamentId: targetTournId,
+                    athleteData: targetAth ? {
+                        id: targetAth.id,
+                        athleteId: targetAth.athleteId,
+                        name: targetAth.name,
+                        phone: targetAth.phone,
+                        email: targetAth.email,
+                        dojangName: targetAth.dojangName || 'Individual Competitor',
+                        dojangId: targetAth.dojangId || 'ind-competitor',
+                        dojangCode: targetAth.dojangCode || 'IND',
+                        beltId: targetAth.beltId,
+                        category: targetAth.category,
+                        weight: targetAth.weight,
+                        weightClass: targetAth.weightClass,
+                        photo: targetAth.photo,
+                        aadharDoc: targetAth.aadharDoc,
+                        birthCertDoc: targetAth.birthCertDoc,
+                        docStatus: targetAth.docStatus,
+                        status: targetAth.status,
+                        tournId: targetTournId,
+                        registeredTournaments: targetAth.registeredTournaments || [targetTournId]
+                    } : null
                 };
+
+                if (targetAth) {
+                    store.updateAthlete(targetAth.id, {
+                        utr: utrVal,
+                        lastSubmittedUtr: utrVal,
+                        paymentStatus: 'Pending',
+                        feeStatus: 'Pending',
+                        tournId: targetTournId,
+                        registeredTournaments: targetAth.registeredTournaments || [targetTournId]
+                    });
+                }
 
                 let paymentRecord = null;
                 try {
@@ -7512,6 +7856,9 @@
                     const data = await res.json();
                     if (res.ok && data.success) {
                         paymentRecord = data.payment;
+                        if (data.athlete) {
+                            store.addAthlete(data.athlete);
+                        }
                         showToast(data.message || 'Payment submitted for fee approval!', 'success');
                     } else {
                         showToast(data.error || 'Submission recorded. Waiting for fee approval.', 'info');
@@ -7996,7 +8343,7 @@
                     const weighStatus = r.getAttribute('data-weighin-status') || '';
 
                     const matchesQuery = !query || name.includes(query) || id.includes(query);
-                    const matchesDojang = selDojang === 'all' || dId === selDojang;
+                    const matchesDojang = selDojang === 'all' || dId === selDojang || (selDojang === 'ind-competitor' && (dId === 'ind-competitor' || dId === 'ind-1' || !dId));
                     const matchesDisc = selDisc === 'all' || disc === selDisc || disc === 'Both';
                     const matchesFormat = selFormat === 'all' || fmt === selFormat;
                     const matchesWeigh = selWeigh === 'all' || 
@@ -8082,7 +8429,8 @@
                     </div>
                     <div class="sm:col-span-3">
                         <select id="filter-ath-dojang" class="tkd-select text-xs font-semibold py-2 border-slate-300 w-full">
-                            <option value="all">All Academies (${dojangs.length})</option>
+                            <option value="all">All Academies &amp; Individuals</option>
+                            <option value="ind-competitor">⭐ Individual Competitors (Unattached)</option>
                             ${dojangs.map(d => `<option value="${d.id}">${d.name} (${d.shortCode})</option>`).join('')}
                         </select>
                     </div>
@@ -8134,7 +8482,7 @@
                         <tbody>
                             ${athletes.length === 0 ? `
                                 <tr>
-                                    <td colspan="7" class="text-center py-10 text-slate-500 font-medium">
+                                    <td colspan="8" class="text-center py-10 text-slate-500 font-medium">
                                         <i class="fa-solid fa-user-ninja text-3xl mb-2 text-slate-300 block"></i>
                                         No athletes registered yet for this championship event.
                                     </td>
@@ -8143,9 +8491,10 @@
                                 const weighStatus = a.weighInStatus || a.status || 'Pending';
                                 const measuredWeight = a.measuredWeight || a.weight;
                                 const isPaid = a.paymentStatus === 'Paid' || a.feeStatus === 'Paid';
+                                const isPendingFeeApproval = !isPaid && (a.paymentStatus === 'Pending Approval' || a.feeStatus === 'Pending Approval' || a.utr);
 
                                 return `
-                                    <tr class="tr-ath-roster-row hover:bg-slate-50 transition" data-name="${a.name}" data-id="${a.kukkiwonNo || a.athleteId || a.id}" data-dojang-id="${a.dojangId || ''}" data-discipline="${a.discipline || 'Kyorugi'}" data-format="${a.competitionFormat || 'Official'}" data-weighin-status="${weighStatus}">
+                                    <tr class="tr-ath-roster-row hover:bg-slate-50 transition" data-name="${a.name}" data-id="${a.kukkiwonNo || a.athleteId || a.id}" data-dojang-id="${a.dojangId || ((a.dojangName === 'Individual Competitor' || a.isIndividual) ? 'ind-competitor' : '')}" data-discipline="${a.discipline || 'Kyorugi'}" data-format="${a.competitionFormat || 'Official'}" data-weighin-status="${weighStatus}">
                                         <td>
                                             <div class="flex items-center gap-2.5">
                                                 <div class="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center font-bold text-xs">
@@ -8158,8 +8507,15 @@
                                             </div>
                                         </td>
                                         <td>
-                                            <div class="text-xs text-slate-800 font-semibold">${a.dojangName || 'Affiliated Academy'}</div>
-                                            <div class="text-[10px] text-slate-500 font-mono">${a.dojangCode || 'TKD'}</div>
+                                            ${(a.dojangId === 'ind-competitor' || a.isIndividual || a.dojangName === 'Individual Competitor') ? `
+                                                <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-200 text-[11px] font-bold">
+                                                    <i class="fa-solid fa-user text-[10px] text-amber-600"></i> Individual (Unattached)
+                                                </div>
+                                                <div class="text-[10px] text-slate-500 font-mono mt-0.5">${a.state || a.city || 'Direct Entry'}</div>
+                                            ` : `
+                                                <div class="text-xs text-slate-800 font-semibold">${a.dojangName || 'Affiliated Academy'}</div>
+                                                <div class="text-[10px] text-slate-500 font-mono">${a.dojangCode || 'TKD'}</div>
+                                            `}
                                         </td>
                                         <td>${getBeltBadge(a.beltId)}</td>
                                         <td>
@@ -8176,9 +8532,21 @@
                                             ${getWeighInStatusBadge(weighStatus, measuredWeight)}
                                         </td>
                                         <td>
-                                            <span class="tkd-badge ${isPaid ? 'tkd-badge-green' : 'tkd-badge-red'} text-[10px] font-bold">
-                                                <i class="fa-solid ${isPaid ? 'fa-circle-check' : 'fa-clock'} me-1"></i>${isPaid ? 'Paid' : 'Unpaid'}
-                                            </span>
+                                            ${isPaid ? `
+                                                <span class="tkd-badge tkd-badge-green text-[10px] font-bold">
+                                                    <i class="fa-solid fa-circle-check me-1"></i>Paid
+                                                </span>
+                                                ${a.utr ? `<div class="text-[9px] text-slate-500 font-mono mt-0.5">UTR: ${a.utr}</div>` : ''}
+                                            ` : isPendingFeeApproval ? `
+                                                <span class="tkd-badge tkd-badge-amber text-[10px] font-bold">
+                                                    <i class="fa-solid fa-hourglass-half me-1 text-amber-600"></i>Approval Pending
+                                                </span>
+                                                ${a.utr ? `<div class="text-[9px] text-amber-700 font-mono mt-0.5 font-bold">UTR: ${a.utr}</div>` : ''}
+                                            ` : `
+                                                <span class="tkd-badge tkd-badge-red text-[10px] font-bold">
+                                                    <i class="fa-solid fa-clock me-1"></i>Unpaid
+                                                </span>
+                                            `}
                                         </td>
                                         <td>
                                             <div class="space-y-1">
@@ -8845,7 +9213,7 @@
                 </div>
 
                 <div style="margin-top: 16px; text-align: center; font-size: 9px; color: #94A3B8;">
-                    Kyorix Sport Technology Private Limited • Compete. Connect. Elevate. • System Generated Tax Invoice
+                    Kyorix Sports Technology Private Limited • Compete. Connect. Elevate. • System Generated Tax Invoice
                 </div>
             </div>
         `;
@@ -9368,7 +9736,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                ${dojangs.length === 0 ? `
+                                ${dojangs.length === 0 && athletes.filter(a => a.dojangId === 'ind-competitor' || a.isIndividual || a.dojangName === 'Individual Competitor').length === 0 ? `
                                     <tr>
                                         <td colspan="8" class="text-center py-10 text-slate-500 font-medium">
                                             <i class="fa-solid fa-receipt text-3xl mb-2 text-slate-300 block"></i>
@@ -9426,6 +9794,46 @@
                                         </tr>
                                     `;
                                 }).join('')}
+                                ${(() => {
+                                    const indAthletes = athletes.filter(a => a.dojangId === 'ind-competitor' || a.isIndividual || a.dojangName === 'Individual Competitor');
+                                    if (indAthletes.length === 0) return '';
+                                    const indPaid = indAthletes.filter(a => a.paymentStatus === 'Paid' || a.feeStatus === 'Paid').length * feePerAthlete;
+                                    const indTotal = indAthletes.length * feePerAthlete;
+                                    const indBalance = indTotal - indPaid;
+                                    const isPaidInFull = indTotal > 0 && indBalance === 0;
+
+                                    return `
+                                        <tr class="bg-amber-50/40 border-t-2 border-amber-200">
+                                            <td>
+                                                <div>
+                                                    <strong class="text-slate-900 text-xs font-bold flex items-center gap-1.5">
+                                                        <i class="fa-solid fa-user text-amber-600 text-xs"></i> Direct Individual Competitors
+                                                    </strong>
+                                                    <div class="text-[10px] text-amber-700 font-mono font-bold">Unattached / Independent Entries</div>
+                                                </div>
+                                            </td>
+                                            <td class="text-xs text-slate-700 font-medium italic">Direct Registration</td>
+                                            <td class="text-xs font-mono font-bold text-slate-900">${indAthletes.length}</td>
+                                            <td class="text-xs font-mono font-bold text-slate-900">₹${indTotal.toLocaleString('en-IN')}</td>
+                                            <td class="text-xs font-mono font-bold text-emerald-700">₹${indPaid.toLocaleString('en-IN')}</td>
+                                            <td class="text-xs font-mono font-bold ${indBalance > 0 ? 'text-red-600' : 'text-slate-600'}">
+                                                ₹${indBalance.toLocaleString('en-IN')}
+                                            </td>
+                                            <td>
+                                                ${isPaidInFull ? `
+                                                    <span class="tkd-badge tkd-badge-green text-[10px] font-bold">Paid in Full</span>
+                                                ` : indBalance > 0 && indPaid > 0 ? `
+                                                    <span class="tkd-badge tkd-badge-amber text-[10px] font-bold">Partial Paid</span>
+                                                ` : `
+                                                    <span class="tkd-badge tkd-badge-red text-[10px] font-bold">Unpaid</span>
+                                                `}
+                                            </td>
+                                            <td>
+                                                <span class="text-slate-500 text-[11px] font-semibold">Managed in Fee Approvals</span>
+                                            </td>
+                                        </tr>
+                                    `;
+                                })()}
                             </tbody>
                         </table>
                     </div>
@@ -9826,6 +10234,15 @@
     // 4B-2. TOURNAMENT ORGANIZING COMMITTEE PORTAL
     // ────────────────────────────────────────────────────────────────────────
     function renderOrganizerDashboard(container, activeSubTab = 'overview', user) {
+        if (!window._orgSyncedTime || (Date.now() - window._orgSyncedTime > 5000)) {
+            window._orgSyncedTime = Date.now();
+            store.syncWithServer().then(() => {
+                if (['athletes', 'fee_approvals', 'fees', 'weighin', 'overview'].includes(activeSubTab)) {
+                    renderOrganizerDashboard(container, activeSubTab, user);
+                }
+            }).catch(() => {});
+        }
+
         const tournaments = store.getTournaments();
         const selectedTournId = store.getSelectedTournamentId();
         const activeTourn = store.getTournament(selectedTournId) || tournaments[0] || {};
@@ -9974,11 +10391,23 @@
         document.getElementById('btn-org-tab-overview')?.addEventListener('click', () => renderOrganizerDashboard(container, 'overview', currentUser));
         document.getElementById('btn-org-tab-tournaments')?.addEventListener('click', () => renderOrganizerDashboard(container, 'tournaments', currentUser));
         document.getElementById('btn-org-tab-academies')?.addEventListener('click', () => renderOrganizerDashboard(container, 'academies', currentUser));
-        document.getElementById('btn-org-tab-athletes')?.addEventListener('click', () => renderOrganizerDashboard(container, 'athletes', currentUser));
-        document.getElementById('btn-org-tab-weighin')?.addEventListener('click', () => renderOrganizerDashboard(container, 'weighin', currentUser));
-        document.getElementById('btn-org-tab-fees')?.addEventListener('click', () => renderOrganizerDashboard(container, 'fees', currentUser));
+        document.getElementById('btn-org-tab-athletes')?.addEventListener('click', async () => {
+            await store.syncWithServer();
+            renderOrganizerDashboard(container, 'athletes', currentUser);
+        });
+        document.getElementById('btn-org-tab-weighin')?.addEventListener('click', async () => {
+            await store.syncWithServer();
+            renderOrganizerDashboard(container, 'weighin', currentUser);
+        });
+        document.getElementById('btn-org-tab-fees')?.addEventListener('click', async () => {
+            await store.syncWithServer();
+            renderOrganizerDashboard(container, 'fees', currentUser);
+        });
         document.getElementById('btn-org-tab-payment-settings')?.addEventListener('click', () => renderOrganizerDashboard(container, 'payment_settings', currentUser));
-        document.getElementById('btn-org-tab-fee-approvals')?.addEventListener('click', () => renderOrganizerDashboard(container, 'fee_approvals', currentUser));
+        document.getElementById('btn-org-tab-fee-approvals')?.addEventListener('click', async () => {
+            await store.syncWithServer();
+            renderOrganizerDashboard(container, 'fee_approvals', currentUser);
+        });
 
         // Fetch pending count for organizer pill
         fetch('/api/admin/payments?status=Pending')
@@ -11813,7 +12242,7 @@
                 </div>
 
                 <div style="margin-top: 16px; text-align: center; font-size: 9px; color: #94A3B8;">
-                    Kyorix Sport Technology Private Limited • Compete. Connect. Elevate. • System Generated Individual Tax Invoice
+                    Kyorix Sports Technology Private Limited • Compete. Connect. Elevate. • System Generated Individual Tax Invoice
                 </div>
             </div>
         `;
@@ -12660,7 +13089,7 @@
                                     </div>
                                     <div>
                                         <div class="text-[10px] uppercase font-bold text-slate-400">Corporate Office</div>
-                                        <div class="text-xs font-semibold text-white">Kyorix Sport Technology Pvt. Ltd.</div>
+                                        <div class="text-xs font-semibold text-white">Kyorix Sports Technology Pvt. Ltd.</div>
                                         <div class="text-[11px] text-slate-300">Bengaluru, Karnataka, India</div>
                                     </div>
                                 </div>
@@ -16544,6 +16973,7 @@ ${templateBg ? `
                 else if (currentDiv === 'cadet') divMatch = catLower.includes('cadet') || (a.age && a.age >= 12 && a.age <= 14);
                 else if (currentDiv === 'junior') divMatch = catLower.includes('junior') || (a.age && a.age >= 15 && a.age <= 17);
                 else if (currentDiv === 'senior') divMatch = catLower.includes('senior') || (a.age && a.age >= 18);
+                else if (currentDiv === 'dasara') divMatch = catLower.includes('dasara');
                 else divMatch = catLower.includes(currentDiv);
                 if (!divMatch) return false;
 
@@ -16709,6 +17139,7 @@ ${templateBg ? `
                                     <option value="cadet" ${currentDiv === 'cadet' ? 'selected' : ''}>Cadet (12–14 yrs)</option>
                                     <option value="junior" ${currentDiv === 'junior' ? 'selected' : ''}>Junior (15–17 yrs)</option>
                                     <option value="senior" ${currentDiv === 'senior' ? 'selected' : ''}>Senior (18+ yrs)</option>
+                                    <option value="dasara" ${currentDiv === 'dasara' ? 'selected' : ''}>Dasara (Open/District)</option>
                                 </select>
                             </div>
 
