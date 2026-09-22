@@ -1,0 +1,138 @@
+/* ==========================================================================
+   KYORIX SPORT TECHNOLOGY DESIGN SYSTEM (Compete. Connect. Elevate.)
+   OLYMPIC FEDERATION CLEAN LIGHT THEME
+   Crisp White Canvas, Deep Navy & Royal Blue Headers, Official WT Red Badges
+   ========================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+    /* ==================================================
+       COLOR SYSTEM (Olympic Federation Clean Light)
+       ================================================== */
+    --bg-canvas: #F8FAFC;
+    --bg-white: #FFFFFF;
+    --bg-surface: #FFFFFF;
+    --bg-section: #F1F5F9;
+    --bg-navy: #0B1B3D;
+    --bg-navy-dark: #071228;
+    
+    --blue-royal: #2563EB;
+    --blue-navy: #1D4ED8;
+    --blue-deep: #0B1B3D;
+    --blue-light: #EFF6FF;
+    --blue-border: #BFDBFE;
+    
+    --red-wt: #DC2626;
+    --red-wt-light: #FEF2F2;
+    --red-wt-border: #FECACA;
+    
+    --gold-olympic: #D97706;
+    --gold-light: #FFFBEB;
+    
+    --green-olympic: #059669;
+    --green-light: #ECFDF5;
+
+    /* Text Colors (High Contrast - Zero Invisible Text) */
+    --text-primary: #0F172A;
+    --text-secondary: #334155;
+    --text-muted: #64748B;
+    --text-light: #94A3B8;
+    --text-inverse: #FFFFFF;
+
+    /* Semantic Aliases */
+    --bg-main: #F8FAFC;
+    --bg-secondary: #F1F5F9;
+    --bg-card: #FFFFFF;
+    --bg-card-hover: #F8FAFC;
+    --bg-card-solid: #FFFFFF;
+    --bg-input: #FFFFFF;
+    
+    --border-subtle: #E2E8F0;
+    --border-default: #CBD5E1;
+    --border-hover: #94A3B8;
+    --border-focus: #2563EB;
+
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-card: 0 4px 16px -1px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+    --shadow-card-hover: 0 12px 24px -2px rgba(15, 23, 42, 0.10), 0 4px 6px -4px rgba(15, 23, 42, 0.05);
+    --shadow-modal: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+
+    --font-heading: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-body: 'Inter', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--bg-canvas);
+    background-image: 
+        radial-gradient(circle at 100% 0%, rgba(37, 99, 235, 0.04), transparent 40%),
+        radial-gradient(circle at 0% 100%, rgba(220, 38, 38, 0.03), transparent 35%),
+        linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 350px);
+    background-attachment: fixed;
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.025em;
+    color: var(--text-primary);
+    font-weight: 800;
+}
+
+p, span, label, small {
+    color: inherit;
+}
+
+/* Crisp Clean Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #F1F5F9;
+}
+::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #94A3B8;
+}
+
+/* Smooth Clean Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateX(12px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
+.animate-slide-in { animation: slideIn 0.22s ease-out forwards; }
+
+main, #main-content {
+    width: 100% !important;
+    align-self: stretch !important;
+    box-sizing: border-box !important;
+}
+
+.tkd-container {
+    width: 100% !important;
+    max-width: 1440px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    padding: 1.5rem 1.5rem 4rem 1.5rem;
+}

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/jpeg" href="/app/app-icon.jpeg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="description" content="Professional Taekwondo Scoring System with real-time timer, score tracking, and Gam-Jeom penalties." />
+    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Kyorix ESS" />
+    <link rel="apple-touch-icon" href="/app/app-icon.jpeg" />
+    <link rel="manifest" href="./manifest.json" />
+    <title>Kyorix - Taekwondo ESS</title>
+    <script type="module" crossorigin src="./assets/index-SvztIZAe.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BHb2WIDW.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+  </body>
+</html>

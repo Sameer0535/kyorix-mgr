@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kyorix — Sport Technology | Compete. Connect. Elevate.</title>
+    <meta name="description" content="Kyorix Sport Technology Private Limited. Official martial arts tournament management platform. Compete. Connect. Elevate.">
+    
+    <!-- Modern Championship Typography Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome 6 Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Tailwind CDN for Layout Utilities -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Olympic Federation Clean Light Stylesheets -->
+    <link rel="stylesheet" href="css/main.css?v=160">
+    <link rel="stylesheet" href="css/components.css?v=243">
+    <link rel="stylesheet" href="css/brackets.css?v=160">
+    <link rel="stylesheet" href="css/scoreboard.css?v=160">
+</head>
+<body class="bg-[#F8FAFC] text-[#0F172A]">
+    <div id="app-root" class="flex flex-col min-h-screen">
+        
+        <!-- Kyorix Official Brand Header (Crisp White Canvas) -->
+        <header class="tkd-header">
+            <div class="max-w-[1440px] mx-auto px-6 h-24 flex items-center justify-between">
+                
+                <!-- Left: Official Kyorix Brand Logo & Identity & 3-Lines Portal Menu -->
+                <div class="flex items-center gap-3 md:gap-4">
+                    <!-- 3-Lines Hamburger Button for Organizer & Admin Portals -->
+                    <button id="btn-portal-drawer-toggle" class="portal-drawer-toggle-btn" style="display: none;" title="Toggle Portal Navigation Menu">
+                        <i class="fa-solid fa-bars"></i>
+                        <span class="portal-drawer-btn-label">Menu</span>
+                    </button>
+
+                    <a href="javascript:void(0)" onclick="window.app.navigate('events')" class="flex items-center gap-3.5 group focus:outline-none py-1">
+                        <!-- Full Area Prominent OG Kyorix Logo (includes slogan below) -->
+                        <img src="images/kyorix-mark-clean.png" alt="Kyorix Sport Technology" class="h-18 md:h-20 max-h-[82px] w-auto object-contain transition-transform group-hover:scale-[1.02]">
+                        
+                        <!-- Subtle Vertical Divider -->
+                        <div class="h-8 w-px bg-slate-200 hidden md:block"></div>
+                        
+                        <!-- Refined Separate Slogan with Exact Brand Colors -->
+                        <div class="hidden md:flex flex-col justify-center">
+                            <span class="text-[10px] md:text-[11px] font-black tracking-wider text-[#0052FF] font-sans uppercase leading-tight">
+                                SPORT TECHNOLOGY PRIVATE LIMITED
+                            </span>
+                            <span class="text-[8.5px] md:text-[9.5px] font-black tracking-[0.18em] text-[#0F172A] font-sans flex items-center gap-1 uppercase mt-0.5 leading-tight">
+                                <span>COMPETE.</span>
+                                <span class="text-[#0052FF] font-black">•</span>
+                                <span class="text-[#0052FF]">CONNECT.</span>
+                                <span class="text-[#0052FF] font-black">•</span>
+                                <span>ELEVATE.</span>
+                            </span>
+                        </div>
+                    </a>
+                </div>
+
+                <!-- Right: User State & Single Unified Login / Register -->
+                <div class="flex items-center gap-2.5">
+                    <div id="header-user-status"></div>
+
+                    <!-- Single Unified Login / Register Button -->
+                    <button id="btn-header-auth" class="tkd-btn tkd-btn-xs bg-[#0052FF] hover:bg-[#0040CC] text-white font-bold border border-blue-600 shadow-xs px-3.5 py-1.5 transition">
+                        <i class="fa-solid fa-user-plus me-1.5 text-blue-100"></i>Login / Register
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Body Container: Top-Nav or Sidebar + Main Content -->
+        <div class="tkd-body-layout flex flex-col flex-1" id="tkd-body-layout">
+            <!-- Navigation Bar (Top-Nav or Sidebar based on active portal) -->
+            <nav class="tkd-top-nav" id="tkd-main-topnav">
+                <div class="tkd-nav-inner max-w-[1440px] mx-auto px-6 flex items-center gap-1 h-12 overflow-x-auto" id="tkd-main-topnav-inner">
+
+                    <!-- Sidebar Brand Header (Only visible in sidebar mode) -->
+                    <div class="tkd-sidebar-header" id="tkd-sidebar-header" style="display:none;"></div>
+
+                    <div class="tkd-sidebar-label" id="sidebar-label-mgmt" style="display:none;">Management</div>
+
+                    <!-- Always visible: Tournaments -->
+                    <button class="tkd-tnav-btn active" data-view="events" title="Championship Events">
+                        <i class="fa-solid fa-trophy"></i>
+                        <span>Tournaments</span>
+                    </button>
+
+                    <!-- Only when logged in as dojang/coach -->
+                    <button class="tkd-tnav-btn" data-view="dashboard" id="nav-btn-dashboard" style="display:none;" title="My Team Hub & Athlete Pass">
+                        <i class="fa-solid fa-school"></i>
+                        <span>My Registrations</span>
+                    </button>
+
+                    <!-- Admin/Organizer portals -->
+                    <button class="tkd-tnav-btn" data-view="admin" id="nav-btn-admin" style="display:none;" title="Federation Master Admin Portal">
+                        <i class="fa-solid fa-crown"></i>
+                        <span>Admin Portal</span>
+                    </button>
+                    <button class="tkd-tnav-btn" data-view="organizer" id="nav-btn-organizer" style="display:none;" title="Tournament Organizing Committee Hub">
+                        <i class="fa-solid fa-calendar-check"></i>
+                        <span>Organizer Hub</span>
+                    </button>
+
+                    <!-- Separator: staff-only ops -->
+                    <div class="tkd-tnav-sep" id="sidebar-ops-divider" style="display:none;"></div>
+
+                    <div class="tkd-sidebar-label" id="sidebar-label-ops" style="display:none;">Operations &amp; Scales</div>
+
+                    <!-- Staff-only operational views -->
+                    <button class="tkd-tnav-btn" data-view="weighin" id="nav-btn-weighin" title="Official Scales & Weigh-In Desk" style="display:none;">
+                        <i class="fa-solid fa-scale-balanced"></i>
+                        <span>Official Weigh-In</span>
+                    </button>
+                    <button class="tkd-tnav-btn" data-view="categories" id="nav-btn-categories" title="Competition Categories & Weight Divisions" style="display:none;">
+                        <i class="fa-solid fa-layer-group"></i>
+                        <span>Category</span>
+                    </button>
+                    <button class="tkd-tnav-btn" data-view="fee" id="nav-btn-fee" title="Registration Fees & Invoice" style="display:none;">
+                        <i class="fa-solid fa-file-invoice-dollar"></i>
+                        <span>Fee &amp; Invoice</span>
+                    </button>
+
+                    <!-- Always visible: public competition -->
+                    <div class="tkd-tnav-sep" id="sidebar-arena-divider"></div>
+
+                    <div class="tkd-sidebar-label" id="sidebar-label-arena" style="display:none;">Live Tournament</div>
+
+                    <button class="tkd-tnav-btn" data-view="ess" id="nav-btn-ess" title="ESS (Electronic Scoring System)">
+                        <i class="fa-solid fa-tv"></i>
+                        <span>ESS <span class="hidden md:inline text-[11px] font-medium opacity-80">(Electronic Scoring System)</span></span>
+                        <span class="tkd-badge bg-blue-100 text-blue-800 text-[9px] font-bold py-0.5 px-1.5 ml-1">Live</span>
+                    </button>
+                    <button class="tkd-tnav-btn" data-view="draws" id="nav-btn-draws" title="Knockout Draws & Brackets (Organizer & Admin Console)">
+                        <i class="fa-solid fa-sitemap"></i>
+                        <span>Draws</span>
+                        <span class="tkd-badge bg-blue-100 text-blue-800 text-[9px] font-bold py-0.5 px-1.5 ml-1">Staff</span>
+                    </button>
+                    <button class="tkd-tnav-btn" data-view="jury" id="nav-btn-jury" title="Jury Section: Court Schedule & Bout Scoring" style="display:none;">
+                        <i class="fa-solid fa-gavel"></i>
+                        <span>Jury</span>
+                        <span class="tkd-badge bg-blue-100 text-blue-800 text-[9px] font-bold py-0.5 px-1.5 ml-1">Staff</span>
+                    </button>
+                    <button class="tkd-tnav-btn" data-view="results" id="nav-btn-results" title="Live Results & Podium Standings">
+                        <i class="fa-solid fa-medal"></i>
+                        <span>Results</span>
+                        <span class="nav-soon-pill">Soon</span>
+                    </button>
+                    <button class="tkd-tnav-btn" data-view="certificates" id="nav-btn-certificates" title="Live Certificates & Official Credentials">
+                        <i class="fa-solid fa-certificate"></i>
+                        <span>Live Certificates</span>
+                        <span class="nav-soon-pill">Soon</span>
+                    </button>
+                    <button class="tkd-tnav-btn" data-view="idcards" id="nav-btn-idcards" title="Official Accreditation ID Card & Template Studio" style="display:none;">
+                        <i class="fa-solid fa-id-badge"></i>
+                        <span>ID Card Studio</span>
+                    </button>
+
+                    <!-- Sidebar Footer Info (Only visible in sidebar mode) -->
+                    <div class="tkd-sidebar-footer" id="tkd-sidebar-footer" style="display:none;">
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 mt-auto text-center">
+                            <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tournament Platform</div>
+                            <div class="text-[11px] font-black text-slate-800 mt-0.5">WT Electronic Desk</div>
+                            <div class="inline-flex items-center gap-1 text-[9px] text-emerald-600 font-bold mt-1 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Certified System
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Main Application Content -->
+            <main class="tkd-app-main flex-1" id="main-content">
+                <!-- Dynamic Content -->
+            </main>
+        </div>
+
+        <!-- Official Kyorix Olympic Clean Footer -->
+        <footer class="mt-auto border-t border-slate-800 bg-[#0B1B3D] py-6 text-xs text-slate-300">
+            <div class="max-w-[1440px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="bg-white p-1 rounded-md flex items-center justify-center shadow-xs">
+                        <img src="images/kyorix-brand-logo.jpeg" alt="Kyorix" class="h-8 w-auto object-contain rounded-xs">
+                    </div>
+                    <span class="font-bold text-white">KYORIX SPORT TECHNOLOGY PRIVATE LIMITED</span>
+                </div>
+                <div class="font-semibold text-slate-300 tracking-wider">
+                    <span>COMPETE</span> • <span>CONNECT</span> • <span>ELEVATE</span>
+                </div>
+                <div>&copy; 2026 Kyorix Sport Technology Pvt. Ltd. All rights reserved.</div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Off-Canvas Portal Navigation Drawer for Organizer & Admin (3-Lines Menu) -->
+    <div id="tkd-drawer-backdrop" class="tkd-drawer-backdrop"></div>
+    <aside id="tkd-portal-drawer" class="tkd-portal-drawer" aria-hidden="true">
+        <div class="tkd-drawer-inner flex flex-col h-full bg-white">
+            <!-- Header with Suite Badge & Close Button -->
+            <div class="tkd-drawer-header flex items-center justify-between p-4 border-b border-slate-200">
+                <div id="tkd-drawer-suite-badge" class="flex-1 mr-2"></div>
+                <button id="btn-portal-drawer-close" class="tkd-drawer-close-btn w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer" title="Close Menu">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Drawer Navigation Items -->
+            <div class="tkd-drawer-nav p-4 space-y-4 overflow-y-auto flex-1">
+                <div>
+                    <div class="tkd-drawer-section-label">Management</div>
+                    <div class="space-y-1 mt-1">
+                        <button class="tkd-drawer-nav-btn" data-drawer-view="events">
+                            <i class="fa-solid fa-trophy text-blue-600"></i>
+                            <span>Tournaments</span>
+                        </button>
+                        <button class="tkd-drawer-nav-btn" data-drawer-view="admin" id="drawer-btn-admin" style="display:none;">
+                            <i class="fa-solid fa-crown text-amber-500"></i>
+                            <span>Admin Portal</span>
+                        </button>
+                        <button class="tkd-drawer-nav-btn" data-drawer-view="organizer" id="drawer-btn-organizer" style="display:none;">
+                            <i class="fa-solid fa-calendar-check text-blue-600"></i>
+                            <span>Organizer Hub</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tkd-drawer-divider"></div>
+
+                <div>
+                    <div class="tkd-drawer-section-label">Operations &amp; Scales</div>
+                    <div class="space-y-1 mt-1">
+                        <button class="tkd-drawer-nav-btn" data-drawer-view="weighin">
+                            <i class="fa-solid fa-scale-balanced text-blue-600"></i>
+                            <span>Official Weigh-In</span>
+                        </button>
+                        <button class="tkd-drawer-nav-btn" data-drawer-view="categories">
+                            <i class="fa-solid fa-layer-group text-blue-600"></i>
+                            <span>Category</span>
+                        </button>
+                        <button class="tkd-drawer-nav-btn" data-drawer-view="fee">
+                            <i class="fa-solid fa-file-invoice-dollar text-blue-600"></i>
+                            <span>Fee &amp; Invoice</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tkd-drawer-divider"></div>
+
+                <div>
+                    <div class="tkd-drawer-section-label">Live Tournament</div>
+                    <div class="space-y-1 mt-1">
+                        <button class="tkd-drawer-nav-btn" data-drawer-view="ess">
+                            <i class="fa-solid fa-tv text-blue-600"></i>
+                            <span>ESS <span class="text-xs font-normal text-slate-500">(Electronic Scoring System)</span></span>
+                            <span class="tkd-badge bg-blue-100 text-blue-800 text-[9px] font-bold py-0.5 px-1.5 ml-auto">Live</span>
+                        </button>
+                        <button class="tkd-drawer-nav-btn" data-drawer-view="draws">
+                            <i class="fa-solid fa-sitemap text-blue-600"></i>
+                            <span>Draws</span>
+                            <span class="tkd-badge bg-blue-100 text-blue-800 text-[9px] font-bold py-0.5 px-1.5 ml-auto">Staff</span>
+                        </button>
+                        <button class="tkd-drawer-nav-btn" data-drawer-view="jury" id="drawer-btn-jury" style="display:none;">
+                            <i class="fa-solid fa-gavel text-blue-600"></i>
+                            <span>Jury Section</span>
+                            <span class="tkd-badge bg-blue-100 text-blue-800 text-[9px] font-bold py-0.5 px-1.5 ml-auto">Staff</span>
+                        </button>
+                        <button class="tkd-drawer-nav-btn" data-drawer-view="results">
+                            <i class="fa-solid fa-medal text-amber-500"></i>
+                            <span>Results</span>
+                            <span class="nav-soon-pill ml-auto">Soon</span>
+                        </button>
+                        <button class="tkd-drawer-nav-btn" data-drawer-view="certificates">
+                            <i class="fa-solid fa-certificate text-blue-600"></i>
+                            <span>Live Certificates</span>
+                            <span class="nav-soon-pill ml-auto">Soon</span>
+                        </button>
+                        <button class="tkd-drawer-nav-btn" data-drawer-view="idcards" id="drawer-btn-idcards" style="display:none;">
+                            <i class="fa-solid fa-id-badge text-blue-600"></i>
+                            <span>ID Card Studio</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Drawer Footer with WT Certification Badge -->
+            <div class="tkd-drawer-footer p-4 border-t border-slate-200 mt-auto bg-slate-50">
+                <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">Tournament Platform</div>
+                <div class="text-[11px] font-black text-slate-800 text-center mt-0.5">WT Electronic Desk</div>
+                <div class="flex justify-center mt-1">
+                    <span class="inline-flex items-center gap-1 text-[9px] text-emerald-600 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Certified System
+                    </span>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Modals & Toasts Containers -->
+    <div id="modal-container"></div>
+    <div id="toast-container"></div>
+    <div id="tkd-print-portal"></div>
+
+    <script src="js/qrcode.min.js"></script>
+    <script src="js/html2pdf.bundle.min.js"></script>
+    <script src="js/tkd-app.js?v=317"></script>
+</body>
+</html>

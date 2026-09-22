@@ -1,0 +1,11 @@
+{
+  "enablePaymentPage": true,
+  "qrImageUrl": "/payment-qr.png",
+  "accountName": "DARSHAN A",
+  "upiId": "9482797451@kotakbank",
+  "paymentInstructions": "Please mention student name and program while making payment",
+  "accountHolderName": "DARSHAN A",
+  "accountNumber": "0047818057",
+  "ifscCode": "KKBK0008094",
+  "bankName": "Kotak Mahindra Bank"
+}

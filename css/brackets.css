@@ -1,0 +1,56 @@
+/* ==========================================================================
+   OFFICIAL TOURNAMENT BRACKETS & DRAWS
+   OLYMPIC FEDERATION CLEAN LIGHT THEME
+   Crisp White Match Nodes, Deep Navy & Royal Blue Accents, WT Red Badges
+   ========================================================================== */
+
+.tkd-bracket-tree {
+    display: flex;
+    gap: 2.5rem;
+    padding: 1.5rem 0.5rem;
+    min-width: max-content;
+}
+
+.tkd-bracket-round {
+    display: flex;
+    flex-direction: column;
+    width: 300px;
+}
+
+.tkd-bracket-match-node {
+    background: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    border-radius: 0.875rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+    color: #0F172A;
+}
+
+.tkd-bracket-match-node:hover {
+    transform: translateY(-2px);
+    border-color: #2563EB;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
+}
+
+.tkd-bracket-match-node.match-live {
+    border-color: #DC2626;
+    box-shadow: 0 0 12px rgba(220, 38, 38, 0.25);
+}
+
+.tkd-bracket-match-node.match-completed {
+    border-color: #CBD5E1;
+}
+
+/* Digital Passbook Clean Elevation */
+.tkd-digital-pass {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    background: #FFFFFF;
+    border: 1px solid #CBD5E1;
+}
+
+.tkd-digital-pass:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+}

@@ -1,0 +1,19 @@
+{
+  "name": "kyorix-mgr",
+  "version": "1.0.0",
+  "description": "Kyorix Elite Martial Arts Event Operations & Championship Management Platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "taekwondo",
+    "tournament",
+    "martial-arts",
+    "championship",
+    "sports-management"
+  ],
+  "author": "Kyorix Sports Federation",
+  "license": "ISC"
+}

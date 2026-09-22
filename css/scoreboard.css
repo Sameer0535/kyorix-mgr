@@ -1,0 +1,153 @@
+/* ==========================================================================
+   KYORIX SPORT TECHNOLOGY DASHBOARD COMPONENTS & STATUS BANNERS
+   OLYMPIC FEDERATION CLEAN LIGHT THEME
+   Crisp White Canvas, Deep Navy Headers, Official WT Red Badges
+   ========================================================================== */
+
+/* Logged-In Tournament Dashboard Sub-Header */
+.tkd-dash-header {
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 0.875rem;
+    padding: 0.45rem 0.65rem;
+    width: 100%;
+    margin-bottom: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.tkd-dash-nav {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.4rem;
+    overflow-x: auto;
+}
+
+.tkd-dash-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #475569;
+    font-size: 0.85rem;
+    font-weight: 700;
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.tkd-dash-nav-btn:hover {
+    color: #0F172A;
+    background: #F1F5F9;
+    border-color: #CBD5E1;
+}
+
+.tkd-dash-nav-btn.active {
+    color: #FFFFFF !important;
+    background: #2563EB !important;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+    border-color: #1D4ED8;
+}
+
+/* Tournament Banner Strip */
+.tkd-tourn-banner-strip {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-left: 4px solid #2563EB;
+    border-radius: 0.875rem;
+    padding: 1rem 1.5rem;
+    width: 100%;
+    margin-bottom: 1.25rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    color: #0F172A;
+}
+
+/* Account Info Strip */
+.tkd-account-strip {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 0.875rem;
+    padding: 0.85rem 1.25rem;
+    width: 100%;
+    margin-bottom: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    color: #0F172A;
+}
+
+/* Official Tournament Entry Status Banner */
+.tkd-gold-banner {
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-left: 5px solid #2563EB !important;
+    border-radius: 1rem;
+    padding: 1.35rem 1.75rem;
+    color: #0F172A;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.06);
+    transition: all 0.2s ease;
+}
+
+.tkd-gold-banner:hover {
+    border-color: #CBD5E1 !important;
+    border-left-color: #1D4ED8 !important;
+    box-shadow: 0 8px 24px -2px rgba(15, 23, 42, 0.1);
+}
+
+.tkd-gold-banner::after {
+    content: "\f51e";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    position: absolute;
+    right: 1.5rem;
+    bottom: -1rem;
+    font-size: 6.5rem;
+    color: rgba(37, 99, 235, 0.05);
+    pointer-events: none;
+    line-height: 1;
+}
+
+/* Pay Now & View Invoice Buttons */
+.btn-gold-pay {
+    background: #2563EB;
+    color: #FFFFFF !important;
+    font-weight: 800;
+    font-size: 0.82rem;
+    padding: 0.6rem 1.25rem;
+    border-radius: 0.5rem;
+    border: 1px solid #1D4ED8;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.btn-gold-pay:hover {
+    background: #1D4ED8;
+    border-color: #1E40AF;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+}
+
+.btn-gold-invoice {
+    background: #FFFFFF;
+    color: #1E293B;
+    font-weight: 700;
+    font-size: 0.82rem;
+    padding: 0.6rem 1.25rem;
+    border-radius: 0.5rem;
+    border: 1px solid #CBD5E1;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-gold-invoice:hover {
+    background: #F8FAFC;
+    color: #0F172A;
+    border-color: #94A3B8;
+}
