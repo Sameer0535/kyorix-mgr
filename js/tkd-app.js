@@ -7478,22 +7478,38 @@
     // ────────────────────────────────────────────────────────────────────────
     // 4B. TOURNAMENT DIRECTOR & MASTER ADMIN PORTAL
     // ────────────────────────────────────────────────────────────────────────
+    function getAdminSubTabHtml(subtab, activeTourn, tournaments, athletes, dojangs, user) {
+        switch (subtab) {
+            case 'tournaments':
+                return renderAdminTournamentsList(tournaments);
+            case 'academies':
+                return renderAdminAcademiesList(dojangs, activeTourn, athletes);
+            case 'athletes':
+                return renderAdminAthletesList(athletes, activeTourn, dojangs);
+            case 'weighin':
+                return renderAdminWeighInDesk(athletes);
+            case 'fees':
+                return renderAdminFeesLedger(dojangs, athletes, tournaments);
+            case 'payment_settings':
+                return renderPaymentQrBankSettingsView(user);
+            case 'payments':
+                return renderAdminPaymentsVerificationView(user);
+            case 'security':
+                return renderAdminSecurityManager();
+            case 'overview':
+            default:
+                return renderAdminOverview(activeTourn, athletes, dojangs);
+        }
+    }
+
     function renderAdminDashboard(container, requestedSubTab, user) {
         const activeSubTab = requestedSubTab || window._currentAdminSubTab || 'overview';
         window._currentAdminSubTab = activeSubTab;
         if (window.app) window.app.currentAdminSubTab = activeSubTab;
 
-        if (!window._admSyncedTime || (Date.now() - window._admSyncedTime > 15000)) {
+        if (!window._admSyncedTime || (Date.now() - window._admSyncedTime > 30000)) {
             window._admSyncedTime = Date.now();
-            store.syncWithServer().then(() => {
-                const liveTab = window._currentAdminSubTab || 'overview';
-                const main = document.getElementById('main-content');
-                if (main && (window.app?.currentView === 'admin' || store.getCurrentUser()?.role === 'admin')) {
-                    if (['athletes', 'payments', 'fees', 'weighin', 'overview'].includes(liveTab)) {
-                        renderAdminDashboard(container, liveTab, user);
-                    }
-                }
-            }).catch(() => {});
+            store.syncWithServer().catch(() => {});
         }
 
         const tournaments = store.getTournaments();
@@ -7504,8 +7520,22 @@
         const draws = store.getDraws();
         const feeNotifs = store.getFeeNotifications();
 
+        // Seamless update if dashboard shell is already mounted in container
+        const existingSubtabContainer = container.querySelector('#admin-subtab-container');
+        if (existingSubtabContainer) {
+            container.querySelectorAll('#admin-subnav-bar .tkd-nav-btn').forEach(btn => {
+                const bId = btn.id || '';
+                const tabKey = bId.replace('btn-adm-tab-', '');
+                const isActive = (tabKey === activeSubTab) ||
+                    (tabKey === 'payment-settings' && activeSubTab === 'payment_settings');
+                btn.classList.toggle('active', isActive);
+            });
+            existingSubtabContainer.innerHTML = getAdminSubTabHtml(activeSubTab, activeTourn, tournaments, athletes, dojangs, user);
+            return;
+        }
+
         container.innerHTML = `
-            <div class="space-y-6 animate-fade-in max-w-6xl mx-auto py-4">
+            <div class="space-y-6 max-w-6xl mx-auto py-4">
                 <!-- Master Admin Header -->
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border border-amber-300/80 shadow-sm">
                     <div>
@@ -7530,21 +7560,21 @@
                             <i class="fa-solid fa-gavel me-1.5 text-blue-600"></i>Jury Desk
                         </button>
                         <button class="tkd-btn tkd-btn-outline font-bold text-xs" id="btn-admin-sec-subtab">
-                            <i class="fa-solid fa-shield-halved me-1.5 text-amber-600"></i>Passcodes
+                            <i class="fa-solid fa-shield-halved me-1.5 text-amber-600"></i>Security
                         </button>
                     </div>
                 </div>
 
-                <!-- Active Championship / Event Selector Strip -->
+                <!-- Active Championship Selector Strip -->
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div class="flex items-center gap-3 w-full sm:w-auto">
-                        <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-base border border-blue-100 shrink-0">
+                        <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-base border border-amber-200 shrink-0">
                             <i class="fa-solid fa-trophy"></i>
                         </div>
                         <div class="flex-1 sm:flex-initial">
-                            <span class="text-[10px] uppercase font-black tracking-widest text-slate-500 font-mono block">SELECT CHAMPIONSHIP EVENT</span>
+                            <span class="text-[10px] uppercase font-black tracking-widest text-slate-500 font-mono block">FEDERATION TOURNAMENT SELECTOR</span>
                             <div class="flex items-center gap-2 mt-0.5">
-                                <select id="admin-event-selector" class="tkd-select text-xs sm:text-sm font-bold bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500 max-w-md">
+                                <select id="admin-event-selector" class="tkd-select text-xs sm:text-sm font-bold bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-slate-900 cursor-pointer focus:ring-2 focus:ring-amber-500 max-w-md">
                                     ${tournaments.map(t => `<option value="${t.id}" ${t.id === activeTourn.id ? 'selected' : ''}>${t.title} (${t.status || 'Active'})</option>`).join('')}
                                 </select>
                             </div>
@@ -7588,8 +7618,8 @@
                     </div>
                 </div>
 
-                <!-- Admin Sub-Navigation Tabs (Equal Sized Clean Tabs) -->
-                <div class="flex items-center gap-2.5 border-b border-slate-200 pb-3 overflow-x-auto">
+                <!-- Admin Sub-Navigation Tabs -->
+                <div id="admin-subnav-bar" class="flex items-center gap-2.5 border-b border-slate-200 pb-3 overflow-x-auto">
                     <button class="tkd-nav-btn ${activeSubTab === 'overview' ? 'active' : ''}" id="btn-adm-tab-overview">
                         <i class="fa-solid fa-gauge text-xs"></i> Overview
                     </button>
@@ -7622,15 +7652,7 @@
 
                 <!-- Admin Dynamic Sub-Tab Content -->
                 <div id="admin-subtab-container">
-                    ${activeSubTab === 'tournaments' ? renderAdminTournamentsList(tournaments) :
-                      activeSubTab === 'academies' ? renderAdminAcademiesList(dojangs, activeTourn, athletes) :
-                      activeSubTab === 'athletes' ? renderAdminAthletesList(athletes, activeTourn, dojangs) :
-                      activeSubTab === 'weighin' ? renderAdminWeighInDesk(athletes) :
-                      activeSubTab === 'fees' ? renderAdminFeesLedger(dojangs, athletes, tournaments) :
-                      activeSubTab === 'payment_settings' ? renderPaymentQrBankSettingsView(user) :
-                      activeSubTab === 'payments' ? renderAdminPaymentsVerificationView(user) :
-                      activeSubTab === 'security' ? renderAdminSecurityManager() :
-                      renderAdminOverview(activeTourn, athletes, dojangs)}
+                    ${getAdminSubTabHtml(activeSubTab, activeTourn, tournaments, athletes, dojangs, user)}
                 </div>
             </div>
         `;
@@ -11234,22 +11256,36 @@
     // ────────────────────────────────────────────────────────────────────────
     // 4B-2. TOURNAMENT ORGANIZING COMMITTEE PORTAL
     // ────────────────────────────────────────────────────────────────────────
+    function getOrganizerSubTabHtml(subtab, activeTourn, tournaments, athletes, dojangs, currentUser) {
+        switch (subtab) {
+            case 'tournaments':
+                return renderAdminTournamentsList(tournaments);
+            case 'academies':
+                return renderAdminAcademiesList(dojangs, activeTourn, athletes);
+            case 'athletes':
+                return renderAdminAthletesList(athletes, activeTourn, dojangs);
+            case 'weighin':
+                return renderAdminWeighInDesk(athletes);
+            case 'fees':
+                return renderAdminFeesLedger(dojangs, athletes, tournaments);
+            case 'payment_settings':
+                return renderPaymentQrBankSettingsView(currentUser);
+            case 'fee_approvals':
+                return renderAdminPaymentsVerificationView(currentUser);
+            case 'overview':
+            default:
+                return renderAdminOverview(activeTourn, athletes, dojangs);
+        }
+    }
+
     function renderOrganizerDashboard(container, requestedSubTab, user) {
         const activeSubTab = requestedSubTab || window._currentOrgSubTab || 'overview';
         window._currentOrgSubTab = activeSubTab;
         if (window.app) window.app.currentOrganizerSubTab = activeSubTab;
 
-        if (!window._orgSyncedTime || (Date.now() - window._orgSyncedTime > 15000)) {
+        if (!window._orgSyncedTime || (Date.now() - window._orgSyncedTime > 30000)) {
             window._orgSyncedTime = Date.now();
-            store.syncWithServer().then(() => {
-                const liveTab = window._currentOrgSubTab || 'overview';
-                const main = document.getElementById('main-content');
-                if (main && (window.app?.currentView === 'organizer' || store.getCurrentUser()?.role === 'organizer')) {
-                    if (['athletes', 'fee_approvals', 'fees', 'weighin', 'overview'].includes(liveTab)) {
-                        renderOrganizerDashboard(container, liveTab, user);
-                    }
-                }
-            }).catch(() => {});
+            store.syncWithServer().catch(() => {});
         }
 
         const tournaments = store.getTournaments();
@@ -11263,8 +11299,33 @@
         const collectedRevenue = paidAthletes.length * feePerAthlete;
         const currentUser = user || store.getCurrentUser() || { name: 'Tournament Organizing Committee' };
 
+        // Seamless update if dashboard shell is already mounted in container
+        const existingSubtabContainer = container.querySelector('#organizer-subtab-container');
+        if (existingSubtabContainer) {
+            container.querySelectorAll('#org-subnav-bar .tkd-nav-btn').forEach(btn => {
+                const bId = btn.id || '';
+                const tabKey = bId.replace('btn-org-tab-', '');
+                const isActive = (tabKey === activeSubTab) ||
+                    (tabKey === 'payment-settings' && activeSubTab === 'payment_settings') ||
+                    (tabKey === 'fee-approvals' && activeSubTab === 'fee_approvals');
+                btn.classList.toggle('active', isActive);
+            });
+
+            const elTourn = document.getElementById('org-stat-tournaments');
+            const elDojangs = document.getElementById('org-stat-dojangs');
+            const elAth = document.getElementById('org-stat-athletes');
+            const elColl = document.getElementById('org-stat-collected');
+            if (elTourn) elTourn.textContent = tournaments.length;
+            if (elDojangs) elDojangs.textContent = dojangs.length;
+            if (elAth) elAth.textContent = athletes.length;
+            if (elColl) elColl.textContent = `₹ ${collectedRevenue.toLocaleString('en-IN')}`;
+
+            existingSubtabContainer.innerHTML = getOrganizerSubTabHtml(activeSubTab, activeTourn, tournaments, athletes, dojangs, currentUser);
+            return;
+        }
+
         container.innerHTML = `
-            <div class="space-y-6 animate-fade-in max-w-6xl mx-auto py-4">
+            <div class="space-y-6 max-w-6xl mx-auto py-4">
                 <!-- Master Organizing Committee Header -->
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <div>
@@ -11328,33 +11389,33 @@
                             <i class="fa-solid fa-trophy"></i>
                         </div>
                         <div class="tkd-stat-label">Organized Events</div>
-                        <div class="tkd-stat-value">${tournaments.length}</div>
+                        <div class="tkd-stat-value" id="org-stat-tournaments">${tournaments.length}</div>
                     </div>
                     <div class="tkd-stat-card">
                         <div class="tkd-stat-icon">
                             <i class="fa-solid fa-school"></i>
                         </div>
                         <div class="tkd-stat-label">Participating Dojangs</div>
-                        <div class="tkd-stat-value">${dojangs.length}</div>
+                        <div class="tkd-stat-value" id="org-stat-dojangs">${dojangs.length}</div>
                     </div>
                     <div class="tkd-stat-card">
                         <div class="tkd-stat-icon">
                             <i class="fa-solid fa-user-ninja"></i>
                         </div>
                         <div class="tkd-stat-label">Registered Athletes</div>
-                        <div class="tkd-stat-value">${athletes.length}</div>
+                        <div class="tkd-stat-value" id="org-stat-athletes">${athletes.length}</div>
                     </div>
                     <div class="tkd-stat-card">
                         <div class="tkd-stat-icon">
                             <i class="fa-solid fa-indian-rupee-sign"></i>
                         </div>
                         <div class="tkd-stat-label">Fees Collected</div>
-                        <div class="tkd-stat-value text-emerald-700 font-bold">₹ ${collectedRevenue.toLocaleString('en-IN')}</div>
+                        <div class="tkd-stat-value text-emerald-700 font-bold" id="org-stat-collected">₹ ${collectedRevenue.toLocaleString('en-IN')}</div>
                     </div>
                 </div>
 
-                <!-- Organizer Sub-Navigation Tabs (Equal Sized Clean Tabs) -->
-                <div class="flex items-center gap-2.5 border-b border-slate-200 pb-3 overflow-x-auto">
+                <!-- Organizer Sub-Navigation Tabs -->
+                <div id="org-subnav-bar" class="flex items-center gap-2.5 border-b border-slate-200 pb-3 overflow-x-auto">
                     <button class="tkd-nav-btn ${activeSubTab === 'overview' ? 'active' : ''}" id="btn-org-tab-overview">
                         <i class="fa-solid fa-gauge text-xs"></i> Overview
                     </button>
@@ -11384,14 +11445,7 @@
 
                 <!-- Dynamic Subtab Content -->
                 <div id="organizer-subtab-container">
-                    ${activeSubTab === 'tournaments' ? renderAdminTournamentsList(tournaments) :
-                      activeSubTab === 'academies' ? renderAdminAcademiesList(dojangs, activeTourn, athletes) :
-                      activeSubTab === 'athletes' ? renderAdminAthletesList(athletes, activeTourn, dojangs) :
-                      activeSubTab === 'weighin' ? renderAdminWeighInDesk(athletes) :
-                      activeSubTab === 'fees' ? renderAdminFeesLedger(dojangs, athletes, tournaments) :
-                      activeSubTab === 'payment_settings' ? renderPaymentQrBankSettingsView(currentUser) :
-                      activeSubTab === 'fee_approvals' ? renderAdminPaymentsVerificationView(currentUser) :
-                      renderAdminOverview(activeTourn, athletes, dojangs)}
+                    ${getOrganizerSubTabHtml(activeSubTab, activeTourn, tournaments, athletes, dojangs, currentUser)}
                 </div>
             </div>
         `;
@@ -11406,23 +11460,11 @@
         document.getElementById('btn-org-tab-overview')?.addEventListener('click', () => switchOrgSubTab('overview'));
         document.getElementById('btn-org-tab-tournaments')?.addEventListener('click', () => switchOrgSubTab('tournaments'));
         document.getElementById('btn-org-tab-academies')?.addEventListener('click', () => switchOrgSubTab('academies'));
-        document.getElementById('btn-org-tab-athletes')?.addEventListener('click', () => {
-            switchOrgSubTab('athletes');
-            store.syncWithServer().catch(() => {});
-        });
-        document.getElementById('btn-org-tab-weighin')?.addEventListener('click', () => {
-            switchOrgSubTab('weighin');
-            store.syncWithServer().catch(() => {});
-        });
-        document.getElementById('btn-org-tab-fees')?.addEventListener('click', () => {
-            switchOrgSubTab('fees');
-            store.syncWithServer().catch(() => {});
-        });
+        document.getElementById('btn-org-tab-athletes')?.addEventListener('click', () => switchOrgSubTab('athletes'));
+        document.getElementById('btn-org-tab-weighin')?.addEventListener('click', () => switchOrgSubTab('weighin'));
+        document.getElementById('btn-org-tab-fees')?.addEventListener('click', () => switchOrgSubTab('fees'));
         document.getElementById('btn-org-tab-payment-settings')?.addEventListener('click', () => switchOrgSubTab('payment_settings'));
-        document.getElementById('btn-org-tab-fee-approvals')?.addEventListener('click', () => {
-            switchOrgSubTab('fee_approvals');
-            store.syncWithServer().catch(() => {});
-        });
+        document.getElementById('btn-org-tab-fee-approvals')?.addEventListener('click', () => switchOrgSubTab('fee_approvals'));
 
         // Fetch pending count for organizer pill
         fetch('/api/admin/payments?status=Pending')
