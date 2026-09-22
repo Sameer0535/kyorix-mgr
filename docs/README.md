@@ -1,6 +1,6 @@
 # Kyorix Tournament Platform Documentation
 ## `EvtMgr` Documentation Suite
-**Kyorix Sport Technology Private Limited**  
+**Kyorix Sports Technology**  
 *Compete. Connect. Elevate.*
 
 ---

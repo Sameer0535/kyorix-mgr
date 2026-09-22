@@ -1012,10 +1012,44 @@
         }
 
         init() {
-            const DATA_VERSION = 'v13_demo_athletes'; // clean zero-data production state
-            if (localStorage.getItem('tkd_data_version') !== DATA_VERSION) {
-                localStorage.clear();
+            const DATA_VERSION = 'v14_prod_persistent_auth';
+            const currentVer = localStorage.getItem('tkd_data_version');
+            if (currentVer !== DATA_VERSION) {
+                // Safeguard active user session, passwords, payments and settings across updates!
+                let savedUser = null;
+                try { savedUser = localStorage.getItem('tkd_user') || sessionStorage.getItem('tkd_user'); } catch(e) {}
+                const savedAdminPass = localStorage.getItem('tkd_admin_pass');
+                const savedOrgPass = localStorage.getItem('tkd_organizer_pass');
+                const savedUpi = localStorage.getItem('tkd_upi_payments');
+                const savedSettings = localStorage.getItem('tkd_payment_settings');
+                let savedView = null;
+                try { savedView = localStorage.getItem('tkd_active_view') || sessionStorage.getItem('tkd_active_view'); } catch(e) {}
+
+                // Reset only tournament seed caches that require clean re-sync
+                localStorage.removeItem('tkd_tournaments');
+                localStorage.removeItem('tkd_dojangs');
+                localStorage.removeItem('tkd_athletes');
+                localStorage.removeItem('tkd_coaches');
+                localStorage.removeItem('tkd_draws');
+                localStorage.removeItem('tkd_results');
+                localStorage.removeItem('tkd_fee_notifs');
+                localStorage.removeItem('tkd_published_results');
+                localStorage.removeItem('tkd_results_published');
+
                 localStorage.setItem('tkd_data_version', DATA_VERSION);
+
+                if (savedUser) {
+                    localStorage.setItem('tkd_user', savedUser);
+                    try { sessionStorage.setItem('tkd_user', savedUser); } catch(e) {}
+                }
+                if (savedAdminPass) localStorage.setItem('tkd_admin_pass', savedAdminPass);
+                if (savedOrgPass) localStorage.setItem('tkd_organizer_pass', savedOrgPass);
+                if (savedUpi) localStorage.setItem('tkd_upi_payments', savedUpi);
+                if (savedSettings) localStorage.setItem('tkd_payment_settings', savedSettings);
+                if (savedView) {
+                    localStorage.setItem('tkd_active_view', savedView);
+                    try { sessionStorage.setItem('tkd_active_view', savedView); } catch(e) {}
+                }
             }
             if (!localStorage.getItem('tkd_tournaments')) localStorage.setItem('tkd_tournaments', JSON.stringify(SEED_TOURNAMENTS));
             if (!localStorage.getItem('tkd_dojangs'))     localStorage.setItem('tkd_dojangs',     JSON.stringify(SEED_DOJANGS));
@@ -1054,7 +1088,8 @@
             localStorage.removeItem('tkd_published_results');
             localStorage.removeItem('tkd_results_published');
             localStorage.removeItem('tkd_user');
-            localStorage.setItem('tkd_data_version', 'v13_demo_athletes');
+            try { sessionStorage.removeItem('tkd_user'); } catch(e) {}
+            localStorage.setItem('tkd_data_version', 'v14_prod_persistent_auth');
             this.init();
             this.notify();
         }
@@ -1178,12 +1213,37 @@
         }
 
         getCurrentUser() {
-            try { return JSON.parse(localStorage.getItem('tkd_user')) || null; } catch { return null; }
+            try {
+                let raw = localStorage.getItem('tkd_user');
+                if (!raw) {
+                    try { raw = sessionStorage.getItem('tkd_user'); } catch (e) {}
+                }
+                if (!raw) return null;
+                const u = JSON.parse(raw);
+                if (u && typeof u === 'object') {
+                    try {
+                        if (!localStorage.getItem('tkd_user')) localStorage.setItem('tkd_user', raw);
+                        if (!sessionStorage.getItem('tkd_user')) sessionStorage.setItem('tkd_user', raw);
+                    } catch (e) {}
+                    return u;
+                }
+                return null;
+            } catch {
+                return null;
+            }
         }
 
         setCurrentUser(u) {
-            if (u) localStorage.setItem('tkd_user', JSON.stringify(u));
-            else localStorage.removeItem('tkd_user');
+            try {
+                if (u) {
+                    const str = JSON.stringify(u);
+                    localStorage.setItem('tkd_user', str);
+                    try { sessionStorage.setItem('tkd_user', str); } catch (e) {}
+                } else {
+                    localStorage.removeItem('tkd_user');
+                    try { sessionStorage.removeItem('tkd_user'); } catch (e) {}
+                }
+            } catch (e) {}
             this.notify();
         }
 
@@ -1812,13 +1872,19 @@
         }
 
         resetToDefault() {
+            const savedUser = this.getCurrentUser();
+            const savedAdminPass = this.getAdminPasscode();
+            const savedOrgPass = this.getOrganizerPasscode();
             localStorage.clear();
-            localStorage.setItem('tkd_data_version', 'v13_demo_athletes');
+            localStorage.setItem('tkd_data_version', 'v14_prod_persistent_auth');
             localStorage.setItem('tkd_tournaments', JSON.stringify(SEED_TOURNAMENTS));
             localStorage.setItem('tkd_dojangs',     JSON.stringify(SEED_DOJANGS));
             localStorage.setItem('tkd_athletes',    JSON.stringify(SEED_ATHLETES));
             localStorage.setItem('tkd_coaches',     JSON.stringify(SEED_COACHES));
             localStorage.setItem('tkd_draws',       JSON.stringify(SEED_DRAWS));
+            if (savedUser) this.setCurrentUser(savedUser);
+            if (savedAdminPass) this.setAdminPasscode(savedAdminPass);
+            if (savedOrgPass) this.setOrganizerPasscode(savedOrgPass);
             this.notify();
         }
 
@@ -3198,7 +3264,7 @@
                 </div>
 
                 <div style="margin-top: 10px; text-align: center; font-size: 8.5px; color: #94A3B8;">
-                    Kyorix Sports Technology Private Limited • Official Weigh-In Scale Roster • Compete. Connect. Elevate.
+                    Kyorix Sports Technology • Official Weigh-In Scale Roster • Compete. Connect. Elevate.
                 </div>
             </div>
         `;
@@ -10127,7 +10193,7 @@
                 </div>
 
                 <div style="margin-top: 16px; text-align: center; font-size: 9px; color: #94A3B8;">
-                    Kyorix Sports Technology Private Limited • Compete. Connect. Elevate. • System Generated Tax Invoice
+                    Kyorix Sports Technology • Compete. Connect. Elevate. • System Generated Tax Invoice
                 </div>
             </div>
         `;
@@ -13156,7 +13222,7 @@
                 </div>
 
                 <div style="margin-top: 16px; text-align: center; font-size: 9px; color: #94A3B8;">
-                    Kyorix Sports Technology Private Limited • Compete. Connect. Elevate. • System Generated Individual Tax Invoice
+                    Kyorix Sports Technology • Compete. Connect. Elevate. • System Generated Individual Tax Invoice
                 </div>
             </div>
         `;
@@ -14003,7 +14069,7 @@
                                     </div>
                                     <div>
                                         <div class="text-[10px] uppercase font-bold text-slate-400">Corporate Office</div>
-                                        <div class="text-xs font-semibold text-white">Kyorix Sports Technology Pvt. Ltd.</div>
+                                        <div class="text-xs font-semibold text-white">Kyorix Sports Technology</div>
                                         <div class="text-[11px] text-slate-300">Bengaluru, Karnataka, India</div>
                                     </div>
                                 </div>
@@ -17360,6 +17426,10 @@ ${templateBg ? `
                         this.currentView = 'events';
                         window.location.hash = 'events';
                         store.setCurrentUser(null);
+                        try {
+                            localStorage.removeItem('tkd_active_view');
+                            sessionStorage.removeItem('tkd_active_view');
+                        } catch(e) {}
                         const modalContainer = document.getElementById('modal-container');
                         if (modalContainer) modalContainer.innerHTML = '';
                         this.render();
@@ -17519,7 +17589,13 @@ ${templateBg ? `
             });
 
             // Initial hash check
-            const initHash = window.location.hash.replace('#', '');
+            let initHash = window.location.hash.replace(/^#\/?/, '').trim();
+            if (!initHash) {
+                const pathPart = window.location.pathname.replace(/^\//, '').trim();
+                if (pathPart && !pathPart.includes('.') && pathPart !== 'index.html') {
+                    initHash = pathPart;
+                }
+            }
             if (initHash.startsWith('verify-cert')) {
                 const parts = initHash.split(/[?=&]/);
                 const certId = parts[parts.length - 1];
@@ -17532,6 +17608,32 @@ ${templateBg ? `
                 }
             } else if (initHash) {
                 this.currentView = initHash;
+                try {
+                    localStorage.setItem('tkd_active_view', initHash);
+                    sessionStorage.setItem('tkd_active_view', initHash);
+                } catch(e) {}
+            } else {
+                // Check if user is already logged in, restore active view or default to role dashboard
+                const curUser = store.getCurrentUser();
+                let savedView = null;
+                try { savedView = localStorage.getItem('tkd_active_view') || sessionStorage.getItem('tkd_active_view'); } catch(e) {}
+                if (savedView && savedView !== 'events') {
+                    this.currentView = savedView;
+                    if (window.location.hash !== `#${savedView}`) {
+                        window.location.hash = savedView;
+                    }
+                } else if (curUser) {
+                    if (curUser.role === 'admin') {
+                        this.currentView = 'admin';
+                        window.location.hash = 'admin';
+                    } else if (curUser.role === 'organizer') {
+                        this.currentView = 'organizer';
+                        window.location.hash = 'organizer';
+                    } else if (curUser.role === 'dojang' || curUser.role === 'athlete') {
+                        this.currentView = 'dashboard';
+                        window.location.hash = 'dashboard';
+                    }
+                }
             }
         }
 
@@ -17540,6 +17642,10 @@ ${templateBg ? `
             if (window.location.hash !== `#${view}`) {
                 window.location.hash = view;
             }
+            try {
+                localStorage.setItem('tkd_active_view', view);
+                sessionStorage.setItem('tkd_active_view', view);
+            } catch(e) {}
             this.render();
         }
 
@@ -17588,14 +17694,16 @@ ${templateBg ? `
                 } else if (user.role === 'athlete') {
                     if (navDashboardBtn) {
                         navDashboardBtn.style.display = 'flex';
-                        navDashboardBtn.querySelector('span').textContent = 'My Fighter Pass';
+                        const span = typeof navDashboardBtn.querySelector === 'function' ? navDashboardBtn.querySelector('span') : null;
+                        if (span) span.textContent = 'My Fighter Pass';
                     }
                     if (navAdminBtn) navAdminBtn.style.display = 'none';
                     if (navOrganizerBtn) navOrganizerBtn.style.display = 'none';
                 } else {
                     if (navDashboardBtn) {
                         navDashboardBtn.style.display = 'flex';
-                        navDashboardBtn.querySelector('span').textContent = 'My Team Hub';
+                        const span = typeof navDashboardBtn.querySelector === 'function' ? navDashboardBtn.querySelector('span') : null;
+                        if (span) span.textContent = 'My Team Hub';
                     }
                     if (navAdminBtn) navAdminBtn.style.display = 'none';
                     if (navOrganizerBtn) navOrganizerBtn.style.display = 'none';

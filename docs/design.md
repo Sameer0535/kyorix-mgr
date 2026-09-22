@@ -1,6 +1,6 @@
 # UI/UX Design System & Style Guide
 ## Kyorix Tournament & Event Management Platform (`EvtMgr`)
-**Kyorix Sport Technology Private Limited**  
+**Kyorix Sports Technology**  
 *Olympic Federation Aesthetics & High-Fidelity Print Systems*
 
 ---

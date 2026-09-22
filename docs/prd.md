@@ -1,6 +1,6 @@
 # Product Requirements Document (PRD)
 ## Kyorix Tournament & Event Management Platform (`EvtMgr`)
-**Kyorix Sport Technology Private Limited**  
+**Kyorix Sports Technology**  
 *Compete. Connect. Elevate.*
 
 ---

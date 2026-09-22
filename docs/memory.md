@@ -1,6 +1,6 @@
 # System Memory, Key Architectural Decisions & Engineering Gotchas
 ## Kyorix Tournament & Event Management Platform (`EvtMgr`)
-**Kyorix Sport Technology Private Limited**
+**Kyorix Sports Technology**
 
 ---
 

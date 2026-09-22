@@ -769,7 +769,7 @@ function render404Html(requestPath) {
             </a>
         </div>
         <div class="footer-brand">
-            Kyorix Sports Technology Private Limited
+            Kyorix Sports Technology
         </div>
     </div>
 </body>
@@ -807,6 +807,20 @@ function render404Html(requestPath) {
 
         fs.stat(actualFilePath, (statErr, finalStats) => {
             if (statErr || !finalStats.isFile()) {
+                // If this is a SPA navigation route without a file extension (e.g. /organizer, /admin, /dashboard), serve index.html
+                const cleanExt = path.extname(pathname);
+                if (!cleanExt) {
+                    const indexPath = path.join(__dirname, 'index.html');
+                    if (fs.existsSync(indexPath)) {
+                        res.writeHead(200, {
+                            'Content-Type': 'text/html; charset=utf-8',
+                            'Cache-Control': 'no-cache, must-revalidate'
+                        });
+                        fs.createReadStream(indexPath).pipe(res);
+                        return;
+                    }
+                }
+
                 // Return custom 404 page immediately with HTTP status 404
                 res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
                 res.end(render404Html(pathname));
