@@ -1,6 +1,4 @@
 {
-  "version": 2,
-  "name": "kyorix-mgr",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.js" }
   ]
