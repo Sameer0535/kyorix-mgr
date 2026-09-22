@@ -7478,12 +7478,20 @@
     // ────────────────────────────────────────────────────────────────────────
     // 4B. TOURNAMENT DIRECTOR & MASTER ADMIN PORTAL
     // ────────────────────────────────────────────────────────────────────────
-    function renderAdminDashboard(container, activeSubTab = 'overview', user) {
-        if (!window._admSyncedTime || (Date.now() - window._admSyncedTime > 5000)) {
+    function renderAdminDashboard(container, requestedSubTab, user) {
+        const activeSubTab = requestedSubTab || window._currentAdminSubTab || 'overview';
+        window._currentAdminSubTab = activeSubTab;
+        if (window.app) window.app.currentAdminSubTab = activeSubTab;
+
+        if (!window._admSyncedTime || (Date.now() - window._admSyncedTime > 15000)) {
             window._admSyncedTime = Date.now();
             store.syncWithServer().then(() => {
-                if (['athletes', 'payments', 'fees', 'weighin', 'overview'].includes(activeSubTab)) {
-                    renderAdminDashboard(container, activeSubTab, user);
+                const liveTab = window._currentAdminSubTab || 'overview';
+                const main = document.getElementById('main-content');
+                if (main && (window.app?.currentView === 'admin' || store.getCurrentUser()?.role === 'admin')) {
+                    if (['athletes', 'payments', 'fees', 'weighin', 'overview'].includes(liveTab)) {
+                        renderAdminDashboard(container, liveTab, user);
+                    }
                 }
             }).catch(() => {});
         }
@@ -7628,27 +7636,33 @@
         `;
 
         // Sub-Tab event listeners
-        document.getElementById('btn-adm-tab-overview')?.addEventListener('click', () => renderAdminDashboard(container, 'overview', user));
-        document.getElementById('btn-adm-tab-tournaments')?.addEventListener('click', () => renderAdminDashboard(container, 'tournaments', user));
-        document.getElementById('btn-adm-tab-academies')?.addEventListener('click', () => renderAdminDashboard(container, 'academies', user));
-        document.getElementById('btn-adm-tab-athletes')?.addEventListener('click', async () => {
-            await store.syncWithServer();
-            renderAdminDashboard(container, 'athletes', user);
+        const switchAdminSubTab = (newSubTab) => {
+            window._currentAdminSubTab = newSubTab;
+            if (window.app) window.app.currentAdminSubTab = newSubTab;
+            renderAdminDashboard(container, newSubTab, user);
+        };
+
+        document.getElementById('btn-adm-tab-overview')?.addEventListener('click', () => switchAdminSubTab('overview'));
+        document.getElementById('btn-adm-tab-tournaments')?.addEventListener('click', () => switchAdminSubTab('tournaments'));
+        document.getElementById('btn-adm-tab-academies')?.addEventListener('click', () => switchAdminSubTab('academies'));
+        document.getElementById('btn-adm-tab-athletes')?.addEventListener('click', () => {
+            switchAdminSubTab('athletes');
+            store.syncWithServer().catch(() => {});
         });
-        document.getElementById('btn-adm-tab-weighin')?.addEventListener('click', async () => {
-            await store.syncWithServer();
-            renderAdminDashboard(container, 'weighin', user);
+        document.getElementById('btn-adm-tab-weighin')?.addEventListener('click', () => {
+            switchAdminSubTab('weighin');
+            store.syncWithServer().catch(() => {});
         });
-        document.getElementById('btn-adm-tab-fees')?.addEventListener('click', async () => {
-            await store.syncWithServer();
-            renderAdminDashboard(container, 'fees', user);
+        document.getElementById('btn-adm-tab-fees')?.addEventListener('click', () => {
+            switchAdminSubTab('fees');
+            store.syncWithServer().catch(() => {});
         });
-        document.getElementById('btn-adm-tab-payment-settings')?.addEventListener('click', () => renderAdminDashboard(container, 'payment_settings', user));
-        document.getElementById('btn-adm-tab-payments')?.addEventListener('click', async () => {
-            await store.syncWithServer();
-            renderAdminDashboard(container, 'payments', user);
+        document.getElementById('btn-adm-tab-payment-settings')?.addEventListener('click', () => switchAdminSubTab('payment_settings'));
+        document.getElementById('btn-adm-tab-payments')?.addEventListener('click', () => {
+            switchAdminSubTab('payments');
+            store.syncWithServer().catch(() => {});
         });
-        document.getElementById('btn-adm-tab-security')?.addEventListener('click', () => renderAdminDashboard(container, 'security', user));
+        document.getElementById('btn-adm-tab-security')?.addEventListener('click', () => switchAdminSubTab('security'));
 
         // Fetch and display pending verification count in tab pill
         fetch('/api/admin/payments?status=Pending')
@@ -7668,14 +7682,14 @@
         // Event Selector Change Listener
         document.getElementById('admin-event-selector')?.addEventListener('change', (e) => {
             store.setSelectedTournamentId(e.target.value);
-            renderAdminDashboard(container, activeSubTab, user);
+            renderAdminDashboard(container, window._currentAdminSubTab || 'overview', user);
         });
 
-        document.getElementById('btn-admin-fees-subtab')?.addEventListener('click', () => renderAdminDashboard(container, 'fees', user));
-        document.getElementById('btn-admin-weighin-subtab')?.addEventListener('click', () => renderAdminDashboard(container, 'weighin', user));
+        document.getElementById('btn-admin-fees-subtab')?.addEventListener('click', () => switchAdminSubTab('fees'));
+        document.getElementById('btn-admin-weighin-subtab')?.addEventListener('click', () => switchAdminSubTab('weighin'));
         document.getElementById('btn-admin-jury-subtab')?.addEventListener('click', () => window.app.navigate('jury'));
-        document.getElementById('btn-admin-sec-subtab')?.addEventListener('click', () => renderAdminDashboard(container, 'security', user));
-        document.getElementById('btn-overview-jump-fees')?.addEventListener('click', () => renderAdminDashboard(container, 'fees', user));
+        document.getElementById('btn-admin-sec-subtab')?.addEventListener('click', () => switchAdminSubTab('security'));
+        document.getElementById('btn-overview-jump-fees')?.addEventListener('click', () => switchAdminSubTab('fees'));
 
         document.getElementById('btn-admin-create-tourn')?.addEventListener('click', () => {
             openEditTournamentModal(null);
@@ -9924,7 +9938,14 @@
 
             mc.innerHTML = '';
             const mainContainer = document.getElementById('main-content');
-            if (mainContainer) renderAdminDashboard(mainContainer, 'tournaments', store.getCurrentUser());
+            const curU = store.getCurrentUser();
+            if (mainContainer) {
+                if (curU && curU.role === 'organizer') {
+                    renderOrganizerDashboard(mainContainer, 'tournaments', curU);
+                } else {
+                    renderAdminDashboard(mainContainer, 'tournaments', curU);
+                }
+            }
         });
     }
 
@@ -11213,12 +11234,20 @@
     // ────────────────────────────────────────────────────────────────────────
     // 4B-2. TOURNAMENT ORGANIZING COMMITTEE PORTAL
     // ────────────────────────────────────────────────────────────────────────
-    function renderOrganizerDashboard(container, activeSubTab = 'overview', user) {
-        if (!window._orgSyncedTime || (Date.now() - window._orgSyncedTime > 5000)) {
+    function renderOrganizerDashboard(container, requestedSubTab, user) {
+        const activeSubTab = requestedSubTab || window._currentOrgSubTab || 'overview';
+        window._currentOrgSubTab = activeSubTab;
+        if (window.app) window.app.currentOrganizerSubTab = activeSubTab;
+
+        if (!window._orgSyncedTime || (Date.now() - window._orgSyncedTime > 15000)) {
             window._orgSyncedTime = Date.now();
             store.syncWithServer().then(() => {
-                if (['athletes', 'fee_approvals', 'fees', 'weighin', 'overview'].includes(activeSubTab)) {
-                    renderOrganizerDashboard(container, activeSubTab, user);
+                const liveTab = window._currentOrgSubTab || 'overview';
+                const main = document.getElementById('main-content');
+                if (main && (window.app?.currentView === 'organizer' || store.getCurrentUser()?.role === 'organizer')) {
+                    if (['athletes', 'fee_approvals', 'fees', 'weighin', 'overview'].includes(liveTab)) {
+                        renderOrganizerDashboard(container, liveTab, user);
+                    }
                 }
             }).catch(() => {});
         }
@@ -11368,25 +11397,31 @@
         `;
 
         // Subtab event listeners
-        document.getElementById('btn-org-tab-overview')?.addEventListener('click', () => renderOrganizerDashboard(container, 'overview', currentUser));
-        document.getElementById('btn-org-tab-tournaments')?.addEventListener('click', () => renderOrganizerDashboard(container, 'tournaments', currentUser));
-        document.getElementById('btn-org-tab-academies')?.addEventListener('click', () => renderOrganizerDashboard(container, 'academies', currentUser));
-        document.getElementById('btn-org-tab-athletes')?.addEventListener('click', async () => {
-            await store.syncWithServer();
-            renderOrganizerDashboard(container, 'athletes', currentUser);
+        const switchOrgSubTab = (newSubTab) => {
+            window._currentOrgSubTab = newSubTab;
+            if (window.app) window.app.currentOrganizerSubTab = newSubTab;
+            renderOrganizerDashboard(container, newSubTab, currentUser);
+        };
+
+        document.getElementById('btn-org-tab-overview')?.addEventListener('click', () => switchOrgSubTab('overview'));
+        document.getElementById('btn-org-tab-tournaments')?.addEventListener('click', () => switchOrgSubTab('tournaments'));
+        document.getElementById('btn-org-tab-academies')?.addEventListener('click', () => switchOrgSubTab('academies'));
+        document.getElementById('btn-org-tab-athletes')?.addEventListener('click', () => {
+            switchOrgSubTab('athletes');
+            store.syncWithServer().catch(() => {});
         });
-        document.getElementById('btn-org-tab-weighin')?.addEventListener('click', async () => {
-            await store.syncWithServer();
-            renderOrganizerDashboard(container, 'weighin', currentUser);
+        document.getElementById('btn-org-tab-weighin')?.addEventListener('click', () => {
+            switchOrgSubTab('weighin');
+            store.syncWithServer().catch(() => {});
         });
-        document.getElementById('btn-org-tab-fees')?.addEventListener('click', async () => {
-            await store.syncWithServer();
-            renderOrganizerDashboard(container, 'fees', currentUser);
+        document.getElementById('btn-org-tab-fees')?.addEventListener('click', () => {
+            switchOrgSubTab('fees');
+            store.syncWithServer().catch(() => {});
         });
-        document.getElementById('btn-org-tab-payment-settings')?.addEventListener('click', () => renderOrganizerDashboard(container, 'payment_settings', currentUser));
-        document.getElementById('btn-org-tab-fee-approvals')?.addEventListener('click', async () => {
-            await store.syncWithServer();
-            renderOrganizerDashboard(container, 'fee_approvals', currentUser);
+        document.getElementById('btn-org-tab-payment-settings')?.addEventListener('click', () => switchOrgSubTab('payment_settings'));
+        document.getElementById('btn-org-tab-fee-approvals')?.addEventListener('click', () => {
+            switchOrgSubTab('fee_approvals');
+            store.syncWithServer().catch(() => {});
         });
 
         // Fetch pending count for organizer pill
@@ -11404,16 +11439,16 @@
         // Event Selector Change Listener
         document.getElementById('org-event-selector')?.addEventListener('change', (e) => {
             store.setSelectedTournamentId(e.target.value);
-            renderOrganizerDashboard(container, activeSubTab, currentUser);
+            renderOrganizerDashboard(container, window._currentOrgSubTab || 'overview', currentUser);
         });
 
         document.getElementById('btn-org-create-tourn')?.addEventListener('click', () => openEditTournamentModal(null));
-        document.getElementById('btn-org-idcard-template-quick')?.addEventListener('click', () => openIdCardTemplateStudioModal(() => renderOrganizerDashboard(container, activeSubTab, currentUser)));
-        document.getElementById('btn-org-weighin-quick')?.addEventListener('click', () => renderOrganizerDashboard(container, 'weighin', currentUser));
+        document.getElementById('btn-org-idcard-template-quick')?.addEventListener('click', () => openIdCardTemplateStudioModal(() => renderOrganizerDashboard(container, window._currentOrgSubTab || 'overview', currentUser)));
+        document.getElementById('btn-org-weighin-quick')?.addEventListener('click', () => switchOrgSubTab('weighin'));
         document.getElementById('btn-org-draws-quick')?.addEventListener('click', () => window.app.navigate('draws'));
         document.getElementById('btn-org-jury-quick')?.addEventListener('click', () => window.app.navigate('jury'));
         document.getElementById('btn-org-results-quick')?.addEventListener('click', () => window.app.navigate('results'));
-        document.getElementById('btn-org-payments-quick')?.addEventListener('click', () => renderOrganizerDashboard(container, 'fee_approvals', currentUser));
+        document.getElementById('btn-org-payments-quick')?.addEventListener('click', () => switchOrgSubTab('fee_approvals'));
 
         // Event delegation for athlete ID pass, weigh-in actions, and academy fee receipt
         container.onclick = (e) => {
@@ -17309,6 +17344,8 @@ ${templateBg ? `
     class AppController {
         constructor() {
             this.currentView = 'events'; // 'events' | 'dashboard' | 'draws' | 'results'
+            this.currentOrganizerSubTab = window._currentOrgSubTab || 'overview';
+            this.currentAdminSubTab = window._currentAdminSubTab || 'overview';
             this.pendingRegistration = null;
             this.init();
         }
@@ -17395,7 +17432,9 @@ ${templateBg ? `
             if (btnOrganizer) {
                 btnOrganizer.addEventListener('click', () => {
                     const user = store.getCurrentUser();
-                    if (user && user.role === 'organizer') {
+                    if (user && (user.role === 'organizer' || user.role === 'admin')) {
+                        this.currentOrganizerSubTab = 'overview';
+                        window._currentOrgSubTab = 'overview';
                         this.navigate('organizer');
                     } else {
                         openRoleAuthModal('organizer');
@@ -17409,6 +17448,8 @@ ${templateBg ? `
                 btnQuickAdmin.addEventListener('click', () => {
                     const user = store.getCurrentUser();
                     if (user && user.role === 'admin') {
+                        this.currentAdminSubTab = 'overview';
+                        window._currentAdminSubTab = 'overview';
                         this.navigate('admin');
                     } else {
                         openRoleAuthModal('admin');
@@ -17425,6 +17466,10 @@ ${templateBg ? `
                     if (user) {
                         this.currentView = 'events';
                         window.location.hash = 'events';
+                        this.currentOrganizerSubTab = 'overview';
+                        window._currentOrgSubTab = 'overview';
+                        this.currentAdminSubTab = 'overview';
+                        window._currentAdminSubTab = 'overview';
                         store.setCurrentUser(null);
                         try {
                             localStorage.removeItem('tkd_active_view');
@@ -17650,6 +17695,10 @@ ${templateBg ? `
         }
 
         switchSubTab(subtab) {
+            this.currentOrganizerSubTab = subtab;
+            window._currentOrgSubTab = subtab;
+            this.currentAdminSubTab = subtab;
+            window._currentAdminSubTab = subtab;
             const mainContainer = document.getElementById('main-content');
             if (mainContainer) {
                 renderLoggedInDashboard(mainContainer, subtab);
@@ -17857,7 +17906,8 @@ ${templateBg ? `
                         returnLabel: 'Back to Tournament Home'
                     });
                 } else {
-                    renderOrganizerDashboard(mainContainer, 'overview', user);
+                    const targetSubTab = this.currentOrganizerSubTab || window._currentOrgSubTab || 'overview';
+                    renderOrganizerDashboard(mainContainer, targetSubTab, user);
                 }
             } else if (this.currentView === 'admin') {
                 if (!user || user.role !== 'admin') {
@@ -17871,7 +17921,8 @@ ${templateBg ? `
                         returnLabel: 'Back to Tournament Home'
                     });
                 } else {
-                    renderAdminDashboard(mainContainer, 'overview', user);
+                    const targetSubTab = this.currentAdminSubTab || window._currentAdminSubTab || 'overview';
+                    renderAdminDashboard(mainContainer, targetSubTab, user);
                 }
             } else if (this.currentView === 'dashboard') {
                 if (!user) {
@@ -17879,7 +17930,12 @@ ${templateBg ? `
                     window.location.hash = 'events';
                     renderPublicEventsList(mainContainer);
                 } else {
-                    renderLoggedInDashboard(mainContainer, 'home');
+                    const targetSubTab = (user.role === 'organizer')
+                        ? (this.currentOrganizerSubTab || window._currentOrgSubTab || 'overview')
+                        : (user.role === 'admin')
+                            ? (this.currentAdminSubTab || window._currentAdminSubTab || 'overview')
+                            : 'home';
+                    renderLoggedInDashboard(mainContainer, targetSubTab);
                 }
             } else if (this.currentView === 'weighin' || this.currentView === 'weigh-in') {
                 renderPublicWeighInView(mainContainer);
