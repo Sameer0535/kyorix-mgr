@@ -2613,8 +2613,9 @@
                             const age = a.ageCategory || a.category || 'Junior';
                             const gender = a.gender || 'Male';
                             const wt = a.weightClass || 'U-55 kg';
-                            const dk = (age + '_' + gender + '_' + wt).replace(/\s+/g, '_');
-                            return dk === divKey;
+                            const dk1 = (gender + '_' + age + '_' + wt).replace(/\s+/g, '_');
+                            const dk2 = (age + '_' + gender + '_' + wt).replace(/\s+/g, '_');
+                            return dk1 === divKey || dk2 === divKey;
                         }).length;
 
                         if (hasInvalidComp || (divPassedCount >= 2 && divPassedCount > uniqueNamesInBracket.size)) {
@@ -14396,7 +14397,7 @@
 
                 <!-- Full Embedded Draws Engine Iframe -->
                 <div class="relative w-full bg-slate-900 rounded-2xl overflow-hidden shadow-lg border border-slate-200">
-                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=452" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
+                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=453" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
                 </div>
             </div>
         `;
@@ -14405,6 +14406,16 @@
         if (typeof window.syncTournamentAthletesToDraws === 'function') {
             window.syncTournamentAthletesToDraws(false);
         }
+
+        // Notify iframe to reload latest brackets from localStorage
+        setTimeout(() => {
+            const drawsIframe = document.getElementById('tkd-draws-iframe');
+            if (drawsIframe && drawsIframe.contentWindow) {
+                try {
+                    drawsIframe.contentWindow.postMessage({ type: 'TKD_RELOAD_BRACKETS' }, '*');
+                } catch(e) {}
+            }
+        }, 300);
 
         // Sync Athletes Button Click
         const syncBtn = document.getElementById('btn-sync-draws-roster');
@@ -14508,7 +14519,19 @@
             curBrackets = JSON.parse(localStorage.getItem('tkd_brackets_v3') || '{}');
         } catch(e) {}
 
-        const rounds = curBrackets[divId];
+        let actualDivId = divId;
+        let rounds = curBrackets[divId];
+        if (!rounds || !Array.isArray(rounds)) {
+            // Check for inverted key (e.g. Junior_Male vs Male_Junior)
+            const parts = divId.split('_');
+            if (parts.length >= 3) {
+                const alt = `${parts[1]}_${parts[0]}_${parts.slice(2).join('_')}`;
+                if (curBrackets[alt] && Array.isArray(curBrackets[alt])) {
+                    rounds = curBrackets[alt];
+                    actualDivId = alt;
+                }
+            }
+        }
         if (!rounds || !Array.isArray(rounds)) return null;
 
         let targetMatch = null;
@@ -14559,6 +14582,12 @@
         advanceWalkoversInTree(rounds);
         assignMatchNumbers(rounds);
 
+        // Keep brackets in sync
+        curBrackets[actualDivId] = rounds;
+        if (actualDivId !== divId) {
+            curBrackets[divId] = rounds;
+        }
+
         // Save to localStorage
         try {
             localStorage.setItem('tkd_brackets_v3', JSON.stringify(curBrackets));
@@ -14570,7 +14599,7 @@
             try {
                 store.addResult({
                     matchId: matchId,
-                    divisionId: divId,
+                    divisionId: actualDivId,
                     winnerId: resolvedWinnerId,
                     winnerName: winner?.name,
                     score: `${score1} - ${score2}`,
@@ -14579,8 +14608,26 @@
             } catch(e) {}
         }
 
+        // Send postMessage directly to draws-app iframe for immediate reactive update
+        const drawsIframe = document.getElementById('tkd-draws-iframe');
+        if (drawsIframe && drawsIframe.contentWindow) {
+            try {
+                drawsIframe.contentWindow.postMessage({
+                    type: 'TKD_MATCH_SCORED',
+                    divId: actualDivId,
+                    matchId: matchId,
+                    winnerId: resolvedWinnerId,
+                    brackets: curBrackets
+                }, '*');
+            } catch(e) {}
+        }
+
         // Trigger window storage event so draws-app iframe updates immediately
         try {
+            window.dispatchEvent(new StorageEvent('storage', {
+                key: 'tkd_brackets_v3',
+                newValue: JSON.stringify(curBrackets)
+            }));
             window.dispatchEvent(new Event('storage'));
         } catch(e) {}
 
@@ -14600,17 +14647,57 @@
             try { window.syncTournamentAthletesToDraws(false); } catch(e) {}
         }
 
-        // 1. Load active brackets from storage
-        let brackets = {};
+        // 1. Load active brackets from storage and normalize division keys (gender_age_wt)
+        let rawBrackets = {};
         try {
-            brackets = JSON.parse(localStorage.getItem('tkd_brackets_v3') || '{}');
+            rawBrackets = JSON.parse(localStorage.getItem('tkd_brackets_v3') || '{}');
         } catch(e) {}
 
-        // 2. Load court assignments
-        let divisionCourts = {};
+        let brackets = {};
+        let bracketsNeedSave = false;
+        Object.keys(rawBrackets).forEach(k => {
+            const br = rawBrackets[k];
+            const parts = k.split('_');
+            let canonicalKey = k;
+            if (parts.length >= 3 && (parts[1] === 'Male' || parts[1] === 'Female')) {
+                canonicalKey = `${parts[1]}_${parts[0]}_${parts.slice(2).join('_')}`;
+            }
+            if (canonicalKey !== k) {
+                bracketsNeedSave = true;
+                if (!rawBrackets[canonicalKey] && !brackets[canonicalKey]) {
+                    brackets[canonicalKey] = br;
+                }
+            } else {
+                brackets[canonicalKey] = br;
+            }
+        });
+        if (bracketsNeedSave) {
+            try { localStorage.setItem('tkd_brackets_v3', JSON.stringify(brackets)); } catch(e) {}
+        }
+
+        // 2. Load court assignments and normalize keys
+        let rawCourts = {};
         try {
-            divisionCourts = JSON.parse(localStorage.getItem('tkd_division_courts_v1') || '{}');
+            rawCourts = JSON.parse(localStorage.getItem('tkd_division_courts_v1') || '{}');
         } catch(e) {}
+        let divisionCourts = {};
+        let courtsNeedSave = false;
+        Object.keys(rawCourts).forEach(k => {
+            const parts = k.split('_');
+            let canonicalKey = k;
+            if (parts.length >= 3 && (parts[1] === 'Male' || parts[1] === 'Female')) {
+                canonicalKey = `${parts[1]}_${parts[0]}_${parts.slice(2).join('_')}`;
+            }
+            if (canonicalKey !== k) {
+                courtsNeedSave = true;
+                divisionCourts[canonicalKey] = rawCourts[k];
+            } else {
+                divisionCourts[k] = rawCourts[k];
+            }
+        });
+        if (courtsNeedSave) {
+            try { localStorage.setItem('tkd_division_courts_v1', JSON.stringify(divisionCourts)); } catch(e) {}
+        }
 
         // 3. Load active scale-passed competitors and divisions matching draws-app
         let competitors = [];
@@ -14625,22 +14712,31 @@
             return s === 'passed' || ws === 'passed';
         });
 
-        // Group competitors by division matching draws-app
+        // Group competitors by division matching draws-app exactly: ${gender}_${age}_${wt}
         const divisionsMap = {};
         const sourceList = (competitors && competitors.length > 0) ? competitors : passedAthletes;
         sourceList.forEach(a => {
-            const age = a.ageCategory || a.category || 'Junior';
+            const isG4 = a.competitionFormat === 'Group-4' || (a.category && a.category.includes('Group-4')) || (a.ageCategory && (a.ageCategory.startsWith('U-') || a.ageCategory.startsWith('A-')));
             const gender = a.gender || 'Male';
-            const wt = a.weightClass || 'U-55 kg';
-            const divKey = (age + '_' + gender + '_' + wt).replace(/\s+/g, '_');
-            const divName = `${age} ${gender} ${wt}`;
+            let divKey = '';
+            let divName = '';
+            if (isG4) {
+                const age = a.group4Category || a.ageCategory || 'U-10';
+                divKey = `${gender}_${age}`.replace(/\s+/g, '_');
+                divName = `${gender} ${age}`;
+            } else {
+                const age = a.ageCategory || a.category || 'Junior';
+                const wt = a.weightClass || 'U-55 kg';
+                divKey = `${gender}_${age}_${wt}`.replace(/\s+/g, '_');
+                divName = `${gender} ${age} ${wt}`;
+            }
             if (!divisionsMap[divKey]) {
                 divisionsMap[divKey] = { id: divKey, name: divName, athletes: [] };
             }
             divisionsMap[divKey].athletes.push(a);
         });
 
-        // Also incorporate any existing division keys in brackets
+        // Also incorporate any existing division keys in brackets (avoiding inverted duplicates)
         Object.keys(brackets).forEach(divKey => {
             if (!divisionsMap[divKey]) {
                 divisionsMap[divKey] = { id: divKey, name: divKey.replace(/_/g, ' '), athletes: [] };
@@ -14759,6 +14855,16 @@
 
         function advanceWalkoversInTree(rounds) {
             if (!rounds || rounds.length === 0) return;
+            const t0 = rounds[0], n = [];
+            for (let e = 0; e < t0.length; e++) { n.push(t0[e].p1); n.push(t0[e].p2); }
+            const r = (roundIdx, matchIdx) => {
+                const count = 2 ** (roundIdx + 1);
+                const start = matchIdx * count;
+                for (let e = start; e < start + count; e++) {
+                    if (n[e] !== null && n[e] !== undefined) return true;
+                }
+                return false;
+            };
             for (let t = 1; t < rounds.length; t++) {
                 for (let m of rounds[t]) {
                     m.p1 = null;
@@ -14770,45 +14876,42 @@
                 }
             }
             for (let t = 0; t < rounds.length; t++) {
-                let curr = rounds[t], next = rounds[t + 1];
-                for (let m of curr) {
+                const curr = rounds[t], next = rounds[t + 1];
+                for (let e of curr) {
                     if (t === 0) {
-                        if (m.p1 && !m.p2) { m.winnerId = m.p1.id; m.status = 'walkover'; }
-                        else if (!m.p1 && m.p2) { m.winnerId = m.p2.id; m.status = 'walkover'; }
-                        else if (!m.p1 && !m.p2) { m.status = 'walkover'; }
+                        if (e.p1 && !e.p2) { e.winnerId = e.p1.id; e.status = 'walkover'; }
+                        else if (!e.p1 && e.p2) { e.winnerId = e.p2.id; e.status = 'walkover'; }
+                        else if (!e.p1 && !e.p2) { e.status = 'walkover'; }
                     }
-                    if (m.winnerId && next) {
-                        let nextM = next[Math.floor(m.matchIndex / 2)];
-                        let winnerComp = m.winnerId === m.p1?.id ? m.p1 : m.p2;
+                    if (e.winnerId && next) {
+                        const nextM = next[Math.floor(e.matchIndex / 2)];
+                        const winnerComp = e.winnerId === e.p1?.id ? e.p1 : e.p2;
                         if (nextM) {
-                            if (m.matchIndex % 2 === 0) nextM.p1 = winnerComp;
+                            if (e.matchIndex % 2 === 0) nextM.p1 = winnerComp;
                             else nextM.p2 = winnerComp;
                         }
                     }
                 }
             }
             for (let t = 0; t < rounds.length - 1; t++) {
-                let next = rounds[t + 1];
-                for (let m of next) {
-                    if (m.status === 'pending') {
-                        let topFeeder = rounds[t][m.matchIndex * 2];
-                        let btmFeeder = rounds[t][m.matchIndex * 2 + 1];
-                        let topActive = topFeeder && (topFeeder.p1 || topFeeder.p2);
-                        let btmActive = btmFeeder && (btmFeeder.p1 || btmFeeder.p2);
-                        if (m.p1 && !btmActive) { m.winnerId = m.p1.id; m.status = 'walkover'; }
-                        else if (m.p2 && !topActive) { m.winnerId = m.p2.id; m.status = 'walkover'; }
-                        else if (!topActive && !btmActive) { m.status = 'walkover'; }
+                const next = rounds[t + 1];
+                for (let e = 0; e < next.length; e++) {
+                    const i = next[e], a = r(t, e * 2), o = r(t, e * 2 + 1);
+                    if (i.status === 'pending') {
+                        if (i.p1 && !o) { i.winnerId = i.p1.id; i.status = 'walkover'; }
+                        else if (i.p2 && !a) { i.winnerId = i.p2.id; i.status = 'walkover'; }
+                        else if (!a && !o) { i.status = 'walkover'; }
                     }
                 }
             }
             for (let t = 0; t < rounds.length - 1; t++) {
-                let curr = rounds[t], next = rounds[t + 1];
-                for (let m of curr) {
-                    if (m.winnerId && next) {
-                        let nextM = next[Math.floor(m.matchIndex / 2)];
-                        let winnerComp = m.winnerId === m.p1?.id ? m.p1 : m.p2;
+                const curr = rounds[t], next = rounds[t + 1];
+                for (let e of curr) {
+                    if (e.winnerId && next) {
+                        const nextM = next[Math.floor(e.matchIndex / 2)];
+                        const winnerComp = e.winnerId === e.p1?.id ? e.p1 : e.p2;
                         if (nextM) {
-                            if (m.matchIndex % 2 === 0) nextM.p1 = winnerComp;
+                            if (e.matchIndex % 2 === 0) nextM.p1 = winnerComp;
                             else nextM.p2 = winnerComp;
                         }
                     }
@@ -14830,15 +14933,32 @@
             }
         }
 
-        // If brackets are empty or missing for active divisions, auto-generate canonical brackets
+        // If brackets are empty or missing for active divisions, auto-generate or use alternate key
         let updatedBrackets = false;
         Object.keys(divisionsMap).forEach(divKey => {
             if (!brackets[divKey] || !Array.isArray(brackets[divKey]) || brackets[divKey].length === 0) {
+                const parts = divKey.split('_');
+                let altKey = null;
+                if (parts.length >= 3) {
+                    altKey = (parts[0] === 'Male' || parts[0] === 'Female')
+                        ? `${parts[1]}_${parts[0]}_${parts.slice(2).join('_')}`
+                        : `${parts[1]}_${parts[0]}_${parts.slice(2).join('_')}`;
+                }
+                if (altKey && brackets[altKey] && Array.isArray(brackets[altKey]) && brackets[altKey].length > 0) {
+                    brackets[divKey] = brackets[altKey];
+                    delete brackets[altKey];
+                    updatedBrackets = true;
+                    return;
+                }
+
                 const aths = divisionsMap[divKey].athletes;
                 if (aths.length >= 2) {
                     brackets[divKey] = generateCanonicalBracket(divKey, aths);
                     updatedBrackets = true;
                 }
+            } else {
+                // Ensure match numbers are assigned
+                assignMatchNumbers(brackets[divKey]);
             }
         });
 
@@ -14907,6 +15027,8 @@
         assignedDivKeys.forEach(divKey => {
             const rounds = brackets[divKey];
             if (!Array.isArray(rounds)) return;
+            assignMatchNumbers(rounds);
+
             const divObj = divisionsMap[divKey];
             const divName = divObj ? divObj.name : divKey.replace(/_/g, ' ');
 
@@ -14939,6 +15061,7 @@
                         stageOrder: stage.order,
                         stageName: stage.name,
                         match: m,
+                        matchNo: m.matchNo,
                         p1: chongAthlete,
                         p2: hongAthlete,
                         chongName: chongName,
@@ -14954,22 +15077,26 @@
             });
         });
 
-        // STRICT TAWEKWONDO PROGRESSION:
-        // First all Round of 16, then Quarterfinals, then Semifinals, then Finals across all sheets!
+        // STRICT TAEKWONDO PROGRESSION & MATCH NUMBER SYNC:
+        // Group by division, then order strictly by bracket match number (Match 1, Match 2, Match 3, Match 4...)
         scheduledMatches.sort((a, b) => {
-            if (a.stageOrder !== b.stageOrder) {
-                return a.stageOrder - b.stageOrder;
-            }
             if (a.divisionId !== b.divisionId) {
                 return a.divisionId.localeCompare(b.divisionId);
+            }
+            if (a.match && b.match && a.match.matchNo && b.match.matchNo) {
+                return a.match.matchNo - b.match.matchNo;
+            }
+            if (a.stageOrder !== b.stageOrder) {
+                return a.stageOrder - b.stageOrder;
             }
             return (a.matchIndex || 0) - (b.matchIndex || 0);
         });
 
-        // Number matches sequentially
+        // Number matches sequentially matching the bracket's exact matchNo
         scheduledMatches.forEach((sm, idx) => {
-            sm.displayMatchNo = `Match No ${(idx + 1).toString().padStart(2, '0')}`;
-            sm.seqIndex = idx + 1;
+            const num = (sm.match && sm.match.matchNo) ? sm.match.matchNo : (idx + 1);
+            sm.displayMatchNo = `Match No ${String(num).padStart(2, '0')}`;
+            sm.seqIndex = num;
         });
 
         // Render main view
@@ -15127,12 +15254,31 @@
 
                 // Find match object
                 let matchObj = null;
+                let actualDiv = divId;
                 if (brackets[divId] && Array.isArray(brackets[divId])) {
                     for (let r = 0; r < brackets[divId].length; r++) {
                         const found = brackets[divId][r].find(m => m.id === matchId);
                         if (found) {
                             matchObj = found;
                             break;
+                        }
+                    }
+                }
+                if (!matchObj) {
+                    const parts = divId.split('_');
+                    if (parts.length >= 3) {
+                        const alt = (parts[0] === 'Male' || parts[0] === 'Female')
+                            ? `${parts[1]}_${parts[0]}_${parts.slice(2).join('_')}`
+                            : `${parts[1]}_${parts[0]}_${parts.slice(2).join('_')}`;
+                        if (brackets[alt] && Array.isArray(brackets[alt])) {
+                            for (let r = 0; r < brackets[alt].length; r++) {
+                                const found = brackets[alt][r].find(m => m.id === matchId);
+                                if (found) {
+                                    matchObj = found;
+                                    actualDiv = alt;
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
@@ -15153,10 +15299,10 @@
                     displayMatchNo: displayMatchNo,
                     stageName: stageName,
                     divisionName: divisionName,
-                    divisionId: divId,
+                    divisionId: actualDiv,
                     match: matchObj
                 }, (winnerId, s1, s2, winType, roundScores) => {
-                    handleSaveJuryScore(divId, matchId, winnerId, s1, s2, winType, roundScores);
+                    handleSaveJuryScore(actualDiv, matchId, winnerId, s1, s2, winType, roundScores);
                 });
             };
         });
@@ -15173,12 +15319,31 @@
 
                 // Find match object
                 let matchObj = null;
+                let actualDiv = divId;
                 if (brackets[divId] && Array.isArray(brackets[divId])) {
                     for (let r = 0; r < brackets[divId].length; r++) {
                         const found = brackets[divId][r].find(m => m.id === matchId);
                         if (found) {
                             matchObj = found;
                             break;
+                        }
+                    }
+                }
+                if (!matchObj) {
+                    const parts = divId.split('_');
+                    if (parts.length >= 3) {
+                        const alt = (parts[0] === 'Male' || parts[0] === 'Female')
+                            ? `${parts[1]}_${parts[0]}_${parts.slice(2).join('_')}`
+                            : `${parts[1]}_${parts[0]}_${parts.slice(2).join('_')}`;
+                        if (brackets[alt] && Array.isArray(brackets[alt])) {
+                            for (let r = 0; r < brackets[alt].length; r++) {
+                                const found = brackets[alt][r].find(m => m.id === matchId);
+                                if (found) {
+                                    matchObj = found;
+                                    actualDiv = alt;
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
@@ -15199,7 +15364,7 @@
                     displayMatchNo: displayMatchNo,
                     stageName: stageName,
                     divisionName: divisionName,
-                    divisionId: divId,
+                    divisionId: actualDiv,
                     match: matchObj,
                     onManualScore: () => {
                         openJuryScoringModal({
@@ -15208,14 +15373,14 @@
                             displayMatchNo: displayMatchNo,
                             stageName: stageName,
                             divisionName: divisionName,
-                            divisionId: divId,
+                            divisionId: actualDiv,
                             match: matchObj
                         }, (winnerId, s1, s2, winType, roundScores) => {
-                            handleSaveJuryScore(divId, matchId, winnerId, s1, s2, winType, roundScores);
+                            handleSaveJuryScore(actualDiv, matchId, winnerId, s1, s2, winType, roundScores);
                         });
                     }
                 }, (syncData) => {
-                    handleSaveJuryScore(divId, matchId, syncData.winnerId, syncData.score1, syncData.score2, syncData.winType, syncData.roundScores);
+                    handleSaveJuryScore(actualDiv, matchId, syncData.winnerId, syncData.score1, syncData.score2, syncData.winType, syncData.roundScores);
                 });
             };
         });
