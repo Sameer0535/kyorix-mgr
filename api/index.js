@@ -27,6 +27,9 @@ let _memSettings = {
     bankName: 'Kotak Mahindra Bank'
 };
 
+const SERVER_DATA_VERSION = 'v15_pending_weighin';
+const VERSION_FILE = path.join(DATA_DIR, 'version.txt');
+
 function initStorage() {
     try {
         if (!fs.existsSync(DATA_DIR)) {
@@ -39,12 +42,20 @@ function initStorage() {
                 fs.writeFileSync(PAYMENTS_FILE, '[]', 'utf8');
             }
         }
-        if (!fs.existsSync(ATHLETES_FILE)) {
+        let currentVer = '';
+        try {
+            if (fs.existsSync(VERSION_FILE)) {
+                currentVer = fs.readFileSync(VERSION_FILE, 'utf8').trim();
+            }
+        } catch (e) {}
+
+        if (currentVer !== SERVER_DATA_VERSION || !fs.existsSync(ATHLETES_FILE)) {
             if (fs.existsSync(SEED_ATHLETES_FILE)) {
                 fs.copyFileSync(SEED_ATHLETES_FILE, ATHLETES_FILE);
             } else {
                 fs.writeFileSync(ATHLETES_FILE, '[]', 'utf8');
             }
+            try { fs.writeFileSync(VERSION_FILE, SERVER_DATA_VERSION, 'utf8'); } catch (e) {}
         }
         if (!fs.existsSync(SETTINGS_FILE)) {
             if (fs.existsSync(SEED_SETTINGS_FILE)) {

@@ -153,12 +153,12 @@
                 "gender": "Male",
                 "category": "Junior (15–17 yrs)",
                 "weight": 54.2,
-                "measuredWeight": 54.2,
+                "measuredWeight": null,
                 "weightClass": "Junior Male U-55 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -179,11 +179,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 4,
-                        "wins": 3,
+                        "matches": 0,
+                        "wins": 0,
                         "ko": 0,
-                        "ranking": "State Seed #1"
-                }
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-02",
@@ -200,12 +202,12 @@
                 "gender": "Male",
                 "category": "Junior (15–17 yrs)",
                 "weight": 53.8,
-                "measuredWeight": 53.8,
+                "measuredWeight": null,
                 "weightClass": "Junior Male U-55 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -226,11 +228,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 5,
-                        "wins": 4,
-                        "ko": 1,
-                        "ranking": "State Seed #2"
-                }
+                        "matches": 0,
+                        "wins": 0,
+                        "ko": 0,
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-03",
@@ -247,12 +251,12 @@
                 "gender": "Male",
                 "category": "Junior (15–17 yrs)",
                 "weight": 54.7,
-                "measuredWeight": 54.7,
+                "measuredWeight": null,
                 "weightClass": "Junior Male U-55 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -273,11 +277,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 6,
-                        "wins": 5,
+                        "matches": 0,
+                        "wins": 0,
                         "ko": 0,
-                        "ranking": "State Seed #3"
-                }
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-04",
@@ -294,12 +300,12 @@
                 "gender": "Male",
                 "category": "Junior (15–17 yrs)",
                 "weight": 54,
-                "measuredWeight": 54,
+                "measuredWeight": null,
                 "weightClass": "Junior Male U-55 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -320,11 +326,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 7,
-                        "wins": 3,
-                        "ko": 1,
-                        "ranking": "State Seed #4"
-                }
+                        "matches": 0,
+                        "wins": 0,
+                        "ko": 0,
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-05",
@@ -341,12 +349,12 @@
                 "gender": "Male",
                 "category": "Junior (15–17 yrs)",
                 "weight": 53.5,
-                "measuredWeight": 53.5,
+                "measuredWeight": null,
                 "weightClass": "Junior Male U-55 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -367,11 +375,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 8,
-                        "wins": 4,
+                        "matches": 0,
+                        "wins": 0,
                         "ko": 0,
-                        "ranking": "Competitor"
-                }
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-06",
@@ -388,12 +398,12 @@
                 "gender": "Female",
                 "category": "Junior (15–17 yrs)",
                 "weight": 48.2,
-                "measuredWeight": 48.2,
+                "measuredWeight": null,
                 "weightClass": "Junior Female U-49 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -414,11 +424,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 4,
-                        "wins": 5,
-                        "ko": 1,
-                        "ranking": "Competitor"
-                }
+                        "matches": 0,
+                        "wins": 0,
+                        "ko": 0,
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-07",
@@ -435,12 +447,12 @@
                 "gender": "Female",
                 "category": "Junior (15–17 yrs)",
                 "weight": 47.9,
-                "measuredWeight": 47.9,
+                "measuredWeight": null,
                 "weightClass": "Junior Female U-49 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -461,11 +473,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 5,
-                        "wins": 3,
+                        "matches": 0,
+                        "wins": 0,
                         "ko": 0,
-                        "ranking": "Competitor"
-                }
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-08",
@@ -482,12 +496,12 @@
                 "gender": "Female",
                 "category": "Junior (15–17 yrs)",
                 "weight": 48.5,
-                "measuredWeight": 48.5,
+                "measuredWeight": null,
                 "weightClass": "Junior Female U-49 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -508,11 +522,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 6,
-                        "wins": 4,
-                        "ko": 1,
-                        "ranking": "Competitor"
-                }
+                        "matches": 0,
+                        "wins": 0,
+                        "ko": 0,
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-09",
@@ -529,12 +545,12 @@
                 "gender": "Female",
                 "category": "Junior (15–17 yrs)",
                 "weight": 47.4,
-                "measuredWeight": 47.4,
+                "measuredWeight": null,
                 "weightClass": "Junior Female U-49 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -555,11 +571,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 7,
-                        "wins": 5,
+                        "matches": 0,
+                        "wins": 0,
                         "ko": 0,
-                        "ranking": "Competitor"
-                }
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-10",
@@ -576,12 +594,12 @@
                 "gender": "Male",
                 "category": "Cadet (12–14 yrs)",
                 "weight": 44.1,
-                "measuredWeight": 44.1,
+                "measuredWeight": null,
                 "weightClass": "Cadet Male U-45 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -602,11 +620,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 8,
-                        "wins": 3,
-                        "ko": 1,
-                        "ranking": "Competitor"
-                }
+                        "matches": 0,
+                        "wins": 0,
+                        "ko": 0,
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-11",
@@ -623,12 +643,12 @@
                 "gender": "Male",
                 "category": "Cadet (12–14 yrs)",
                 "weight": 43.6,
-                "measuredWeight": 43.6,
+                "measuredWeight": null,
                 "weightClass": "Cadet Male U-45 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -649,11 +669,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 4,
-                        "wins": 4,
+                        "matches": 0,
+                        "wins": 0,
                         "ko": 0,
-                        "ranking": "Competitor"
-                }
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-12",
@@ -670,12 +692,12 @@
                 "gender": "Male",
                 "category": "Cadet (12–14 yrs)",
                 "weight": 44.8,
-                "measuredWeight": 44.8,
+                "measuredWeight": null,
                 "weightClass": "Cadet Male U-45 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -696,11 +718,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 5,
-                        "wins": 5,
-                        "ko": 1,
-                        "ranking": "Competitor"
-                }
+                        "matches": 0,
+                        "wins": 0,
+                        "ko": 0,
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-13",
@@ -717,12 +741,12 @@
                 "gender": "Male",
                 "category": "Cadet (12–14 yrs)",
                 "weight": 44.2,
-                "measuredWeight": 44.2,
+                "measuredWeight": null,
                 "weightClass": "Cadet Male U-45 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -743,11 +767,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 6,
-                        "wins": 3,
+                        "matches": 0,
+                        "wins": 0,
                         "ko": 0,
-                        "ranking": "Competitor"
-                }
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-14",
@@ -764,12 +790,12 @@
                 "gender": "Male",
                 "category": "Senior (18+ yrs)",
                 "weight": 67.2,
-                "measuredWeight": 67.2,
+                "measuredWeight": null,
                 "weightClass": "Senior Male U-68 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -790,11 +816,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 7,
-                        "wins": 4,
-                        "ko": 1,
-                        "ranking": "Competitor"
-                }
+                        "matches": 0,
+                        "wins": 0,
+                        "ko": 0,
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-15",
@@ -811,12 +839,12 @@
                 "gender": "Male",
                 "category": "Senior (18+ yrs)",
                 "weight": 66.8,
-                "measuredWeight": 66.8,
+                "measuredWeight": null,
                 "weightClass": "Senior Male U-68 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -837,11 +865,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 8,
-                        "wins": 5,
+                        "matches": 0,
+                        "wins": 0,
                         "ko": 0,
-                        "ranking": "Competitor"
-                }
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-16",
@@ -858,12 +888,12 @@
                 "gender": "Male",
                 "category": "Senior (18+ yrs)",
                 "weight": 67.5,
-                "measuredWeight": 67.5,
+                "measuredWeight": null,
                 "weightClass": "Senior Male U-68 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -884,11 +914,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 4,
-                        "wins": 3,
-                        "ko": 1,
-                        "ranking": "Competitor"
-                }
+                        "matches": 0,
+                        "wins": 0,
+                        "ko": 0,
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-17",
@@ -905,12 +937,12 @@
                 "gender": "Male",
                 "category": "Senior (18+ yrs)",
                 "weight": 66.4,
-                "measuredWeight": 66.4,
+                "measuredWeight": null,
                 "weightClass": "Senior Male U-68 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -931,11 +963,13 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 5,
-                        "wins": 4,
+                        "matches": 0,
+                        "wins": 0,
                         "ko": 0,
-                        "ranking": "Competitor"
-                }
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         },
         {
                 "id": "ath-demo-18",
@@ -952,12 +986,12 @@
                 "gender": "Male",
                 "category": "Senior (18+ yrs)",
                 "weight": 67.8,
-                "measuredWeight": 67.8,
+                "measuredWeight": null,
                 "weightClass": "Senior Male U-68 kg",
                 "competitionFormat": "Official",
                 "discipline": "Kyorugi",
-                "status": "Passed",
-                "weighInStatus": "Passed",
+                "status": "Pending",
+                "weighInStatus": "Pending",
                 "paymentStatus": "Paid",
                 "feeStatus": "Paid",
                 "paidDate": "2026-06-01",
@@ -978,13 +1012,15 @@
                         "tourn-state-2026"
                 ],
                 "stats": {
-                        "matches": 6,
-                        "wins": 5,
-                        "ko": 1,
-                        "ranking": "Competitor"
-                }
+                        "matches": 0,
+                        "wins": 0,
+                        "ko": 0,
+                        "ranking": "Contender"
+                },
+                "weighInDate": null,
+                "weighInBy": null
         }
-];
+    ];
     const SEED_DRAWS = {};
     const SEED_RESULTS = {
         medalStandings: [],
@@ -1012,20 +1048,24 @@
         }
 
         init() {
-            const DATA_VERSION = 'v14_prod_persistent_auth';
+            const DATA_VERSION = 'v15_pending_weighin';
             const currentVer = localStorage.getItem('tkd_data_version');
             if (currentVer !== DATA_VERSION) {
-                // Safeguard active user session, passwords, payments and settings across updates!
+                // Safeguard active user session, passwords, payments, templates and settings across updates!
                 let savedUser = null;
                 try { savedUser = localStorage.getItem('tkd_user') || sessionStorage.getItem('tkd_user'); } catch(e) {}
                 const savedAdminPass = localStorage.getItem('tkd_admin_pass');
                 const savedOrgPass = localStorage.getItem('tkd_organizer_pass');
                 const savedUpi = localStorage.getItem('tkd_upi_payments');
                 const savedSettings = localStorage.getItem('tkd_payment_settings');
+                const savedCertSettings = localStorage.getItem('tkd_certificate_settings');
+                const savedCertBg = localStorage.getItem('tkd_certificate_template_bg');
+                const savedIdcardBg = localStorage.getItem('tkd_idcard_template_bg');
+                const savedTournId = localStorage.getItem('tkd_selected_tourn_id');
                 let savedView = null;
                 try { savedView = localStorage.getItem('tkd_active_view') || sessionStorage.getItem('tkd_active_view'); } catch(e) {}
 
-                // Reset only tournament seed caches that require clean re-sync
+                // Reset tournament operational caches: keep athlete registration profiles, but reset weigh-in to certificates
                 localStorage.removeItem('tkd_tournaments');
                 localStorage.removeItem('tkd_dojangs');
                 localStorage.removeItem('tkd_athletes');
@@ -1035,6 +1075,12 @@
                 localStorage.removeItem('tkd_fee_notifs');
                 localStorage.removeItem('tkd_published_results');
                 localStorage.removeItem('tkd_results_published');
+                localStorage.removeItem('tkd_generated_certificates');
+                localStorage.removeItem('tkd_brackets_v3');
+                localStorage.removeItem('tkd_competitors_v3');
+                localStorage.removeItem('tkd_competitors_v1');
+                localStorage.removeItem('tkd_division_courts_v1');
+                localStorage.removeItem('tkd_match_updated');
 
                 localStorage.setItem('tkd_data_version', DATA_VERSION);
 
@@ -1046,6 +1092,10 @@
                 if (savedOrgPass) localStorage.setItem('tkd_organizer_pass', savedOrgPass);
                 if (savedUpi) localStorage.setItem('tkd_upi_payments', savedUpi);
                 if (savedSettings) localStorage.setItem('tkd_payment_settings', savedSettings);
+                if (savedCertSettings) localStorage.setItem('tkd_certificate_settings', savedCertSettings);
+                if (savedCertBg) localStorage.setItem('tkd_certificate_template_bg', savedCertBg);
+                if (savedIdcardBg) localStorage.setItem('tkd_idcard_template_bg', savedIdcardBg);
+                if (savedTournId) localStorage.setItem('tkd_selected_tourn_id', savedTournId);
                 if (savedView) {
                     localStorage.setItem('tkd_active_view', savedView);
                     try { sessionStorage.setItem('tkd_active_view', savedView); } catch(e) {}
