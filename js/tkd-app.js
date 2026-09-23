@@ -1448,6 +1448,17 @@
             let hasDups = false;
             list.forEach(a => {
                 if (!a) return;
+                // Auto-sanitize athlete name vs academy if merged
+                if (a.name) {
+                    const m = a.name.match(/^(.+?)\s*\(([^)]+)\)$/);
+                    if (m) {
+                        if (!a.dojangName || a.dojangName === 'Individual Competitor') {
+                            a.dojangName = m[1].trim();
+                        }
+                        a.name = m[2].trim();
+                        hasDups = true;
+                    }
+                }
                 const nameKey = (a.name || '').trim().toLowerCase();
                 const tournId = (a.registeredTournaments && a.registeredTournaments[0]) || 'tourn-state-2026';
                 const dedupeKey = `${nameKey}___${a.gender || ''}___${tournId}`;
@@ -1472,6 +1483,22 @@
 
         addAthlete(aData) {
             const list = this.getAthletes();
+            
+            // Clean merged Academy (Name) format if present
+            let cleanAthName = aData.name || '';
+            let cleanDojangName = aData.dojangName || 'Individual Competitor';
+            if (cleanAthName) {
+                const m = cleanAthName.match(/^(.+?)\s*\(([^)]+)\)$/);
+                if (m) {
+                    if (!cleanDojangName || cleanDojangName === 'Individual Competitor') {
+                        cleanDojangName = m[1].trim();
+                    }
+                    cleanAthName = m[2].trim();
+                }
+            }
+            aData.name = cleanAthName;
+            aData.dojangName = cleanDojangName;
+
             const inputName = (aData.name || '').trim().toLowerCase();
             const tournId = (aData.registeredTournaments && aData.registeredTournaments[0]) || aData.tournId || this.getSelectedTournamentId() || 'tourn-state-2026';
             
@@ -1678,7 +1705,18 @@
                     ? matchedAthlete.registeredTournaments
                     : [targetTournId];
                 const regTourns = Array.from(new Set([...curRegs, targetTournId, selTournId, 'tourn-state-2026'].filter(Boolean)));
+                
+                let curName = matchedAthlete.name || '';
+                let curDojang = matchedAthlete.dojangName || '';
+                const mCur = curName.match(/^(.+?)\s*\(([^)]+)\)$/);
+                if (mCur) {
+                    if (!curDojang || curDojang === 'Individual Competitor') curDojang = mCur[1].trim();
+                    curName = mCur[2].trim();
+                }
+
                 this.updateAthlete(matchedAthlete.id, {
+                    name: curName,
+                    dojangName: curDojang || matchedAthlete.dojangName || 'Individual Competitor',
                     paymentStatus: 'Paid',
                     feeStatus: 'Paid',
                     paidDate: (payment.approvedAt || new Date().toISOString()).split('T')[0],
@@ -1692,13 +1730,22 @@
                 const selTournId = this.getSelectedTournamentId();
                 const targetTournId = payment.tournamentId || selTournId || 'tourn-state-2026';
                 const athData = payment.athleteData || {};
+                
+                let athName = payment.userName || athData.name || 'Competitor';
+                let athDojang = athData.dojangName || 'Individual Competitor';
+                const mAth = athName.match(/^(.+?)\s*\(([^)]+)\)$/);
+                if (mAth) {
+                    if (!athDojang || athDojang === 'Individual Competitor') athDojang = mAth[1].trim();
+                    athName = mAth[2].trim();
+                }
+
                 matchedAthlete = this.addAthlete({
                     id: entityId || athData.id || ('ath-' + Date.now().toString(36)),
                     athleteId: payment.athleteId || athData.athleteId || ('ATH-' + Math.floor(100000 + Math.random() * 900000)),
-                    name: payment.userName || athData.name || 'Competitor',
+                    name: athName,
                     phone: mobile || athData.phone || '',
                     email: payment.email || athData.email || '',
-                    dojangName: athData.dojangName || 'Individual Competitor',
+                    dojangName: athDojang,
                     dojangId: athData.dojangId || 'ind-competitor',
                     dojangCode: 'IND',
                     category: athData.category || 'Junior (15–17 yrs)',
@@ -4567,6 +4614,9 @@
         const athPhoto = loggedAth ? (loggedAth.photo || '') : '';
         const athAadhar = loggedAth ? (loggedAth.aadharDoc || '') : '';
         const athBirthCert = loggedAth ? (loggedAth.birthCertDoc || '') : '';
+        const defaultAcademy = (currentUser && currentUser.role === 'dojang' && currentDojang) 
+            ? currentDojang.name 
+            : (loggedAth ? (loggedAth.dojangName !== 'Individual Competitor' ? (loggedAth.dojangName || '') : '') : '');
 
         let birthYear = '', birthMonth = '', birthDay = '';
         if (loggedAth && loggedAth.dob) {
@@ -4668,7 +4718,13 @@
                         <!-- Student / Participant Name * -->
                         <div>
                             <label class="clean-input-label">Student / Participant Name *</label>
-                            <input type="text" class="clean-input" id="reg-p-name" placeholder="Enter full athlete name" value="${defaultName}" required>
+                            <input type="text" class="clean-input" id="reg-p-name" placeholder="Enter full athlete name (e.g. Darshan)" value="${defaultName}" required>
+                        </div>
+
+                        <!-- Academy / School / Club Name -->
+                        <div>
+                            <label class="clean-input-label">Academy / Club / School Name <span class="text-[10px] text-slate-400 font-normal">(Leave blank if Individual Unattached)</span></label>
+                            <input type="text" class="clean-input" id="reg-p-academy" placeholder="e.g. D Taekwondo Academy or Unattached" value="${defaultAcademy}">
                         </div>
 
                         <!-- 2-Col: Date of Birth * (Day / Month / Year) & Parent/Guardian Name -->
@@ -5162,8 +5218,22 @@
                 return;
             }
 
+            let cleanAthName = name;
+            const enteredAcademy = document.getElementById('reg-p-academy')?.value.trim() || '';
+            let cleanDojangName = (currentUser && currentUser.role === 'dojang' && currentDojang) 
+                ? currentDojang.name 
+                : (enteredAcademy || (loggedAth && loggedAth.dojangName !== 'Individual Competitor' ? loggedAth.dojangName : '') || 'Individual Competitor');
+
+            const nameAcMatch = cleanAthName.match(/^(.+?)\s*\(([^)]+)\)$/);
+            if (nameAcMatch) {
+                if (!cleanDojangName || cleanDojangName === 'Individual Competitor') {
+                    cleanDojangName = nameAcMatch[1].trim();
+                }
+                cleanAthName = nameAcMatch[2].trim();
+            }
+
             const newAthlete = store.addAthlete({
-                name,
+                name: cleanAthName,
                 athleteId: generatedAthId,
                 dob,
                 age: calculatedAge,
@@ -5188,12 +5258,15 @@
                 birthCertDoc: finalBirthCert,
                 docStatus: 'Pending',
                 dojangId: (currentUser && currentUser.role === 'dojang' && currentDojang) ? currentDojang.id : ((loggedAth && loggedAth.dojangId && loggedAth.dojangId !== 'ind-1') ? loggedAth.dojangId : 'ind-competitor'),
-                dojangName: (currentUser && currentUser.role === 'dojang' && currentDojang) ? currentDojang.name : (loggedAth ? (loggedAth.dojangName || 'Individual Competitor') : 'Individual Competitor'),
+                dojangName: cleanDojangName,
                 dojangCode: (currentUser && currentUser.role === 'dojang' && currentDojang) ? currentDojang.shortCode : (loggedAth ? (loggedAth.dojangCode || 'IND') : 'IND'),
+                isIndividual: !(currentUser && currentUser.role === 'dojang' && currentDojang),
                 registeredTournaments: [tournId]
             });
             if (loggedAth) {
                 store.updateAthlete(loggedAth.id, {
+                    name: cleanAthName,
+                    dojangName: cleanDojangName,
                     photo: athletePhotoBase64 || loggedAth.photo,
                     aadharDoc: athleteAadharBase64 || loggedAth.aadharDoc,
                     birthCertDoc: athleteBirthCertBase64 || loggedAth.birthCertDoc
@@ -5201,7 +5274,7 @@
             }
 
             mc.innerHTML = '';
-            showToast(`Registration saved for ${name}! Please complete entry fee payment.`, 'success');
+            showToast(`Registration saved for ${cleanAthName}! Please complete entry fee payment.`, 'success');
 
             // If guest registered, log in as that athlete
             if (!currentUser) {
@@ -8338,17 +8411,94 @@
         if (refreshBtn) refreshBtn.onclick = () => loadAdminPaymentsData();
 
         let payments = [];
+        let serverPayments = [];
         try {
             const res = await fetch('/api/admin/payments');
             if (res.ok) {
                 const data = await res.json();
-                payments = data.payments || [];
-            } else {
-                payments = store.getUpiPayments();
+                serverPayments = data.payments || [];
             }
-        } catch (e) {
-            payments = store.getUpiPayments();
-        }
+        } catch (e) {}
+
+        const localPayments = store.getUpiPayments();
+        const payMap = new Map();
+
+        // 1. Add server payments
+        serverPayments.forEach(p => {
+            if (p && (p.id || p.utr)) payMap.set(p.id || p.utr, { ...p });
+        });
+
+        // 2. Add/merge local payments
+        localPayments.forEach(p => {
+            if (!p) return;
+            const key = p.id || p.utr;
+            if (!payMap.has(key)) {
+                payMap.set(key, { ...p });
+            } else {
+                const existing = payMap.get(key);
+                if (p.status === 'Approved' && existing.status !== 'Approved') {
+                    payMap.set(key, { ...existing, ...p });
+                }
+            }
+        });
+
+        // 3. Auto-reconcile all athletes who have paid status or UTR
+        const allAthletes = store.getAthletes();
+        allAthletes.forEach((a, idx) => {
+            if (!a) return;
+            const isPaid = (a.paymentStatus === 'Paid' || a.feeStatus === 'Paid');
+            const hasUtr = !!(a.utr || a.lastSubmittedUtr);
+            if (isPaid || hasUtr) {
+                const athUtr = a.utr || a.lastSubmittedUtr || ('982601000' + String(idx + 1).padStart(2, '0') + '99');
+                let foundKey = null;
+                for (const [k, p] of payMap.entries()) {
+                    if (p.utr === athUtr || (p.entityId && (p.entityId === a.id || p.entityId === a.athleteId)) || (p.athleteId && p.athleteId === a.athleteId)) {
+                        foundKey = k;
+                        break;
+                    }
+                }
+                if (foundKey) {
+                    const existing = payMap.get(foundKey);
+                    if (isPaid && existing.status !== 'Approved') {
+                        existing.status = 'Approved';
+                        existing.approvedAt = existing.approvedAt || new Date().toISOString();
+                    }
+                } else {
+                    const pRec = {
+                        id: a.txnId || ('PAY-' + (a.athleteId || a.id)),
+                        utr: athUtr,
+                        userName: a.name || 'Competitor',
+                        mobile: (a.phone || '').replace(/\D/g, '').slice(-10) || '9845110001',
+                        email: a.email || '',
+                        purpose: `Championship Entry Fee - ${a.name || 'Competitor'}`,
+                        amount: 1500,
+                        notes: 'Official registration fee settlement',
+                        metadata: {},
+                        entityId: a.id,
+                        entityType: 'athlete',
+                        athleteId: a.athleteId || a.id,
+                        tournamentId: a.tournId || 'tourn-state-2026',
+                        status: isPaid ? 'Approved' : 'Pending',
+                        createdAt: a.paidDate ? new Date(a.paidDate).toISOString() : new Date().toISOString(),
+                        approvedAt: isPaid ? (a.paidDate ? new Date(a.paidDate).toISOString() : new Date().toISOString()) : null,
+                        rejectedAt: null,
+                        rejectReason: null
+                    };
+                    payMap.set(pRec.id, pRec);
+                }
+            }
+        });
+
+        payments = Array.from(payMap.values()).sort((a, b) => {
+            const da = new Date(a.approvedAt || a.createdAt || 0).getTime();
+            const db = new Date(b.approvedAt || b.createdAt || 0).getTime();
+            return db - da;
+        });
+
+        // Persist consolidated payments back to localStorage
+        try {
+            localStorage.setItem('tkd_upi_payments', JSON.stringify(payments));
+        } catch (e) {}
 
         // Compute counts
         const total = payments.length;
@@ -8920,6 +9070,9 @@
                     const data = await res.json();
                     if (res.ok && data.success) {
                         paymentRecord = data.payment;
+                        if (paymentRecord) {
+                            store.saveUpiPayment(paymentRecord);
+                        }
                         if (data.athlete) {
                             store.addAthlete(data.athlete);
                         }
@@ -9557,28 +9710,42 @@
                                 const isPaid = a.paymentStatus === 'Paid' || a.feeStatus === 'Paid';
                                 const isPendingFeeApproval = !isPaid && (a.paymentStatus === 'Pending Approval' || a.feeStatus === 'Pending Approval' || a.utr);
 
+                                let athDisplayName = (a.name || '').trim();
+                                let athDisplayDojang = (a.dojangName || '').trim();
+                                const nameMatch = athDisplayName.match(/^(.+?)\s*\(([^)]+)\)$/);
+                                if (nameMatch) {
+                                    athDisplayDojang = nameMatch[1].trim();
+                                    athDisplayName = nameMatch[2].trim();
+                                }
+
                                 return `
-                                    <tr class="tr-ath-roster-row hover:bg-slate-50 transition" data-name="${a.name}" data-id="${a.kukkiwonNo || a.athleteId || a.id}" data-dojang-id="${a.dojangId || ((a.dojangName === 'Individual Competitor' || a.isIndividual) ? 'ind-competitor' : '')}" data-discipline="${a.discipline || 'Kyorugi'}" data-format="${a.competitionFormat || 'Official'}" data-weighin-status="${weighStatus}">
+                                    <tr class="tr-ath-roster-row hover:bg-slate-50 transition" data-name="${athDisplayName}" data-id="${a.kukkiwonNo || a.athleteId || a.id}" data-dojang-id="${a.dojangId || ((a.dojangName === 'Individual Competitor' || a.isIndividual) ? 'ind-competitor' : '')}" data-discipline="${a.discipline || 'Kyorugi'}" data-format="${a.competitionFormat || 'Official'}" data-weighin-status="${weighStatus}">
                                         <td>
                                             <div class="flex items-center gap-2.5">
                                                 <div class="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center font-bold text-xs">
-                                                    ${a.photo ? `<img src="${a.photo}" class="w-full h-full object-cover">` : `<span class="text-slate-700 font-mono">${a.name.slice(0, 2).toUpperCase()}</span>`}
+                                                    ${a.photo ? `<img src="${a.photo}" class="w-full h-full object-cover">` : `<span class="text-slate-700 font-mono">${athDisplayName.slice(0, 2).toUpperCase()}</span>`}
                                                 </div>
                                                 <div>
-                                                    <strong class="text-slate-900 text-xs font-bold block">${a.name}</strong>
+                                                    <strong class="text-slate-900 text-xs font-bold block">${athDisplayName}</strong>
                                                     <span class="text-[10px] text-blue-600 font-mono font-semibold block">${a.kukkiwonNo || a.athleteId || a.id}</span>
                                                 </div>
                                             </div>
                                         </td>
                                         <td>
-                                            ${(a.dojangId === 'ind-competitor' || a.isIndividual || a.dojangName === 'Individual Competitor') ? `
+                                            ${(athDisplayDojang && athDisplayDojang !== 'Individual Competitor' && athDisplayDojang !== 'Individual (Unattached)') ? `
+                                                <div class="text-xs text-slate-800 font-bold">${athDisplayDojang}</div>
+                                                ${(a.dojangId === 'ind-competitor' || a.isIndividual) ? `
+                                                    <div class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-semibold">
+                                                        <i class="fa-solid fa-user text-[9px] text-amber-600"></i> Direct Entry
+                                                    </div>
+                                                ` : `
+                                                    <div class="text-[10px] text-slate-500 font-mono">${a.dojangCode || 'TKD'}</div>
+                                                `}
+                                            ` : `
                                                 <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-200 text-[11px] font-bold">
                                                     <i class="fa-solid fa-user text-[10px] text-amber-600"></i> Individual (Unattached)
                                                 </div>
                                                 <div class="text-[10px] text-slate-500 font-mono mt-0.5">${a.state || a.city || 'Direct Entry'}</div>
-                                            ` : `
-                                                <div class="text-xs text-slate-800 font-semibold">${a.dojangName || 'Affiliated Academy'}</div>
-                                                <div class="text-[10px] text-slate-500 font-mono">${a.dojangCode || 'TKD'}</div>
                                             `}
                                         </td>
                                         <td>${getBeltBadge(a.beltId)}</td>
@@ -15033,15 +15200,18 @@
             }
         }
 
-        // Helper: Stage order calculation (All R32 -> R16 -> Quarterfinals -> Semifinals -> Finals)
+        // Helper: Stage order and tournament phase calculation
+        // Phase 1: All Prelims (R32, R16, etc.) and Quarterfinals across all categories
+        // Phase 2: All Semifinals across all categories
+        // Phase 3: All Finals across all categories
         function getStageInfo(roundIdx, totalRounds) {
             const dist = totalRounds - 1 - roundIdx;
-            if (dist === 0) return { order: 5, name: 'Final' };
-            if (dist === 1) return { order: 4, name: 'Semifinal' };
-            if (dist === 2) return { order: 3, name: 'Quarterfinal' };
-            if (dist === 3) return { order: 2, name: 'Round of 16' };
-            if (dist === 4) return { order: 1, name: 'Round of 32' };
-            return { order: 0, name: `Round ${roundIdx + 1}` };
+            if (dist === 0) return { order: 5, phase: 3, name: 'Final' };
+            if (dist === 1) return { order: 4, phase: 2, name: 'Semifinal' };
+            if (dist === 2) return { order: 3, phase: 1, name: 'Quarterfinal' };
+            if (dist === 3) return { order: 2, phase: 1, name: 'Round of 16' };
+            if (dist === 4) return { order: 1, phase: 1, name: 'Round of 32' };
+            return { order: 0, phase: 1, name: `Round ${roundIdx + 1}` };
         }
 
         // Helper: Resolve feeder match winner label (e.g. W1, W2) for downstream rounds
@@ -15052,9 +15222,12 @@
             const feederIdx = mIdx * 2 + (isChong ? 0 : 1);
             const feederMatch = prevRound[feederIdx];
             if (feederMatch) {
-                if (feederMatch.status === 'walkover' && feederMatch.winnerId) {
+                if ((feederMatch.status === 'completed' || feederMatch.status === 'walkover') && feederMatch.winnerId) {
                     const winner = (feederMatch.p1 && feederMatch.p1.id === feederMatch.winnerId) ? feederMatch.p1 : (feederMatch.p2 || feederMatch.p1);
-                    if (winner && winner.name) return winner.name;
+                    if (winner && winner.name) {
+                        const m = winner.name.match(/^(.+?)\s*\(([^)]+)\)$/);
+                        return m ? m[2].trim() : winner.name;
+                    }
                 }
                 if (feederMatch.matchNo) {
                     return `W${feederMatch.matchNo}`;
@@ -15090,11 +15263,28 @@
                     const chongAthlete = m.p1;
                     const hongAthlete = m.p2;
 
-                    const chongName = chongAthlete ? chongAthlete.name : getFeederMatchLabel(rounds, rIdx, m.matchIndex !== undefined ? m.matchIndex : mIdx, true);
-                    const hongName = hongAthlete ? hongAthlete.name : getFeederMatchLabel(rounds, rIdx, m.matchIndex !== undefined ? m.matchIndex : mIdx, false);
+                    const rawChongName = chongAthlete ? chongAthlete.name : getFeederMatchLabel(rounds, rIdx, m.matchIndex !== undefined ? m.matchIndex : mIdx, true);
+                    const rawHongName = hongAthlete ? hongAthlete.name : getFeederMatchLabel(rounds, rIdx, m.matchIndex !== undefined ? m.matchIndex : mIdx, false);
 
-                    const chongClub = chongAthlete ? (chongAthlete.club || chongAthlete.dojangName || '') : '';
-                    const hongClub = hongAthlete ? (hongAthlete.club || hongAthlete.dojangName || '') : '';
+                    let chongName = rawChongName;
+                    let chongClub = chongAthlete ? (chongAthlete.club || chongAthlete.dojangName || '') : '';
+                    if (chongName) {
+                        const cMatch = chongName.match(/^(.+?)\s*\(([^)]+)\)$/);
+                        if (cMatch) {
+                            chongClub = chongClub || cMatch[1].trim();
+                            chongName = cMatch[2].trim();
+                        }
+                    }
+
+                    let hongName = rawHongName;
+                    let hongClub = hongAthlete ? (hongAthlete.club || hongAthlete.dojangName || '') : '';
+                    if (hongName) {
+                        const hMatch = hongName.match(/^(.+?)\s*\(([^)]+)\)$/);
+                        if (hMatch) {
+                            hongClub = hongClub || hMatch[1].trim();
+                            hongName = hMatch[2].trim();
+                        }
+                    }
 
                     const isChongPlaceholder = !chongAthlete;
                     const isHongPlaceholder = !hongAthlete;
@@ -15105,6 +15295,7 @@
                         divisionName: divName,
                         roundIndex: rIdx,
                         matchIndex: m.matchIndex !== undefined ? m.matchIndex : mIdx,
+                        phase: stage.phase || 1,
                         stageOrder: stage.order,
                         stageName: stage.name,
                         match: m,
@@ -15124,24 +15315,29 @@
             });
         });
 
-        // STRICT TAEKWONDO PROGRESSION & MATCH NUMBER SYNC:
-        // Group by division, then order strictly by bracket match number (Match 1, Match 2, Match 3, Match 4...)
+        // STRICT TAEKWONDO INTERLEAVED PROGRESSION:
+        // 1. Phase 1: All Preliminaries & Quarterfinals across all categories on this court first
+        // 2. Phase 2: All Semifinals across all categories next
+        // 3. Phase 3: All Finals across all categories last
         scheduledMatches.sort((a, b) => {
+            if (a.phase !== b.phase) {
+                return a.phase - b.phase;
+            }
+            if (a.stageOrder !== b.stageOrder) {
+                return a.stageOrder - b.stageOrder;
+            }
             if (a.divisionId !== b.divisionId) {
                 return a.divisionId.localeCompare(b.divisionId);
             }
             if (a.match && b.match && a.match.matchNo && b.match.matchNo) {
                 return a.match.matchNo - b.match.matchNo;
             }
-            if (a.stageOrder !== b.stageOrder) {
-                return a.stageOrder - b.stageOrder;
-            }
             return (a.matchIndex || 0) - (b.matchIndex || 0);
         });
 
-        // Number matches sequentially matching the bracket's exact matchNo
+        // Number matches sequentially (Match No 01, Match No 02, Match No 03...) following the interleaved court schedule
         scheduledMatches.forEach((sm, idx) => {
-            const num = (sm.match && sm.match.matchNo) ? sm.match.matchNo : (idx + 1);
+            const num = idx + 1;
             sm.displayMatchNo = `Match No ${String(num).padStart(2, '0')}`;
             sm.seqIndex = num;
         });

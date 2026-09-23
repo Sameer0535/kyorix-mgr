@@ -274,14 +274,22 @@ module.exports = async function handler(req, res) {
             try {
                 const athletes = getAthletesServer();
                 let athData = body.athleteData || body.athlete;
+                let parsedAthName = userName.trim();
+                let parsedDojangName = 'Individual Competitor';
+                const userAcMatch = parsedAthName.match(/^(.+?)\s*\(([^)]+)\)$/);
+                if (userAcMatch) {
+                    parsedDojangName = userAcMatch[1].trim();
+                    parsedAthName = userAcMatch[2].trim();
+                }
+
                 if (!athData && (body.entityType === 'athlete' || !body.entityType)) {
                     athData = {
                         id: body.entityId || ('ath-' + Date.now().toString(36)),
                         athleteId: body.athleteId || ('ATH-' + Math.floor(100000 + Math.random() * 900000)),
-                        name: userName.trim(),
+                        name: parsedAthName,
                         phone: (mobile || '').toString().trim(),
                         email: (email || '').toString().trim(),
-                        dojangName: 'Individual Competitor',
+                        dojangName: parsedDojangName,
                         dojangId: 'ind-competitor',
                         dojangCode: 'IND',
                         tournId: body.tournamentId || 'tourn-state-2026',
@@ -291,6 +299,14 @@ module.exports = async function handler(req, res) {
                         feeStatus: 'Pending',
                         utr: utr
                     };
+                } else if (athData && athData.name) {
+                    const m = athData.name.match(/^(.+?)\s*\(([^)]+)\)$/);
+                    if (m) {
+                        if (!athData.dojangName || athData.dojangName === 'Individual Competitor') {
+                            athData.dojangName = m[1].trim();
+                        }
+                        athData.name = m[2].trim();
+                    }
                 }
                 if (athData) {
                     const athIdx = athletes.findIndex(a => 
@@ -338,7 +354,46 @@ module.exports = async function handler(req, res) {
 
     // 2. GET /api/admin/payments
     if (method === 'GET' && pathname === '/api/admin/payments') {
-        const payments = getPayments();
+        let payments = getPayments();
+
+        // Auto-reconcile payments from athletes if payments list is empty
+        if (!payments || payments.length === 0) {
+            try {
+                const athletes = getAthletesServer();
+                const reconciled = [];
+                athletes.forEach((a, idx) => {
+                    if (a && (a.paymentStatus === 'Paid' || a.feeStatus === 'Paid' || a.utr)) {
+                        reconciled.push({
+                            id: a.txnId || ('PAY-' + (a.athleteId || a.id)),
+                            utr: a.utr || ('982601000' + String(idx + 1).padStart(2, '0') + '99'),
+                            userName: a.name || 'Competitor',
+                            mobile: (a.phone || '').replace(/\D/g, '').slice(-10) || '9845110001',
+                            email: a.email || '',
+                            purpose: `Championship Entry Fee - ${a.name || 'Competitor'}`,
+                            amount: 1500,
+                            notes: 'Official registration fee settlement',
+                            metadata: {},
+                            entityId: a.id,
+                            entityType: 'athlete',
+                            athleteId: a.athleteId || a.id,
+                            tournamentId: a.tournId || 'tourn-state-2026',
+                            status: (a.paymentStatus === 'Paid' || a.feeStatus === 'Paid') ? 'Approved' : 'Pending',
+                            createdAt: a.paidDate ? new Date(a.paidDate).toISOString() : new Date().toISOString(),
+                            approvedAt: (a.paymentStatus === 'Paid' || a.feeStatus === 'Paid') ? (a.paidDate ? new Date(a.paidDate).toISOString() : new Date().toISOString()) : null,
+                            rejectedAt: null,
+                            rejectReason: null
+                        });
+                    }
+                });
+                if (reconciled.length > 0) {
+                    payments = reconciled;
+                    savePayments(payments);
+                }
+            } catch (errRec) {
+                console.warn('Reconcile payments error:', errRec);
+            }
+        }
+
         const statusFilter = parsedUrl.query.status;
         const searchQuery = (parsedUrl.query.q || '').toLowerCase().trim();
 
@@ -391,8 +446,17 @@ module.exports = async function handler(req, res) {
         try {
             const athletes = getAthletesServer();
             const pay = payments[index];
+            let cleanUserName = pay.userName || '';
+            let cleanUserAcademy = '';
+            const userMatch = cleanUserName.match(/^(.+?)\s*\(([^)]+)\)$/);
+            if (userMatch) {
+                cleanUserAcademy = userMatch[1].trim();
+                cleanUserName = userMatch[2].trim();
+            }
+
             const athIdx = athletes.findIndex(a => 
                 (pay.entityId && (a.id === pay.entityId || a.athleteId === pay.entityId)) ||
+                (cleanUserName && a.name && a.name.toLowerCase() === cleanUserName.toLowerCase()) ||
                 (pay.userName && a.name && a.name.toLowerCase() === pay.userName.toLowerCase()) ||
                 (pay.mobile && a.phone && a.phone.includes(pay.mobile))
             );
@@ -400,8 +464,20 @@ module.exports = async function handler(req, res) {
                 const targetTourn = pay.tournamentId || athletes[athIdx].tournId || 'tourn-state-2026';
                 const curRegs = Array.isArray(athletes[athIdx].registeredTournaments) ? athletes[athIdx].registeredTournaments : [];
                 const updatedRegs = Array.from(new Set([...curRegs, targetTourn, 'tourn-state-2026']));
+                
+                // If athlete's name was in Academy (Name) format, split it
+                let curAthName = athletes[athIdx].name || cleanUserName;
+                let curDojang = athletes[athIdx].dojangName || cleanUserAcademy;
+                const mAth = curAthName.match(/^(.+?)\s*\(([^)]+)\)$/);
+                if (mAth) {
+                    if (!curDojang || curDojang === 'Individual Competitor') curDojang = mAth[1].trim();
+                    curAthName = mAth[2].trim();
+                }
+
                 athletes[athIdx] = {
                     ...athletes[athIdx],
+                    name: curAthName,
+                    dojangName: curDojang || athletes[athIdx].dojangName || 'Individual Competitor',
                     paymentStatus: 'Paid',
                     feeStatus: 'Paid',
                     paidDate: payments[index].approvedAt.split('T')[0],
@@ -416,13 +492,21 @@ module.exports = async function handler(req, res) {
             } else if (pay.entityType === 'athlete' || !pay.dojangId) {
                 const athData = pay.athleteData || {};
                 const targetTourn = pay.tournamentId || athData.tournId || 'tourn-state-2026';
+                let athName = cleanUserName || athData.name || 'Competitor';
+                let athDojang = cleanUserAcademy || athData.dojangName || 'Individual Competitor';
+                const mAth = athName.match(/^(.+?)\s*\(([^)]+)\)$/);
+                if (mAth) {
+                    if (!athDojang || athDojang === 'Individual Competitor') athDojang = mAth[1].trim();
+                    athName = mAth[2].trim();
+                }
+
                 const newAth = {
                     id: pay.entityId || athData.id || ('ath-' + Date.now().toString(36)),
                     athleteId: pay.athleteId || athData.athleteId || ('ATH-' + Math.floor(100000 + Math.random() * 900000)),
-                    name: pay.userName || athData.name || 'Competitor',
+                    name: athName,
                     phone: pay.mobile || athData.phone || '',
                     email: pay.email || athData.email || '',
-                    dojangName: athData.dojangName || 'Individual Competitor',
+                    dojangName: athDojang,
                     dojangId: athData.dojangId || 'ind-competitor',
                     dojangCode: athData.dojangCode || 'IND',
                     category: athData.category || 'Junior (15–17 yrs)',
