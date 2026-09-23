@@ -1048,12 +1048,12 @@
         }
 
         init() {
-            const DATA_VERSION = 'v15_pending_weighin';
+            const DATA_VERSION = 'v16_tab_isolated_auth';
             const currentVer = localStorage.getItem('tkd_data_version');
             if (currentVer !== DATA_VERSION) {
-                // Safeguard active user session, passwords, payments, templates and settings across updates!
+                // Safeguard active user session (strictly per-tab in sessionStorage), passwords, payments, templates and settings
                 let savedUser = null;
-                try { savedUser = localStorage.getItem('tkd_user') || sessionStorage.getItem('tkd_user'); } catch(e) {}
+                try { savedUser = sessionStorage.getItem('tkd_user'); } catch(e) {}
                 const savedAdminPass = localStorage.getItem('tkd_admin_pass');
                 const savedOrgPass = localStorage.getItem('tkd_organizer_pass');
                 const savedUpi = localStorage.getItem('tkd_upi_payments');
@@ -1063,7 +1063,7 @@
                 const savedIdcardBg = localStorage.getItem('tkd_idcard_template_bg');
                 const savedTournId = localStorage.getItem('tkd_selected_tourn_id');
                 let savedView = null;
-                try { savedView = localStorage.getItem('tkd_active_view') || sessionStorage.getItem('tkd_active_view'); } catch(e) {}
+                try { savedView = sessionStorage.getItem('tkd_active_view'); } catch(e) {}
 
                 // Reset tournament operational caches: keep athlete registration profiles, but reset weigh-in to certificates
                 localStorage.removeItem('tkd_tournaments');
@@ -1082,10 +1082,13 @@
                 localStorage.removeItem('tkd_division_courts_v1');
                 localStorage.removeItem('tkd_match_updated');
 
+                // PURGE legacy shared user and active view from localStorage so they never leak across tabs!
+                localStorage.removeItem('tkd_user');
+                localStorage.removeItem('tkd_active_view');
+
                 localStorage.setItem('tkd_data_version', DATA_VERSION);
 
                 if (savedUser) {
-                    localStorage.setItem('tkd_user', savedUser);
                     try { sessionStorage.setItem('tkd_user', savedUser); } catch(e) {}
                 }
                 if (savedAdminPass) localStorage.setItem('tkd_admin_pass', savedAdminPass);
@@ -1097,7 +1100,6 @@
                 if (savedIdcardBg) localStorage.setItem('tkd_idcard_template_bg', savedIdcardBg);
                 if (savedTournId) localStorage.setItem('tkd_selected_tourn_id', savedTournId);
                 if (savedView) {
-                    localStorage.setItem('tkd_active_view', savedView);
                     try { sessionStorage.setItem('tkd_active_view', savedView); } catch(e) {}
                 }
             }
@@ -1264,17 +1266,12 @@
 
         getCurrentUser() {
             try {
-                let raw = localStorage.getItem('tkd_user');
-                if (!raw) {
-                    try { raw = sessionStorage.getItem('tkd_user'); } catch (e) {}
-                }
+                // Tab-isolated session: each browser tab holds its own independent session
+                let raw = null;
+                try { raw = sessionStorage.getItem('tkd_user'); } catch (e) {}
                 if (!raw) return null;
                 const u = JSON.parse(raw);
                 if (u && typeof u === 'object') {
-                    try {
-                        if (!localStorage.getItem('tkd_user')) localStorage.setItem('tkd_user', raw);
-                        if (!sessionStorage.getItem('tkd_user')) sessionStorage.setItem('tkd_user', raw);
-                    } catch (e) {}
                     return u;
                 }
                 return null;
@@ -1287,12 +1284,12 @@
             try {
                 if (u) {
                     const str = JSON.stringify(u);
-                    localStorage.setItem('tkd_user', str);
                     try { sessionStorage.setItem('tkd_user', str); } catch (e) {}
                 } else {
-                    localStorage.removeItem('tkd_user');
                     try { sessionStorage.removeItem('tkd_user'); } catch (e) {}
                 }
+                // Ensure legacy shared key in localStorage is purged so it never leaks across tabs
+                try { localStorage.removeItem('tkd_user'); } catch (e) {}
             } catch (e) {}
             this.notify();
         }
@@ -17729,13 +17726,14 @@ ${templateBg ? `
                         window._currentAdminSubTab = 'overview';
                         store.setCurrentUser(null);
                         try {
-                            localStorage.removeItem('tkd_active_view');
                             sessionStorage.removeItem('tkd_active_view');
+                            localStorage.removeItem('tkd_active_view');
+                            localStorage.removeItem('tkd_user');
                         } catch(e) {}
                         const modalContainer = document.getElementById('modal-container');
                         if (modalContainer) modalContainer.innerHTML = '';
                         this.render();
-                        showToast('Logged out of session', 'info');
+                        showToast('Logged out of session in this tab', 'info');
                     } else {
                         openRoleAuthModal('_picker');
                     }
@@ -17911,14 +17909,14 @@ ${templateBg ? `
             } else if (initHash) {
                 this.currentView = initHash;
                 try {
-                    localStorage.setItem('tkd_active_view', initHash);
                     sessionStorage.setItem('tkd_active_view', initHash);
+                    localStorage.removeItem('tkd_active_view');
                 } catch(e) {}
             } else {
-                // Check if user is already logged in, restore active view or default to role dashboard
+                // Tab-isolated view check: only restore what THIS specific tab was viewing
                 const curUser = store.getCurrentUser();
                 let savedView = null;
-                try { savedView = localStorage.getItem('tkd_active_view') || sessionStorage.getItem('tkd_active_view'); } catch(e) {}
+                try { savedView = sessionStorage.getItem('tkd_active_view'); } catch(e) {}
                 if (savedView && savedView !== 'events') {
                     this.currentView = savedView;
                     if (window.location.hash !== `#${savedView}`) {
@@ -17935,6 +17933,11 @@ ${templateBg ? `
                         this.currentView = 'dashboard';
                         window.location.hash = 'dashboard';
                     }
+                } else {
+                    this.currentView = 'events';
+                    if (window.location.hash && window.location.hash !== '#events') {
+                        window.location.hash = 'events';
+                    }
                 }
             }
         }
@@ -17945,8 +17948,8 @@ ${templateBg ? `
                 window.location.hash = view;
             }
             try {
-                localStorage.setItem('tkd_active_view', view);
                 sessionStorage.setItem('tkd_active_view', view);
+                localStorage.removeItem('tkd_active_view');
             } catch(e) {}
             this.render();
         }
@@ -18026,7 +18029,11 @@ ${templateBg ? `
                 if (adminBtn) adminBtn.style.display = 'none';
                 if (userBadge) userBadge.innerHTML = '';
                 if (navAdminBtn) navAdminBtn.style.display = 'none';
-                if (navDashboardBtn) navDashboardBtn.style.display = 'none';
+                if (navDashboardBtn) {
+                    navDashboardBtn.style.display = 'flex';
+                    const span = typeof navDashboardBtn.querySelector === 'function' ? navDashboardBtn.querySelector('span') : null;
+                    if (span) span.textContent = 'Academy Hub';
+                }
                 if (navOrganizerBtn) navOrganizerBtn.style.display = 'none';
                 if (navTournBtn) navTournBtn.style.display = 'flex';
                 if (navWeighinBtn) navWeighinBtn.style.display = 'flex';
@@ -18186,6 +18193,7 @@ ${templateBg ? `
                     this.currentView = 'events';
                     window.location.hash = 'events';
                     renderPublicEventsList(mainContainer);
+                    setTimeout(() => openRoleAuthModal('dojang'), 100);
                 } else {
                     const targetSubTab = (user.role === 'organizer')
                         ? (this.currentOrganizerSubTab || window._currentOrgSubTab || 'overview')
