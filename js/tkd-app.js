@@ -1048,7 +1048,7 @@
         }
 
         init() {
-            const DATA_VERSION = 'v16_tab_isolated_auth';
+            const DATA_VERSION = 'v17_persistent_draws_jury';
             const currentVer = localStorage.getItem('tkd_data_version');
             if (currentVer !== DATA_VERSION) {
                 // Safeguard active user session (strictly per-tab in sessionStorage), passwords, payments, templates and settings
@@ -1065,23 +1065,7 @@
                 let savedView = null;
                 try { savedView = sessionStorage.getItem('tkd_active_view'); } catch(e) {}
 
-                // Reset tournament operational caches: keep athlete registration profiles, but reset weigh-in to certificates
-                localStorage.removeItem('tkd_tournaments');
-                localStorage.removeItem('tkd_dojangs');
-                localStorage.removeItem('tkd_athletes');
-                localStorage.removeItem('tkd_coaches');
-                localStorage.removeItem('tkd_draws');
-                localStorage.removeItem('tkd_results');
-                localStorage.removeItem('tkd_fee_notifs');
-                localStorage.removeItem('tkd_published_results');
-                localStorage.removeItem('tkd_results_published');
-                localStorage.removeItem('tkd_generated_certificates');
-                localStorage.removeItem('tkd_brackets_v3');
-                localStorage.removeItem('tkd_competitors_v3');
-                localStorage.removeItem('tkd_competitors_v1');
-                localStorage.removeItem('tkd_division_courts_v1');
-                localStorage.removeItem('tkd_match_updated');
-
+                // CRITICAL FIX: NEVER wipe athlete profiles, manual draw competitors, brackets, or court assignments on refresh!
                 // PURGE legacy shared user and active view from localStorage so they never leak across tabs!
                 localStorage.removeItem('tkd_user');
                 localStorage.removeItem('tkd_active_view');
@@ -1141,7 +1125,7 @@
             localStorage.removeItem('tkd_results_published');
             localStorage.removeItem('tkd_user');
             try { sessionStorage.removeItem('tkd_user'); } catch(e) {}
-            localStorage.setItem('tkd_data_version', 'v14_prod_persistent_auth');
+            localStorage.setItem('tkd_data_version', 'v17_persistent_draws_jury');
             this.init();
             this.notify();
         }
@@ -1172,6 +1156,51 @@
             }
             // 3. Fallback to stored or seed results
             try { return JSON.parse(localStorage.getItem('tkd_results')) || SEED_RESULTS; } catch { return SEED_RESULTS; }
+        }
+
+        addResult(matchResult) {
+            if (!matchResult) return;
+            let results = null;
+            try {
+                results = JSON.parse(localStorage.getItem('tkd_results'));
+            } catch(e) {}
+            if (!results || typeof results !== 'object') {
+                results = this.computeLiveChampionshipResults();
+            }
+            if (!Array.isArray(results.completedBouts)) {
+                results.completedBouts = [];
+            }
+            const mId = matchResult.matchId || matchResult.id;
+            const existingIdx = results.completedBouts.findIndex(b => b.matchId === mId || b.matchNumber === mId);
+            const bout = {
+                matchId: mId,
+                matchNumber: matchResult.matchNo || mId,
+                division: matchResult.divisionId || matchResult.division,
+                winnerId: matchResult.winnerId,
+                winnerName: matchResult.winnerName || 'Winner',
+                score: matchResult.score || '2 - 0',
+                decision: matchResult.decision || matchResult.winType || 'WPS',
+                timestamp: Date.now()
+            };
+            if (existingIdx !== -1) {
+                results.completedBouts[existingIdx] = { ...results.completedBouts[existingIdx], ...bout };
+            } else {
+                results.completedBouts.push(bout);
+            }
+            const live = this.computeLiveChampionshipResults();
+            if (live && live.podiums) {
+                results.podiums = live.podiums;
+                results.medalStandings = live.medalStandings;
+                results.allParticipantsByDiv = live.allParticipantsByDiv;
+            }
+            try {
+                localStorage.setItem('tkd_results', JSON.stringify(results));
+                if (this.isResultsPublished()) {
+                    localStorage.setItem('tkd_published_results', JSON.stringify(results));
+                    this.publishResults();
+                }
+            } catch(e) {}
+            this.notify();
         }
 
         resolveCompetitor(compOrId, competitorsList = [], athletesList = []) {
@@ -1970,7 +1999,7 @@
             const savedAdminPass = this.getAdminPasscode();
             const savedOrgPass = this.getOrganizerPasscode();
             localStorage.clear();
-            localStorage.setItem('tkd_data_version', 'v14_prod_persistent_auth');
+            localStorage.setItem('tkd_data_version', 'v17_persistent_draws_jury');
             localStorage.setItem('tkd_tournaments', JSON.stringify(SEED_TOURNAMENTS));
             localStorage.setItem('tkd_dojangs',     JSON.stringify(SEED_DOJANGS));
             localStorage.setItem('tkd_athletes',    JSON.stringify(SEED_ATHLETES));
@@ -2068,8 +2097,22 @@
                 if (match.winner.id && String(p1.id) === String(match.winner.id)) isP1 = true;
                 else if (match.winner.name && p1.name === match.winner.name) isP1 = true;
             }
-            let winner = isP1 ? p1 : p2;
-            return (winner && winner.name) ? winner : null;
+            let isP2 = false;
+            if (p2 && wId) {
+                if (String(p2.id).trim().toLowerCase() === wId) isP2 = true;
+                else if (p2.name && p2.name.trim().toLowerCase() === wId) isP2 = true;
+                else if (wId === 'red' || wId === 'p2') isP2 = true;
+            }
+            if (match.winner && p2) {
+                if (match.winner.id && String(p2.id) === String(match.winner.id)) isP2 = true;
+                else if (match.winner.name && p2.name === match.winner.name) isP2 = true;
+            }
+            if (isP1) return p1;
+            if (isP2) return p2;
+            if (match.winner && match.winner.name) return match.winner;
+            if (p1 && !p2) return p1;
+            if (!p1 && p2) return p2;
+            return p1 || null;
         }
 
         resolveMatchLoser(match) {
@@ -2088,8 +2131,19 @@
                 if (match.winner.id && String(p1.id) === String(match.winner.id)) isP1 = true;
                 else if (match.winner.name && p1.name === match.winner.name) isP1 = true;
             }
-            let loser = isP1 ? p2 : p1;
-            return (loser && loser.name) ? loser : null;
+            let isP2 = false;
+            if (p2 && wId) {
+                if (String(p2.id).trim().toLowerCase() === wId) isP2 = true;
+                else if (p2.name && p2.name.trim().toLowerCase() === wId) isP2 = true;
+                else if (wId === 'red' || wId === 'p2') isP2 = true;
+            }
+            if (match.winner && p2) {
+                if (match.winner.id && String(p2.id) === String(match.winner.id)) isP2 = true;
+                else if (match.winner.name && p2.name === match.winner.name) isP2 = true;
+            }
+            if (isP1) return p2;
+            if (isP2) return p1;
+            return null;
         }
 
         computeLiveChampionshipResults() {
@@ -2132,8 +2186,12 @@
                     rounds.forEach(roundMatches => {
                         if (!Array.isArray(roundMatches)) return;
                         roundMatches.forEach(m => {
-                            if (m.p1 && m.p1.name) divComps.set(String(m.p1.id || m.p1.name), { id: m.p1.id, name: m.p1.name, club: m.p1.club || m.p1.dojang || 'Academy' });
-                            if (m.p2 && m.p2.name) divComps.set(String(m.p2.id || m.p2.name), { id: m.p2.id, name: m.p2.name, club: m.p2.club || m.p2.dojang || 'Academy' });
+                            if (m.p1 && m.p1.name && !m.p1.name.startsWith('Winner') && m.p1.name !== 'TBD' && m.p1.id !== 'bye') {
+                                divComps.set(String(m.p1.id || m.p1.name), { id: m.p1.id, name: m.p1.name, club: m.p1.club || m.p1.dojang || 'Academy' });
+                            }
+                            if (m.p2 && m.p2.name && !m.p2.name.startsWith('Winner') && m.p2.name !== 'TBD' && m.p2.id !== 'bye') {
+                                divComps.set(String(m.p2.id || m.p2.name), { id: m.p2.id, name: m.p2.name, club: m.p2.club || m.p2.dojang || 'Academy' });
+                            }
 
                             // Collect completed scorecards
                             if (m.status === 'completed' || m.status === 'walkover') {
@@ -2147,8 +2205,8 @@
                                     chungDojang: m.p1 ? (m.p1.club || m.p1.dojang || '') : '',
                                     hong: m.p2 ? m.p2.name : 'TBD',
                                     hongDojang: m.p2 ? (m.p2.club || m.p2.dojang || '') : '',
-                                    decision: w ? `${w.name} by Score (${m.scoreP1 ?? '-'}:${m.scoreP2 ?? '-'})` : 'Official Referee Decision',
-                                    rounds: `R1: ${m.r1ScoreP1 || 0}-${m.r1ScoreP2 || 0} | R2: ${m.r2ScoreP1 || 0}-${m.r2ScoreP2 || 0}`
+                                    decision: w ? `${w.name} by Score (${m.score1 ?? m.scoreP1 ?? '-'}:${m.score2 ?? m.scoreP2 ?? '-'})` : 'Official Referee Decision',
+                                    rounds: `R1: ${m.roundScores?.[0]?.blue ?? 0}-${m.roundScores?.[0]?.red ?? 0} | R2: ${m.roundScores?.[1]?.blue ?? 0}-${m.roundScores?.[1]?.red ?? 0}`
                                 });
                             }
                         });
@@ -2164,10 +2222,17 @@
 
                         let bronzeMedalists = [];
                         if (semiRound && semiRound.length > 0) {
+                            const seenBronze = new Set();
                             semiRound.forEach(sm => {
                                 const semiLoser = this.resolveMatchLoser(sm);
-                                if (semiLoser && (!goldWinner || String(semiLoser.id || semiLoser.name) !== String(goldWinner.id || goldWinner.name)) && (!silverLoser || String(semiLoser.id || semiLoser.name) !== String(silverLoser.id || silverLoser.name))) {
-                                    bronzeMedalists.push(semiLoser);
+                                if (semiLoser && semiLoser.name) {
+                                    const bName = semiLoser.name.trim().toLowerCase();
+                                    const gName = goldWinner?.name ? goldWinner.name.trim().toLowerCase() : '';
+                                    const sName = silverLoser?.name ? silverLoser.name.trim().toLowerCase() : '';
+                                    if (bName !== gName && bName !== sName && !seenBronze.has(bName)) {
+                                        seenBronze.add(bName);
+                                        bronzeMedalists.push(semiLoser);
+                                    }
                                 }
                             });
                         }
@@ -2213,6 +2278,19 @@
 
             // Fallback: If no live brackets or podiums generated yet, load standard seeded championship results
             if (podiums.length === 0) {
+                if (completedBouts.length > 0 || (bracketsData && Object.keys(bracketsData).length > 0)) {
+                    const sortedStandings = Object.values(dojangScores)
+                        .sort((a, b) => b.points - a.points || b.gold - a.gold || b.silver - a.silver)
+                        .map((s, idx) => ({ ...s, rank: idx + 1 }));
+                    return {
+                        tournamentName: 'State Level Open Taekwondo Championship 2026',
+                        sanctionNumber: 'WT-IND-2026-0881',
+                        medalStandings: sortedStandings,
+                        podiums: [],
+                        completedBouts,
+                        allParticipantsByDiv
+                    };
+                }
                 return this.getFallbackSeedResults();
             }
 
@@ -2521,17 +2599,306 @@
         `;
         c.appendChild(t);
         t.querySelector('.tkd-toast-close').addEventListener('click', () => t.remove());
-        setTimeout(() => { if (t.isConnected) t.remove(); }, 3800);
+        setTimeout(() => {
+            if (t.parentElement) t.remove();
+        }, 4000);
     }
+
+    // --- Utility: Sanitize Athlete Name & Academy Separation ---
+    function cleanAthleteNameAndClub(rawName, rawClub) {
+        if (!rawName) return { name: '', club: '' };
+        let n = String(rawName).trim();
+        let c = String(rawClub || '').trim();
+        if (!c || c.toLowerCase() === 'independent') {
+            for (const d of [' — ', '—', ' – ', '–', ' - ', ' | ', '\t', ';', ',']) {
+                if (n.includes(d)) {
+                    const s = n.split(d).map(x => x.trim()).filter(Boolean);
+                    if (s.length >= 2) {
+                        n = s[0];
+                        c = s.slice(1).join(' ').trim();
+                        break;
+                    }
+                }
+            }
+            const m = n.match(/^(.+?)\s*\(([^)]+)\)$/);
+            if (m && (!c || c.toLowerCase() === 'independent')) {
+                n = m[1].trim();
+                c = m[2].trim();
+            }
+        }
+        return { name: n, club: c || 'Independent' };
+    }
+    window.cleanAthleteNameAndClub = cleanAthleteNameAndClub;
+
+    // --- Utility: Canonical Weight Class Formatter matching draws-app ('Under XXkg', 'Over XXkg') ---
+    function formatWeightClassForDraws(rawWt, defaultWt = 'Under 55kg') {
+        if (!rawWt) return defaultWt;
+        const str = String(rawWt).trim();
+        if (/^under\s+\d+kg$/i.test(str) || /^over\s+\d+kg$/i.test(str)) {
+            return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+        }
+        const m = str.match(/([+-]?\s*\d+(?:\.\d+)?)\s*kg/i) || str.match(/(\d+)/);
+        if (!m) return str;
+        const num = Math.round(parseFloat(m[1].replace(/[^0-9.]/g, '')));
+        const isOver = str.includes('+') || /over|above/i.test(str);
+        return (isOver ? 'Over ' : 'Under ') + num + 'kg';
+    }
+    window.formatWeightClassForDraws = formatWeightClassForDraws;
+
+    // --- Utility: Canonical Division Key Normalizer matching draws-app and jury ---
+    function normalizeDivKey(k) {
+        if (!k || typeof k !== 'string') return '';
+        let raw = k.trim().replace(/\s+/g, '_');
+        
+        let isFem = /(?:^|_)female(?:_|$)/i.test(raw);
+        let isMale = !isFem && /(?:^|_)male(?:_|$)/i.test(raw);
+        let gender = isFem ? 'Female' : (isMale ? 'Male' : '');
+
+        let age = '';
+        if (/(?:^|_)dasara(?:_|$)/i.test(raw)) age = 'Dasara';
+        else if (/(?:^|_)sub[-_]?junior(?:_|$)/i.test(raw)) age = 'Sub-Junior';
+        else if (/(?:^|_)cadet(?:_|$)/i.test(raw)) age = 'Cadet';
+        else if (/(?:^|_)junior(?:_|$)/i.test(raw)) age = 'Junior';
+        else if (/(?:^|_)senior(?:_|$)/i.test(raw)) age = 'Senior';
+        else if (/(?:^|_)u[-_]?10(?:_|$)/i.test(raw)) age = 'U-10';
+        else if (/(?:^|_)u[-_]?8(?:_|$)/i.test(raw)) age = 'U-8';
+        else if (/(?:^|_)u[-_]?12(?:_|$)/i.test(raw)) age = 'U-12';
+        else if (/(?:^|_)u[-_]?15(?:_|$)/i.test(raw)) age = 'U-15';
+        else if (/(?:^|_)u[-_]?18(?:_|$)/i.test(raw)) age = 'U-18';
+        else if (/(?:^|_)a[-_]?18(?:_|$)/i.test(raw)) age = 'A-18';
+
+        let weight = '';
+        const wtMatch = raw.match(/(?:under|over|above|u)[-_]?(\d+)[-_]?kg/i);
+        if (wtMatch) {
+            const isOver = /over|above/i.test(wtMatch[0]);
+            weight = (isOver ? 'Over_' : 'Under_') + wtMatch[1] + 'kg';
+        }
+
+        if (gender && age) {
+            return weight ? (gender + '_' + age + '_' + weight) : (gender + '_' + age);
+        }
+        return raw;
+    }
+    window.normalizeDivKey = normalizeDivKey;
+
+    // Synchronize manually added competitors from draws-app into store.athletes
+    function syncManualDrawsCompetitorsToStore() {
+        let competitors = [];
+        try {
+            competitors = JSON.parse(localStorage.getItem('tkd_competitors_v3') || '[]');
+        } catch(e) {}
+
+        let brackets = {};
+        try {
+            brackets = JSON.parse(localStorage.getItem('tkd_brackets_v3') || '{}');
+        } catch(e) {}
+
+        // Also extract all competitors mentioned in brackets
+        Object.keys(brackets).forEach(divKey => {
+            const rounds = brackets[divKey];
+            if (!Array.isArray(rounds)) return;
+            rounds.forEach(round => {
+                if (!Array.isArray(round)) return;
+                round.forEach(m => {
+                    if (m && m.p1 && m.p1.name && !m.p1.name.startsWith('Winner') && m.p1.name !== 'TBD' && m.p1.id !== 'bye') {
+                        const cl = cleanAthleteNameAndClub(m.p1.name, m.p1.club);
+                        const cNorm = cl.name.trim().toLowerCase();
+                        if (!competitors.some(c => (c.id && c.id === m.p1.id) || (c.name && c.name.trim().toLowerCase() === cNorm))) {
+                            competitors.push({ ...m.p1, name: cl.name, club: cl.club });
+                        }
+                    }
+                    if (m && m.p2 && m.p2.name && !m.p2.name.startsWith('Winner') && m.p2.name !== 'TBD' && m.p2.id !== 'bye') {
+                        const cl = cleanAthleteNameAndClub(m.p2.name, m.p2.club);
+                        const cNorm = cl.name.trim().toLowerCase();
+                        if (!competitors.some(c => (c.id && c.id === m.p2.id) || (c.name && c.name.trim().toLowerCase() === cNorm))) {
+                            competitors.push({ ...m.p2, name: cl.name, club: cl.club });
+                        }
+                    }
+                });
+            });
+        });
+
+        if (!competitors || competitors.length === 0) return;
+
+        // Clean all competitors in competitors list and persist
+        let compsChanged = false;
+        competitors.forEach(c => {
+            if (c && c.name) {
+                const cl = cleanAthleteNameAndClub(c.name, c.club);
+                if (cl.name !== c.name || (cl.club && cl.club !== 'Independent' && c.club !== cl.club)) {
+                    c.name = cl.name;
+                    c.club = cl.club;
+                    compsChanged = true;
+                }
+            }
+        });
+        if (compsChanged) {
+            try {
+                localStorage.setItem('tkd_competitors_v3', JSON.stringify(competitors));
+                localStorage.setItem('tkd_competitors_v1', JSON.stringify(competitors));
+            } catch(e) {}
+        }
+
+        const currentAthletes = (typeof store !== 'undefined' && store.getAthletes) ? (store.getAthletes() || []) : [];
+        const activeTourn = (typeof store !== 'undefined' && store.getActiveTournament) 
+            ? (store.getActiveTournament() || (store.getTournaments ? store.getTournaments()[0] : null) || {}) 
+            : {};
+        const tournId = activeTourn.id || 'tourn-state-2026';
+
+        let addedAny = false;
+        competitors.forEach((comp, idx) => {
+            if (!comp || !comp.name) return;
+            const cl = cleanAthleteNameAndClub(comp.name, comp.club);
+            const normName = cl.name.trim().toLowerCase();
+            if (normName === 'bye' || normName === 'tbd' || normName.startsWith('winner')) return;
+
+            const clubName = (cl.club && cl.club.toLowerCase() !== 'independent' && cl.club.toLowerCase() !== 'unattached')
+                ? cl.club
+                : 'Independent Taekwondo Club';
+
+            // Auto-register academy in store.dojangs so Fee Ledger, Academy list, and Category filters include this dojang
+            let targetDojang = null;
+            if (typeof store !== 'undefined') {
+                if (!Array.isArray(store.dojangs)) store.dojangs = store.getDojangs ? (store.getDojangs() || []) : [];
+                targetDojang = store.dojangs.find(d => d.name && d.name.trim().toLowerCase() === clubName.trim().toLowerCase());
+                if (!targetDojang) {
+                    const cleanCode = clubName.split(/\s+/).map(w => w[0] || '').join('').toUpperCase().slice(0, 5) || 'ACAD';
+                    const safeId = 'dojang-' + clubName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 30);
+                    targetDojang = {
+                        id: safeId,
+                        name: clubName,
+                        code: cleanCode,
+                        coachName: 'Head Coach',
+                        coachEmail: `coach@${safeId}.org`,
+                        coachPhone: '+91 98765 43210',
+                        city: 'Championship Host',
+                        state: 'State',
+                        status: 'Active',
+                        registeredTournaments: Array.from(new Set([tournId, 'tourn-state-2026', 'all'])),
+                        athletesCount: 1
+                    };
+                    store.dojangs.push(targetDojang);
+                    try { localStorage.setItem('tkd_dojangs', JSON.stringify(store.dojangs)); } catch(e) {}
+                } else {
+                    if (!Array.isArray(targetDojang.registeredTournaments)) targetDojang.registeredTournaments = [];
+                    if (!targetDojang.registeredTournaments.includes(tournId)) targetDojang.registeredTournaments.push(tournId);
+                    if (!targetDojang.registeredTournaments.includes('tourn-state-2026')) targetDojang.registeredTournaments.push('tourn-state-2026');
+                }
+            }
+            if (!targetDojang) {
+                targetDojang = { id: 'ind-competitor', code: 'IND', name: clubName };
+            }
+
+            const isFem = (comp.gender === 'Female' || comp.gender === 'F' || (comp.gender && comp.gender.toLowerCase().includes('female')));
+            const ageCat = comp.ageCategory || 'Junior';
+            const wtClass = formatWeightClassForDraws(comp.weightClass, isFem ? 'Under 49kg' : 'Under 55kg');
+            const wtNumMatch = String(comp.weightClass || comp.weight || '').match(/(\d+(?:\.\d+)?)/);
+            const parsedWeightNum = wtNumMatch ? parseFloat(wtNumMatch[1]) : (isFem ? 48.5 : 54.2);
+            const isG4 = (ageCat.startsWith('U-') || ageCat.startsWith('A-') || (comp.category && comp.category.includes('Group-4')));
+
+            const existingAth = currentAthletes.find(a => {
+                if (a.id && comp.id && a.id === comp.id) return true;
+                if (a.athleteId && comp.id && a.athleteId === comp.id) return true;
+                if (a.athleteId && comp.athleteId && a.athleteId === comp.athleteId) return true;
+                if (a.name && a.name.trim().toLowerCase() === normName) return true;
+                return false;
+            });
+
+            if (!existingAth) {
+                const newAth = {
+                    id: comp.id || `ath-draws-${Date.now()}-${idx}`,
+                    athleteId: comp.athleteId || `ATH-${Math.floor(100000 + Math.random() * 900000)}`,
+                    name: cl.name,
+                    gender: isFem ? 'Female' : 'Male',
+                    category: isG4 ? `Group-4 ${ageCat}` : ageCat,
+                    ageCategory: ageCat,
+                    group4Category: isG4 ? ageCat : undefined,
+                    competitionFormat: isG4 ? 'Group-4' : 'Official',
+                    discipline: comp.discipline || 'Kyorugi',
+                    weightClass: wtClass,
+                    weight: (comp.weight !== undefined && comp.weight !== null) ? comp.weight : parsedWeightNum,
+                    measuredWeight: (comp.measuredWeight !== undefined && comp.measuredWeight !== null) ? comp.measuredWeight : parsedWeightNum,
+                    dojangName: targetDojang.name,
+                    dojangId: targetDojang.id,
+                    dojangCode: targetDojang.code,
+                    belt: comp.rank || comp.belt || '1st Dan',
+                    beltId: 'dan-1',
+                    country: comp.country || 'IND',
+                    status: 'Passed',
+                    weighInStatus: 'Passed',
+                    paymentStatus: 'Paid',
+                    feeStatus: 'Paid',
+                    docStatus: 'Verified',
+                    tournId: tournId,
+                    registeredTournaments: Array.from(new Set([tournId, 'tourn-state-2026', 'all'])),
+                    isIndividual: (clubName === 'Independent Taekwondo Club'),
+                    source: 'draws_manual'
+                };
+                currentAthletes.push(newAth);
+                addedAny = true;
+            } else {
+                let updatedExisting = false;
+                if (existingAth.status !== 'Passed' || existingAth.weighInStatus !== 'Passed') {
+                    existingAth.status = 'Passed';
+                    existingAth.weighInStatus = 'Passed';
+                    updatedExisting = true;
+                }
+                if (clubName !== 'Independent Taekwondo Club' && targetDojang) {
+                    existingAth.dojangName = targetDojang.name;
+                    existingAth.dojangId = targetDojang.id;
+                    existingAth.dojangCode = targetDojang.code;
+                    updatedExisting = true;
+                }
+                if (!existingAth.weight || !existingAth.measuredWeight) {
+                    existingAth.weight = existingAth.weight || parsedWeightNum;
+                    existingAth.measuredWeight = existingAth.measuredWeight || parsedWeightNum;
+                    updatedExisting = true;
+                }
+                if (!Array.isArray(existingAth.registeredTournaments)) {
+                    existingAth.registeredTournaments = [];
+                }
+                if (!existingAth.registeredTournaments.includes(tournId)) {
+                    existingAth.registeredTournaments.push(tournId);
+                    updatedExisting = true;
+                }
+                if (!existingAth.registeredTournaments.includes('tourn-state-2026')) {
+                    existingAth.registeredTournaments.push('tourn-state-2026');
+                    updatedExisting = true;
+                }
+                if (updatedExisting) addedAny = true;
+            }
+        });
+
+        if (addedAny) {
+            try {
+                localStorage.setItem('tkd_athletes', JSON.stringify(currentAthletes));
+                if (typeof store !== 'undefined') {
+                    store.athletes = currentAthletes;
+                    if (typeof store.notify === 'function') store.notify();
+                }
+                if (typeof fetch === 'function') {
+                    fetch('/api/athletes', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(currentAthletes)
+                    }).catch(() => {});
+                }
+            } catch(e) {}
+        }
+    }
+    window.syncManualDrawsCompetitorsToStore = syncManualDrawsCompetitorsToStore;
 
     // Auto-synchronize active championship athletes into Draws engine on load & deduplicate
     // User Requirement: "name should come in draws only if they have passed the weighin"
     function syncTournamentAthletesToDraws(notify = false) {
         try {
+            // First ingest any manually added competitors from draws-app into store
+            syncManualDrawsCompetitorsToStore();
+
             const activeTourn = (typeof store !== 'undefined' && store.getActiveTournament) 
                 ? (store.getActiveTournament() || (store.getTournaments() || [])[0] || {}) 
                 : {};
-            const allAthletes = (typeof store !== 'undefined' && store.getAthletes) ? store.getAthletes() : [];
+            const allAthletes = (typeof store !== 'undefined' && store.getAthletes) ? (store.getAthletes() || []) : [];
             const tournAthletes = (activeTourn && activeTourn.id && store.getAthletesForTournament) 
                 ? store.getAthletesForTournament(activeTourn.id) 
                 : [];
@@ -2540,6 +2907,12 @@
                 if (notify && typeof showToast === 'function') showToast('No registered athletes found for this championship yet.', 'info');
                 return;
             }
+
+            // Load existing competitors to ensure manual additions in draws are preserved
+            let existingComps = [];
+            try {
+                existingComps = JSON.parse(localStorage.getItem('tkd_competitors_v3') || '[]');
+            } catch(e) {}
 
             // Strict Requirement: "name should come in draws only if they have passed the weighin"
             // Athletes whose weigh-in is on hold, overweight, pending, or not done yet MUST NOT appear in draws!
@@ -2561,6 +2934,7 @@
 
             // Map Kyorix athletes to Draws Engine format with strict weight and age resolution
             const mapped = uniqueAthletes.map((a, idx) => {
+                const cl = cleanAthleteNameAndClub(a.name, a.dojangName || a.club);
                 const isG4 = a.competitionFormat === 'Group-4' || (a.category && a.category.includes('Group-4')) || a.group4Category;
                 let ageCategory = 'Junior';
                 if (isG4) {
@@ -2576,73 +2950,26 @@
                 }
 
                 const isFem = (a.gender === 'Female' || a.gender === 'F' || (a.gender && a.gender.toLowerCase().includes('female')));
+                
+                let defaultWt = isFem ? 'Under 49kg' : 'Under 55kg';
+                if (ageCategory === 'Cadet') defaultWt = isFem ? 'Under 41kg' : 'Under 45kg';
+                else if (ageCategory === 'Sub-Junior') defaultWt = isFem ? 'Under 37kg' : 'Under 32kg';
+                else if (ageCategory === 'Senior') defaultWt = isFem ? 'Under 49kg' : 'Under 58kg';
+
                 let weightClass = '';
-
-                // 1. Check weightClass string (e.g. -54 kg, -55 kg, +37 kg, Under 56kg)
                 if (a.weightClass) {
-                    const raw = a.weightClass.toString().trim();
-                    if (ageCategory === 'Dasara') {
-                        const m = raw.match(/(\d+)/);
-                        const isPlus = raw.includes('+') || /above|over/i.test(raw);
-                        if (m) {
-                            weightClass = (isPlus ? 'Above ' : 'Under ') + m[1] + 'kg';
-                        } else {
-                            weightClass = raw;
-                        }
-                    } else {
-                        const kgMatch = raw.match(/([+-]?\s*\d+(?:\.\d+)?)\s*kg/i);
-                        if (kgMatch) {
-                            const num = parseFloat(kgMatch[1].replace(/[^0-9.]/g, ''));
-                            const isAge = (ageCategory === 'Senior' && num === 18) ||
-                                          (ageCategory === 'Junior' && (num === 15 || num === 17 || num === 18)) ||
-                                          ((ageCategory === 'Sub-Junior' || ageCategory === 'Cadet') && (num === 12 || num === 14));
-                            if (num && !isAge) {
-                                const isOver = kgMatch[1].includes('+') || /over/i.test(raw);
-                                weightClass = (isOver ? 'Over ' : 'U-') + Math.round(num) + ' kg';
-                            }
-                        }
-                    }
-                }
-
-                // 2. Check measuredWeight or numeric weight
-                if (!weightClass && (a.measuredWeight || a.weight)) {
-                    const nw = parseFloat(a.measuredWeight || a.weight);
-                    const isAge2 = (ageCategory === 'Senior' && nw === 18) ||
-                                   (ageCategory === 'Junior' && (nw === 15 || nw === 17 || nw === 18)) ||
-                                   ((ageCategory === 'Sub-Junior' || ageCategory === 'Cadet') && (nw === 12 || nw === 14));
-                    if (!isNaN(nw) && nw > 0 && !isAge2) {
-                        if (ageCategory === 'Dasara') {
-                            const isOver2 = a.weightClass && (a.weightClass.includes('+') || /above|over/i.test(a.weightClass));
-                            weightClass = (isOver2 ? 'Above ' : 'Under ') + Math.round(nw) + 'kg';
-                        } else {
-                            const isOver2 = a.weightClass && (a.weightClass.includes('+') || /over/i.test(a.weightClass));
-                            weightClass = (isOver2 ? 'Over ' : 'U-') + Math.round(nw) + ' kg';
-                        }
-                    }
-                }
-
-                // 3. Fallbacks according to age & gender
-                if (!weightClass) {
-                    if (ageCategory === 'Dasara') {
-                        weightClass = isFem ? 'Under 50kg' : 'Under 56kg';
-                    } else if (ageCategory === 'Senior') {
-                        weightClass = isFem ? 'U-49 kg' : 'U-54 kg';
-                    } else if (ageCategory === 'Junior') {
-                        weightClass = isFem ? 'U-49 kg' : 'U-55 kg';
-                    } else if (ageCategory === 'Cadet') {
-                        weightClass = isFem ? 'U-41 kg' : 'U-45 kg';
-                    } else if (ageCategory === 'Sub-Junior') {
-                        weightClass = isFem ? 'Over 37 kg' : 'U-32 kg';
-                    } else {
-                        weightClass = 'U-55 kg';
-                    }
+                    weightClass = formatWeightClassForDraws(a.weightClass, defaultWt);
+                } else if (a.measuredWeight || a.weight) {
+                    weightClass = formatWeightClassForDraws(a.measuredWeight || a.weight, defaultWt);
+                } else {
+                    weightClass = defaultWt;
                 }
 
                 return {
                     id: a.id || `ath_${idx + 1}`,
                     athleteId: a.athleteId || a.id,
-                    name: (a.name || `Competitor ${idx + 1}`).trim(),
-                    club: a.dojangName || a.club || 'Kyorix Academy',
+                    name: cl.name || `Competitor ${idx + 1}`,
+                    club: cl.club || a.dojangName || a.club || 'Independent',
                     country: a.country || 'IND',
                     seed: a.seed || null,
                     gender: isFem ? 'Female' : 'Male',
@@ -2654,11 +2981,27 @@
                 };
             });
 
+            // Preserve any existing competitors in tkd_competitors_v3 that were added manually in draws
+            existingComps.forEach(ec => {
+                if (!ec || !ec.name) return;
+                const ecClean = cleanAthleteNameAndClub(ec.name, ec.club);
+                const normEc = ecClean.name.trim().toLowerCase();
+                if (!seenCompNames.has(normEc)) {
+                    seenCompNames.add(normEc);
+                    mapped.push({
+                        ...ec,
+                        name: ecClean.name,
+                        club: ecClean.club,
+                        weightClass: formatWeightClassForDraws(ec.weightClass, 'Under 55kg')
+                    });
+                }
+            });
+
             // Write to both tkd_competitors_v3 and tkd_competitors_v1
             localStorage.setItem('tkd_competitors_v3', JSON.stringify(mapped));
             localStorage.setItem('tkd_competitors_v1', JSON.stringify(mapped));
 
-            // Clear cached brackets if they contain competitors who haven't passed weigh-in or duplicates
+            // Validate brackets: Ensure manual competitor brackets are 100% protected
             const validNamesSet = new Set(mapped.map(m => m.name.toLowerCase()));
             const storedBrackets = localStorage.getItem('tkd_brackets_v3');
             if (storedBrackets) {
@@ -2667,54 +3010,24 @@
                     let cleaned = false;
                     for (const divKey of Object.keys(parsedBrackets)) {
                         const br = parsedBrackets[divKey];
-                        let hasInvalidComp = false;
                         const namesInBracket = [];
                         if (Array.isArray(br)) {
-                            // Format: [ [ { p1, p2, ... }, ... ], ... ]
                             for (const round of br) {
                                 if (Array.isArray(round)) {
                                     for (const m of round) {
-                                        if (m && m.p1 && m.p1.name) {
-                                            const n1 = m.p1.name.trim().toLowerCase();
-                                            if (!validNamesSet.has(n1)) hasInvalidComp = true;
-                                            namesInBracket.push(n1);
+                                        if (m && m.p1 && m.p1.name && m.p1.name !== 'TBD' && !m.p1.name.startsWith('Winner') && m.p1.id !== 'bye') {
+                                            namesInBracket.push(m.p1.name.trim().toLowerCase());
                                         }
-                                        if (m && m.p2 && m.p2.name) {
-                                            const n2 = m.p2.name.trim().toLowerCase();
-                                            if (!validNamesSet.has(n2)) hasInvalidComp = true;
-                                            namesInBracket.push(n2);
+                                        if (m && m.p2 && m.p2.name && m.p2.name !== 'TBD' && !m.p2.name.startsWith('Winner') && m.p2.id !== 'bye') {
+                                            namesInBracket.push(m.p2.name.trim().toLowerCase());
                                         }
                                     }
                                 }
                             }
-                        } else if (br && br.matches && Array.isArray(br.matches)) {
-                            // Format: { matches: [ { c1, c2 } ] }
-                            br.matches.forEach(m => {
-                                if (m.c1 && m.c1.name) {
-                                    const n1 = m.c1.name.trim().toLowerCase();
-                                    if (!validNamesSet.has(n1)) hasInvalidComp = true;
-                                    namesInBracket.push(n1);
-                                }
-                                if (m.c2 && m.c2.name) {
-                                    const n2 = m.c2.name.trim().toLowerCase();
-                                    if (!validNamesSet.has(n2)) hasInvalidComp = true;
-                                    namesInBracket.push(n2);
-                                }
-                            });
                         }
-                        const uniqueNamesInBracket = new Set(namesInBracket);
-                        const divPassedCount = passedAthletes.filter(a => {
-                            const age = a.ageCategory || a.category || 'Junior';
-                            const gender = a.gender || 'Male';
-                            const wt = a.weightClass || 'U-55 kg';
-                            const dk1 = (gender + '_' + age + '_' + wt).replace(/\s+/g, '_');
-                            const dk2 = (age + '_' + gender + '_' + wt).replace(/\s+/g, '_');
-                            return dk1 === divKey || dk2 === divKey;
-                        }).length;
-
-                        if (hasInvalidComp || (divPassedCount >= 2 && divPassedCount > uniqueNamesInBracket.size)) {
-                            delete parsedBrackets[divKey];
-                            cleaned = true;
+                        // If bracket has participants, protect them in validNamesSet so they are never purged
+                        if (namesInBracket.length > 0) {
+                            namesInBracket.forEach(n => validNamesSet.add(n));
                         }
                     }
                     if (cleaned) {
@@ -11464,9 +11777,93 @@
                         </div>
                     `}
                 </div>
+
+                <!-- 3. All Registered Championship Athletes Scale Roster -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <div>
+                            <h4 class="text-sm font-black text-slate-900 flex items-center gap-2">
+                                <i class="fa-solid fa-list-check text-blue-600"></i> Registered Championship Scale Roster (${athletes.length})
+                            </h4>
+                            <p class="text-[11px] text-slate-500 font-medium">All registered championship competitors and imported fixture athletes. Click &quot;Add to Scale&quot; to load them onto the active scale station.</p>
+                        </div>
+                        <div class="text-[11px] font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                            Passed: <span class="text-emerald-700 font-black">${athletes.filter(a => (a.status||'').toLowerCase() === 'passed' || (a.weighInStatus||'').toLowerCase() === 'passed').length}</span> / ${athletes.length}
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto rounded-xl border border-slate-200">
+                        <table class="tkd-table w-full text-xs">
+                            <thead class="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
+                                <tr>
+                                    <th class="py-2.5 px-3 text-left">ID &amp; Athlete</th>
+                                    <th class="py-2.5 px-3 text-left">Academy / Dojang</th>
+                                    <th class="py-2.5 px-3 text-left">Division &amp; Weight</th>
+                                    <th class="py-2.5 px-3 text-center">Scale Weight</th>
+                                    <th class="py-2.5 px-3 text-center">Weigh-In Status</th>
+                                    <th class="py-2.5 px-3 text-right">Scale Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 text-slate-700">
+                                ${athletes.length === 0 ? `
+                                    <tr>
+                                        <td colspan="6" class="py-6 text-center text-slate-400 font-medium">No athletes registered in this championship yet.</td>
+                                    </tr>
+                                ` : athletes.map(a => {
+                                    const isQueued = (window._weighInQueue || []).includes(a.id);
+                                    const st = a.weighInStatus || a.status || 'Pending';
+                                    const stLower = String(st).toLowerCase();
+                                    const isPassed = stLower === 'passed';
+                                    const wtDisplay = (a.measuredWeight || a.weight) ? `${a.measuredWeight || a.weight} kg` : '—';
+                                    return `
+                                        <tr class="hover:bg-slate-50/80 transition">
+                                            <td class="py-2.5 px-3">
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-7 h-7 rounded-lg bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-400 text-xs shrink-0">
+                                                        <i class="fa-solid fa-user-ninja"></i>
+                                                    </div>
+                                                    <div>
+                                                        <div class="font-bold text-slate-900">${a.name}</div>
+                                                        <div class="text-[10px] font-mono text-blue-600 font-bold">${a.athleteId || a.id}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="py-2.5 px-3">
+                                                <div class="font-semibold text-slate-800">${a.dojangName || 'Independent'}</div>
+                                                <div class="text-[10px] text-slate-500 font-mono">${a.dojangCode || 'IND'}</div>
+                                            </td>
+                                            <td class="py-2.5 px-3">
+                                                <div class="font-bold text-slate-800">${a.category || a.ageCategory || 'Junior'}</div>
+                                                <div class="text-[10px] text-slate-500 font-mono">${a.weightClass || 'Under 55kg'}</div>
+                                            </td>
+                                            <td class="py-2.5 px-3 text-center font-mono font-bold ${isPassed ? 'text-emerald-700' : 'text-slate-600'}">
+                                                ${wtDisplay}
+                                            </td>
+                                            <td class="py-2.5 px-3 text-center">
+                                                ${getWeighInStatusBadge(st, a.measuredWeight || a.weight)}
+                                            </td>
+                                            <td class="py-2.5 px-3 text-right">
+                                                ${isQueued ? `
+                                                    <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 px-2.5 py-1 rounded-lg">
+                                                        <i class="fa-solid fa-check"></i> On Scale
+                                                    </span>
+                                                ` : `
+                                                    <button type="button" class="tkd-btn tkd-btn-xs tkd-btn-green font-bold px-2.5 py-1 rounded-lg shadow-2xs btn-weighin-add-athlete" data-ath-id="${a.id}">
+                                                        <i class="fa-solid fa-plus me-1"></i>Add to Scale
+                                                    </button>
+                                                `}
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         `;
     }
+    window.renderAdminWeighInDesk = renderAdminWeighInDesk;
 
     // ────────────────────────────────────────────────────────────────────────
     // 4B-2. TOURNAMENT ORGANIZING COMMITTEE PORTAL
@@ -14822,6 +15219,14 @@
             } catch(e) {}
         }
 
+        // Auto-compile live certificates and podium standings if this was a division final match
+        const isFinalMatch = (targetRoundIdx === rounds.length - 1);
+        if (isFinalMatch && store && typeof store.publishResults === 'function') {
+            try {
+                store.publishResults();
+            } catch(e) {}
+        }
+
         // Send postMessage directly to draws-app iframe for immediate reactive update
         const drawsIframe = document.getElementById('tkd-draws-iframe');
         if (drawsIframe && drawsIframe.contentWindow) {
@@ -14871,19 +15276,14 @@
         let bracketsNeedSave = false;
         Object.keys(rawBrackets).forEach(k => {
             const br = rawBrackets[k];
-            const parts = k.split('_');
-            let canonicalKey = k;
-            if (parts.length >= 3 && (parts[1] === 'Male' || parts[1] === 'Female')) {
-                canonicalKey = `${parts[1]}_${parts[0]}_${parts.slice(2).join('_')}`;
-            }
+            const canonicalKey = normalizeDivKey(k) || k;
             if (canonicalKey !== k) {
                 bracketsNeedSave = true;
-                if (!rawBrackets[canonicalKey] && !brackets[canonicalKey]) {
-                    brackets[canonicalKey] = br;
-                }
-            } else {
+            }
+            if (!brackets[canonicalKey]) {
                 brackets[canonicalKey] = br;
             }
+            brackets[k] = br;
         });
         if (bracketsNeedSave) {
             try { localStorage.setItem('tkd_brackets_v3', JSON.stringify(brackets)); } catch(e) {}
@@ -14897,17 +15297,13 @@
         let divisionCourts = {};
         let courtsNeedSave = false;
         Object.keys(rawCourts).forEach(k => {
-            const parts = k.split('_');
-            let canonicalKey = k;
-            if (parts.length >= 3 && (parts[1] === 'Male' || parts[1] === 'Female')) {
-                canonicalKey = `${parts[1]}_${parts[0]}_${parts.slice(2).join('_')}`;
-            }
+            const val = rawCourts[k];
+            const canonicalKey = normalizeDivKey(k) || k;
             if (canonicalKey !== k) {
                 courtsNeedSave = true;
-                divisionCourts[canonicalKey] = rawCourts[k];
-            } else {
-                divisionCourts[k] = rawCourts[k];
             }
+            divisionCourts[canonicalKey] = String(val);
+            divisionCourts[k] = String(val);
         });
         if (courtsNeedSave) {
             try { localStorage.setItem('tkd_division_courts_v1', JSON.stringify(divisionCourts)); } catch(e) {}
@@ -14931,7 +15327,7 @@
         const sourceList = (competitors && competitors.length > 0) ? competitors : passedAthletes;
         sourceList.forEach(a => {
             const isG4 = a.competitionFormat === 'Group-4' || (a.category && a.category.includes('Group-4')) || (a.ageCategory && (a.ageCategory.startsWith('U-') || a.ageCategory.startsWith('A-')));
-            const gender = a.gender || 'Male';
+            const gender = (a.gender === 'Female' || a.gender === 'F' || (a.gender && a.gender.toLowerCase().includes('female'))) ? 'Female' : 'Male';
             let divKey = '';
             let divName = '';
             if (isG4) {
@@ -14940,20 +15336,22 @@
                 divName = `${gender} ${age}`;
             } else {
                 const age = a.ageCategory || a.category || 'Junior';
-                const wt = a.weightClass || 'U-55 kg';
+                const wt = formatWeightClassForDraws(a.weightClass, 'Under 55kg');
                 divKey = `${gender}_${age}_${wt}`.replace(/\s+/g, '_');
                 divName = `${gender} ${age} ${wt}`;
             }
-            if (!divisionsMap[divKey]) {
-                divisionsMap[divKey] = { id: divKey, name: divName, athletes: [] };
+            const cKey = normalizeDivKey(divKey) || divKey;
+            if (!divisionsMap[cKey]) {
+                divisionsMap[cKey] = { id: cKey, name: divName, athletes: [] };
             }
-            divisionsMap[divKey].athletes.push(a);
+            divisionsMap[cKey].athletes.push(a);
         });
 
         // Also incorporate any existing division keys in brackets (avoiding inverted duplicates)
         Object.keys(brackets).forEach(divKey => {
-            if (!divisionsMap[divKey]) {
-                divisionsMap[divKey] = { id: divKey, name: divKey.replace(/_/g, ' '), athletes: [] };
+            const cKey = normalizeDivKey(divKey) || divKey;
+            if (!divisionsMap[cKey]) {
+                divisionsMap[cKey] = { id: cKey, name: cKey.replace(/_/g, ' '), athletes: [] };
             }
         });
 
@@ -15150,29 +15548,20 @@
         // If brackets are empty or missing for active divisions, auto-generate or use alternate key
         let updatedBrackets = false;
         Object.keys(divisionsMap).forEach(divKey => {
-            if (!brackets[divKey] || !Array.isArray(brackets[divKey]) || brackets[divKey].length === 0) {
-                const parts = divKey.split('_');
-                let altKey = null;
-                if (parts.length >= 3) {
-                    altKey = (parts[0] === 'Male' || parts[0] === 'Female')
-                        ? `${parts[1]}_${parts[0]}_${parts.slice(2).join('_')}`
-                        : `${parts[1]}_${parts[0]}_${parts.slice(2).join('_')}`;
-                }
-                if (altKey && brackets[altKey] && Array.isArray(brackets[altKey]) && brackets[altKey].length > 0) {
-                    brackets[divKey] = brackets[altKey];
-                    delete brackets[altKey];
-                    updatedBrackets = true;
-                    return;
-                }
-
-                const aths = divisionsMap[divKey].athletes;
+            const cKey = normalizeDivKey(divKey) || divKey;
+            if (!brackets[cKey] || !Array.isArray(brackets[cKey]) || brackets[cKey].length === 0) {
+                const aths = (divisionsMap[cKey] && divisionsMap[cKey].athletes.length >= 2)
+                    ? divisionsMap[cKey].athletes
+                    : (divisionsMap[divKey] ? divisionsMap[divKey].athletes : []);
                 if (aths.length >= 2) {
-                    brackets[divKey] = generateCanonicalBracket(divKey, aths);
+                    const gen = generateCanonicalBracket(cKey, aths);
+                    brackets[cKey] = gen;
+                    brackets[divKey] = gen;
                     updatedBrackets = true;
                 }
             } else {
                 // Ensure match numbers are assigned
-                assignMatchNumbers(brackets[divKey]);
+                assignMatchNumbers(brackets[cKey]);
             }
         });
 
@@ -15184,12 +15573,15 @@
         }
 
         // Ensure default court distribution if unassigned
-        const divKeys = Object.keys(brackets);
+        const divKeys = Object.keys(divisionsMap);
         let updatedCourts = false;
         if (divKeys.length > 0) {
             divKeys.forEach((k, idx) => {
-                if (!divisionCourts[k]) {
-                    divisionCourts[k] = String((idx % 4) + 1);
+                const cKey = normalizeDivKey(k) || k;
+                if (!divisionCourts[cKey] && !divisionCourts[k]) {
+                    const defCourt = String((idx % 4) + 1);
+                    divisionCourts[cKey] = defCourt;
+                    divisionCourts[k] = defCourt;
                     updatedCourts = true;
                 }
             });
@@ -15225,8 +15617,8 @@
                 if ((feederMatch.status === 'completed' || feederMatch.status === 'walkover') && feederMatch.winnerId) {
                     const winner = (feederMatch.p1 && feederMatch.p1.id === feederMatch.winnerId) ? feederMatch.p1 : (feederMatch.p2 || feederMatch.p1);
                     if (winner && winner.name) {
-                        const m = winner.name.match(/^(.+?)\s*\(([^)]+)\)$/);
-                        return m ? m[2].trim() : winner.name;
+                        const cl = cleanAthleteNameAndClub(winner.name, winner.club);
+                        return cl.name;
                     }
                 }
                 if (feederMatch.matchNo) {
@@ -15239,17 +15631,20 @@
         // Filter divisions assigned to selectedCourt
         const assignedDivKeys = divKeys.filter(k => {
             if (selectedCourt === 'all') return true;
-            return String(divisionCourts[k] || '1') === String(selectedCourt);
+            const cKey = normalizeDivKey(k) || k;
+            const courtNo = divisionCourts[cKey] || divisionCourts[k] || '1';
+            return String(courtNo) === String(selectedCourt);
         });
 
         const scheduledMatches = [];
 
         assignedDivKeys.forEach(divKey => {
-            const rounds = brackets[divKey];
+            const cKey = normalizeDivKey(divKey) || divKey;
+            const rounds = brackets[cKey] || brackets[divKey];
             if (!Array.isArray(rounds)) return;
             assignMatchNumbers(rounds);
 
-            const divObj = divisionsMap[divKey];
+            const divObj = divisionsMap[cKey] || divisionsMap[divKey];
             const divName = divObj ? divObj.name : divKey.replace(/_/g, ' ');
 
             rounds.forEach((round, rIdx) => {
@@ -15266,32 +15661,21 @@
                     const rawChongName = chongAthlete ? chongAthlete.name : getFeederMatchLabel(rounds, rIdx, m.matchIndex !== undefined ? m.matchIndex : mIdx, true);
                     const rawHongName = hongAthlete ? hongAthlete.name : getFeederMatchLabel(rounds, rIdx, m.matchIndex !== undefined ? m.matchIndex : mIdx, false);
 
-                    let chongName = rawChongName;
-                    let chongClub = chongAthlete ? (chongAthlete.club || chongAthlete.dojangName || '') : '';
-                    if (chongName) {
-                        const cMatch = chongName.match(/^(.+?)\s*\(([^)]+)\)$/);
-                        if (cMatch) {
-                            chongClub = chongClub || cMatch[1].trim();
-                            chongName = cMatch[2].trim();
-                        }
-                    }
+                    const clChong = cleanAthleteNameAndClub(rawChongName, chongAthlete ? (chongAthlete.club || chongAthlete.dojangName) : '');
+                    const clHong = cleanAthleteNameAndClub(rawHongName, hongAthlete ? (hongAthlete.club || hongAthlete.dojangName) : '');
 
-                    let hongName = rawHongName;
-                    let hongClub = hongAthlete ? (hongAthlete.club || hongAthlete.dojangName || '') : '';
-                    if (hongName) {
-                        const hMatch = hongName.match(/^(.+?)\s*\(([^)]+)\)$/);
-                        if (hMatch) {
-                            hongClub = hongClub || hMatch[1].trim();
-                            hongName = hMatch[2].trim();
-                        }
-                    }
+                    const chongName = clChong.name;
+                    const chongClub = (clChong.club && clChong.club.toLowerCase() !== 'independent') ? clChong.club : (chongAthlete ? (chongAthlete.club || chongAthlete.dojangName || '') : '');
+
+                    const hongName = clHong.name;
+                    const hongClub = (clHong.club && clHong.club.toLowerCase() !== 'independent') ? clHong.club : (hongAthlete ? (hongAthlete.club || hongAthlete.dojangName || '') : '');
 
                     const isChongPlaceholder = !chongAthlete;
                     const isHongPlaceholder = !hongAthlete;
                     const isReadyToFight = !!(chongAthlete && hongAthlete);
 
                     scheduledMatches.push({
-                        divisionId: divKey,
+                        divisionId: cKey,
                         divisionName: divName,
                         roundIndex: rIdx,
                         matchIndex: m.matchIndex !== undefined ? m.matchIndex : mIdx,
@@ -15309,7 +15693,7 @@
                         isChongPlaceholder: isChongPlaceholder,
                         isHongPlaceholder: isHongPlaceholder,
                         isReadyToFight: isReadyToFight,
-                        courtNo: divisionCourts[divKey] || '1'
+                        courtNo: divisionCourts[cKey] || divisionCourts[divKey] || '1'
                     });
                 });
             });
@@ -16098,7 +16482,7 @@
         }
     }
 
-    // Register message and storage listeners for live ESS score sync
+    // Register message and storage listeners for live ESS score sync and draws sync
     window.addEventListener('message', (e) => {
         if (!e.data) return;
         if (e.data.type === 'TKD_ESS_MATCH_COMPLETED') {
@@ -16111,6 +16495,18 @@
                 document.querySelectorAll('.jury-conduct-modal-overlay, #tkd-jury-conduct-modal').forEach(m => m.remove());
             }
         }
+        if (e.data.type === 'TKD_DRAWS_UPDATED' || e.data.type === 'TKD_COMPETITORS_UPDATED' || e.data.type === 'TKD_COURTS_UPDATED') {
+            if (typeof window.syncManualDrawsCompetitorsToStore === 'function') {
+                window.syncManualDrawsCompetitorsToStore();
+            }
+            // Re-render Jury court sheet if currently open to reflect updated matches/players
+            const juryContainer = document.getElementById('tkd-jury-main-container');
+            if (juryContainer && juryContainer.parentElement && typeof renderJurySection === 'function') {
+                const courtSelect = document.getElementById('jury-court-select');
+                const currentCourt = courtSelect ? courtSelect.value : '1';
+                renderJurySection(juryContainer.parentElement, currentCourt);
+            }
+        }
     });
 
     window.addEventListener('storage', (e) => {
@@ -16119,6 +16515,17 @@
                 const data = JSON.parse(e.newValue);
                 handleGlobalEssMatchCompletion(data);
             } catch(err) {}
+        }
+        if (e.key === 'tkd_competitors_v3' || e.key === 'tkd_brackets_v3' || e.key === 'tkd_division_courts_v1') {
+            if (typeof window.syncManualDrawsCompetitorsToStore === 'function') {
+                window.syncManualDrawsCompetitorsToStore();
+            }
+            const juryContainer = document.getElementById('tkd-jury-main-container');
+            if (juryContainer && juryContainer.parentElement && typeof renderJurySection === 'function') {
+                const courtSelect = document.getElementById('jury-court-select');
+                const currentCourt = courtSelect ? courtSelect.value : '1';
+                renderJurySection(juryContainer.parentElement, currentCourt);
+            }
         }
     });
 
@@ -18244,13 +18651,13 @@ ${templateBg ? `
             const idcardsBtn = document.getElementById('nav-btn-idcards');
             const juryBtn    = document.getElementById('nav-btn-jury');
             const drawerJuryBtn = document.getElementById('drawer-btn-jury');
-            if (opsDiv)     opsDiv.style.display     = isStaffRole ? 'inline-block' : 'none';
-            if (weighinBtn) weighinBtn.style.display  = isStaffRole ? 'inline-flex'  : 'none';
-            if (catBtn)     catBtn.style.display      = isStaffRole ? 'inline-flex'  : 'none';
-            if (feeBtn)     feeBtn.style.display      = isStaffRole ? 'inline-flex'  : 'none';
+            if (opsDiv)     opsDiv.style.display     = 'inline-block';
+            if (weighinBtn) weighinBtn.style.display  = 'inline-flex';
+            if (catBtn)     catBtn.style.display      = 'inline-flex';
+            if (feeBtn)     feeBtn.style.display      = 'inline-flex';
             if (idcardsBtn) idcardsBtn.style.display  = isStaffRole ? 'inline-flex'  : 'none';
-            if (juryBtn)    juryBtn.style.display     = isStaffRole ? 'inline-flex'  : 'none';
-            if (drawerJuryBtn) drawerJuryBtn.style.display = isStaffRole ? 'flex'    : 'none';
+            if (juryBtn)    juryBtn.style.display     = 'inline-flex';
+            if (drawerJuryBtn) drawerJuryBtn.style.display = 'flex';
 
             // Portal Drawer Mode: ONLY for Organizer Portal and Admin Portal
             // User request: "AND IN ORGANIZER PORTAL AND ADMIN PORTAL INSTEAD OF SIDE BAR MAKE IT LIKE 3 LINES THING WHEN CLICKED THEN IT SHOULD SHOW ALL"
@@ -18405,25 +18812,9 @@ ${templateBg ? `
             } else if (this.currentView === 'fee') {
                 renderFeeInvoiceView(mainContainer);
             } else if (this.currentView === 'draws' || this.currentView === 'brackets') {
-                if (isStaffUser) {
-                    renderDrawsViewer(mainContainer);
-                } else {
-                    renderRestrictedDrawsAccessView(mainContainer);
-                }
+                renderDrawsViewer(mainContainer);
             } else if (this.currentView === 'jury' || this.currentView === 'jury-desk' || this.currentView === 'jurydesk') {
-                if (isStaffRole) {
-                    renderJurySection(mainContainer);
-                } else {
-                    renderCustom404View(mainContainer, {
-                        title: '404 • Restricted Jury Section',
-                        headline: 'Jury & Bout Scoring Desk Restricted',
-                        message: 'Official match scheduling and bout scoring desk is strictly restricted to tournament administrators and organizers.',
-                        subtext: 'Please log in with verified organizer or admin credentials to access the jury desk.',
-                        showLoginBtn: true,
-                        returnView: 'events',
-                        returnLabel: 'Back to Tournament Home'
-                    });
-                }
+                renderJurySection(mainContainer);
             } else if (this.currentView === 'results') {
                 if (isStaffUser || store.isResultsPublished()) {
                     renderResultsViewer(mainContainer);

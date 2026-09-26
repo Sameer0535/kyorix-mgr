@@ -167,6 +167,57 @@ Engineers working on this codebase must adhere strictly to the rules and pattern
 
 ---
 
+### 2.12. Draws to Jury, ESS, Results & Live Certificates Pipeline Invariants
+- **Manual Draws Ingestion Requirement**:
+  - Competitors added manually directly inside `draws-app` are stored in `tkd_competitors_v3` and `tkd_brackets_v3`.
+  - For these competitors to flow into Jury scheduling, ESS bout conduction, Results tallying, and Certificates generation, they must be registered into `store.athletes` with `status: 'Passed'`, `weighInStatus: 'Passed'`, `paymentStatus: 'Paid'`, and active `tournId`.
+  - `syncManualDrawsCompetitorsToStore()` automatically extracts manual athletes from both `tkd_competitors_v3` and `tkd_brackets_v3` and registers them into `store.athletes`.
+- **Bracket Retention Invariant**:
+  - In `syncTournamentAthletesToDraws()`, existing competitors in `tkd_competitors_v3` are merged into the draws roster, and all names present in `tkd_brackets_v3` are added to `validNamesSet` so manual brackets are never deleted or corrupted when switching tabs.
+- **ESS Match Conduction & Reactive Propagation**:
+  - Upon bout completion, `ess-app` broadcasts `TKD_ESS_MATCH_COMPLETED` via `postMessage` (`window.parent`, `window.opener`) and `localStorage.setItem('tkd_ess_match_completed')`.
+  - `handleGlobalEssMatchCompletion()` and `applyBracketMatchScore()` record match scores, advance winners in the bracket tree, notify `draws-app` via `TKD_MATCH_SCORED`, and call `store.addResult()`.
+- **Live Podium & Certificates Generation**:
+  - Division final matches automatically invoke `store.publishResults()`.
+  - `computeLiveChampionshipResults()` calculates Gold (1st), Silver (2nd), and dual Bronze (semifinalists) medalists directly from completed bracket bouts without falling back to mock seeds.
+  - `publishResults()` generates certified official Merit certificates for all medalists (`WT-MERIT-2026-XXXX`) and Participation certificates for competitors (`WT-PART-2026-XXXX`), which immediately resolve in the Live Certificates Studio and `#verify-cert` QR authenticity scans.
+
+---
+
+### 2.13. Draws Import Parsing, Division Normalization & Reload Persistence Invariants
+- **Multi-Delimiter Athlete & Academy Import Parsing**:
+  - Bulk import in `draws-app` (`he()`) supports all standard copy-paste formats (`\t`, `,`, ` — `, `—`, ` – `, `–`, ` - `, ` | `, `;`).
+  - Helper functions `_cleanTkdComp(p)` (`draws-app`) and `cleanAthleteNameAndClub(name, club)` (`js/tkd-app.js`) isolate the athlete's clean legal name and map the academy to `club`.
+  - In bracket views, print views, and tables, the athlete's name is displayed prominently with their academy/club displayed cleanly underneath, avoiding false defaults to `'Independent'`.
+- **Division Key Canonical Normalization**:
+  - Division keys across `draws-app` and `tkd-app.js` are canonically normalized via `normalizeDivKey(k)`.
+  - Maps any variant (e.g., `Female_Junior_Under_49kg`, `Junior_Female_Under_49kg`, `Female_Junior_U-49_kg`, `Female_Junior_U-49kg`) to the exact same canonical string `${Gender}_${AgeCategory}_${WeightClass}`.
+  - `formatWeightClassForDraws(wt)` ensures weight strings remain in canonical `Under XXkg` / `Over XXkg` format, preventing category filter mismatches.
+  - Both raw and canonical keys are retained in `brackets` and `divisionCourts` so court allocations (e.g. Court 1) and generated matches resolve immediately on Jury Desk and ring monitors.
+- **Reload Persistence Rule (`Store.init` & `draws-app`)**:
+  - `Store.init()` must **never** wipe `tkd_athletes`, `tkd_tournaments`, `tkd_brackets_v3`, `tkd_competitors_v3`, `tkd_competitors_v1`, or `tkd_division_courts_v1` on version updates or page reloads (`F5`).
+  - In `draws-app/assets/index-15nmTQX8.js`, `_cleanTkdComp` is defined at the module top-level and exposed on `window._cleanTkdComp`. The `useState` initializer for competitor state `c` uses safe fallback mapping so competitor lists in `tkd_competitors_v3` are preserved upon refresh and never drop into default seed competitors `fe`.
+  - Operational caches are only purged during an explicit user-initiated factory reset (`resetAllData()`).
+
+---
+
+### 2.14. Multi-Section Cross-Desk Propagation Pipeline
+- **Academy Auto-Registration**:
+  - `syncManualDrawsCompetitorsToStore()` inspects all competitors imported in `draws-app`. For any competitor with a custom academy, it automatically verifies and creates the academy entry in `store.dojangs` and `localStorage.getItem('tkd_dojangs')` with active tournament linkages.
+  - This ensures that Fee Ledger & Tax Invoices (`renderFeeInvoiceView`), Academy Rosters, and Category Desk filters immediately list the academy and its financial/registration balance.
+- **Complete Competitor Metadata Mapping**:
+  - Maps numeric `weight` and `measuredWeight` parsed from weight class strings (e.g. `Under 55kg` -> `55.0`), `competitionFormat` (`'Group-4'` or `'Official'`), `group4Category`, `discipline: 'Kyorugi'`, and `status: 'Passed'`, `weighInStatus: 'Passed'`.
+  - Ensures seamless matching in `matchesAthlete` within Category Desk (`renderCategoriesView`) and full registration scale display in Weigh-In Desk.
+- **Top-Navigation Accessibility & Direct Desk Routing**:
+  - Top navigation buttons (`nav-btn-weighin`, `nav-btn-categories`, `nav-btn-fee`, `nav-btn-jury`) remain always visible (`display: inline-flex`) so desk marshals and operators can switch between tournament desks without authentication lockouts.
+  - Direct routing to `#weighin`, `#categories`, `#fee`, `#draws`, and `#jury` renders their respective desk views directly without 404 screens.
+- **Weigh-In Desk Scale Roster**:
+  - `renderAdminWeighInDesk` incorporates a visible "Registered Championship Scale Roster" table directly below the active scale station, providing instant visibility and quick scale loading for all registered and imported athletes.
+- **Canonical Bracket Auto-Generation on Jury Desk**:
+  - If a division has been assigned to a court (e.g. Court 1) in Draws, `renderJurySection` automatically generates canonical brackets if not already saved, ensuring match lineups and ring bout rosters populate on the Jury Desk immediately.
+
+---
+
 ## 3. Key Function Dictionary (`js/tkd-app.js`)
 
 | Function Name | Purpose & Location |
