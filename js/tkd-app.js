@@ -18639,7 +18639,7 @@ ${templateBg ? `
                 }
                 if (navOrganizerBtn) navOrganizerBtn.style.display = 'none';
                 if (navTournBtn) navTournBtn.style.display = 'flex';
-                if (navWeighinBtn) navWeighinBtn.style.display = 'flex';
+                if (navWeighinBtn) navWeighinBtn.style.display = isStaffRole ? 'flex' : 'none';
             }
 
             // Top-nav item visibility — nav bar is always shown, just toggle individual items
@@ -18651,13 +18651,13 @@ ${templateBg ? `
             const idcardsBtn = document.getElementById('nav-btn-idcards');
             const juryBtn    = document.getElementById('nav-btn-jury');
             const drawerJuryBtn = document.getElementById('drawer-btn-jury');
-            if (opsDiv)     opsDiv.style.display     = 'inline-block';
-            if (weighinBtn) weighinBtn.style.display  = 'inline-flex';
-            if (catBtn)     catBtn.style.display      = 'inline-flex';
-            if (feeBtn)     feeBtn.style.display      = 'inline-flex';
+            if (opsDiv)     opsDiv.style.display     = isStaffRole ? 'inline-block' : 'none';
+            if (weighinBtn) weighinBtn.style.display  = isStaffRole ? 'inline-flex'  : 'none';
+            if (catBtn)     catBtn.style.display      = isStaffRole ? 'inline-flex'  : 'none';
+            if (feeBtn)     feeBtn.style.display      = isStaffRole ? 'inline-flex'  : 'none';
             if (idcardsBtn) idcardsBtn.style.display  = isStaffRole ? 'inline-flex'  : 'none';
-            if (juryBtn)    juryBtn.style.display     = 'inline-flex';
-            if (drawerJuryBtn) drawerJuryBtn.style.display = 'flex';
+            if (juryBtn)    juryBtn.style.display     = isStaffRole ? 'inline-flex'  : 'none';
+            if (drawerJuryBtn) drawerJuryBtn.style.display = isStaffRole ? 'flex'    : 'none';
 
             // Portal Drawer Mode: ONLY for Organizer Portal and Admin Portal
             // User request: "AND IN ORGANIZER PORTAL AND ADMIN PORTAL INSTEAD OF SIDE BAR MAKE IT LIKE 3 LINES THING WHEN CLICKED THEN IT SHOULD SHOW ALL"
@@ -18812,9 +18812,25 @@ ${templateBg ? `
             } else if (this.currentView === 'fee') {
                 renderFeeInvoiceView(mainContainer);
             } else if (this.currentView === 'draws' || this.currentView === 'brackets') {
-                renderDrawsViewer(mainContainer);
+                if (isStaffUser) {
+                    renderDrawsViewer(mainContainer);
+                } else {
+                    renderRestrictedDrawsAccessView(mainContainer);
+                }
             } else if (this.currentView === 'jury' || this.currentView === 'jury-desk' || this.currentView === 'jurydesk') {
-                renderJurySection(mainContainer);
+                if (isStaffRole) {
+                    renderJurySection(mainContainer);
+                } else {
+                    renderCustom404View(mainContainer, {
+                        title: '404 • Restricted Jury Section',
+                        headline: 'Jury & Bout Scoring Desk Restricted',
+                        message: 'Official match scheduling and bout scoring desk is strictly restricted to tournament administrators and organizers.',
+                        subtext: 'Please log in with verified organizer or admin credentials to access the jury desk.',
+                        showLoginBtn: true,
+                        returnView: 'events',
+                        returnLabel: 'Back to Tournament Home'
+                    });
+                }
             } else if (this.currentView === 'results') {
                 if (isStaffUser || store.isResultsPublished()) {
                     renderResultsViewer(mainContainer);
