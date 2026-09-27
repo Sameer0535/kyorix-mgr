@@ -2781,6 +2781,205 @@
 
     let _isSyncingDrawsToStore = false;
     let _isSyncingTournamentToDraws = false;
+    let _isPushingLiveSync = false;
+    let _livePushDebounceTimer = null;
+    let _lastServerSyncTimestamp = 0;
+
+    // Strict Weigh-in Passed Filter: Only athletes whose status or weigh-in is 'passed' qualify for draws!
+    function isAthletePassed(a) {
+        if (!a) return false;
+        const s = (a.status || '').toString().trim().toLowerCase();
+        const ws = (a.weighInStatus || '').toString().trim().toLowerCase();
+        return s === 'passed' || ws === 'passed';
+    }
+    window.isAthletePassed = isAthletePassed;
+
+    // Mock Sample Seed Competitor Names to always exclude from draws engine
+    const MOCK_SAMPLE_NAMES = new Set([
+        'lee dae-hoon', 'alexei denisenko', 'joel gonzalez', 'servet tazegul', 'ahmad abughaush',
+        'jade jones', 'eva calvo', 'hedaya malak', 'kimia alizadeh', 'marc-andre', 'park tae-joon',
+        "vito dell'aquila", 'cheick sallah cisse', 'lutalo muhammad', 'milad beigi', 'albert gaun',
+        'oussama oueslati', 'steven lopez', 'aaron cook', 'nikita rafalovich', 'rahul sharma',
+        'aarav patel', 'kabir singh', 'vivaan joshi', 'rohan gupta', 'aditya verma', 'arjun mehta',
+        'reyansh deshmukh', 'atharv kulkarni', 'vihaan saxena', 'ananya roy', 'diya kumar',
+        'sanya malhotra', 'myra kapoor', 'isha bhatia', 'kavya sharma', 'riya sen', 'avani reddy',
+        'devansh reddy', 'ishaan nair', 'reyansh rao', 'yash vardhan', 'pari choudhary',
+        'nisha agarwal', 'simran gill', 'tanvi shah', 'meera iyer'
+    ]);
+
+    function isMockSampleCompetitor(c) {
+        if (!c) return true;
+        const n = (c.name || '').trim().toLowerCase();
+        const id = String(c.id || '');
+        if (id.startsWith('c_large_') || id.startsWith('g4_')) return true;
+        if (MOCK_SAMPLE_NAMES.has(n)) return true;
+        return false;
+    }
+    window.isMockSampleCompetitor = isMockSampleCompetitor;
+
+    // Universal Division Bracket Finder (handles canonical, alias, and inverted gender/age keys)
+    function findBracketForDivision(divKey, brackets) {
+        if (!brackets || typeof brackets !== 'object') return null;
+        if (brackets[divKey] && Array.isArray(brackets[divKey]) && brackets[divKey].length > 0) {
+            return { key: divKey, rounds: brackets[divKey] };
+        }
+        const cKey = normalizeDivKey(divKey);
+        if (cKey && brackets[cKey] && Array.isArray(brackets[cKey]) && brackets[cKey].length > 0) {
+            return { key: cKey, rounds: brackets[cKey] };
+        }
+        const parts = divKey.split('_');
+        if (parts.length >= 3) {
+            const alt = `${parts[1]}_${parts[0]}_${parts.slice(2).join('_')}`;
+            if (brackets[alt] && Array.isArray(brackets[alt]) && brackets[alt].length > 0) {
+                return { key: alt, rounds: brackets[alt] };
+            }
+        }
+        const cleanNorm = divKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+        for (const k of Object.keys(brackets)) {
+            if (k.toLowerCase().replace(/[^a-z0-9]/g, '') === cleanNorm) {
+                if (Array.isArray(brackets[k]) && brackets[k].length > 0) {
+                    return { key: k, rounds: brackets[k] };
+                }
+            }
+        }
+        return null;
+    }
+    window.findBracketForDivision = findBracketForDivision;
+
+    // Universal Division Court Finder
+    function findCourtForDivision(divKey, divisionCourts) {
+        if (!divisionCourts || typeof divisionCourts !== 'object') return '1';
+        if (divisionCourts[divKey]) return String(divisionCourts[divKey]);
+        const cKey = normalizeDivKey(divKey);
+        if (cKey && divisionCourts[cKey]) return String(divisionCourts[cKey]);
+        const parts = divKey.split('_');
+        if (parts.length >= 3) {
+            const alt = `${parts[1]}_${parts[0]}_${parts.slice(2).join('_')}`;
+            if (divisionCourts[alt]) return String(divisionCourts[alt]);
+        }
+        const cleanNorm = divKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+        for (const k of Object.keys(divisionCourts)) {
+            if (k.toLowerCase().replace(/[^a-z0-9]/g, '') === cleanNorm) {
+                return String(divisionCourts[k]);
+            }
+        }
+        return '1';
+    }
+    window.findCourtForDivision = findCourtForDivision;
+
+    // Cross-Device Real-Time Match Data Push (/api/live-sync)
+    function pushLiveMatchDataToServer(data = {}) {
+        if (_isPushingLiveSync) return;
+        clearTimeout(_livePushDebounceTimer);
+        _livePushDebounceTimer = setTimeout(async () => {
+            _isPushingLiveSync = true;
+            try {
+                let brackets = data.brackets;
+                if (!brackets) {
+                    try { brackets = JSON.parse(localStorage.getItem('tkd_brackets_v3') || '{}'); } catch(e) {}
+                }
+                let competitors = data.competitors;
+                if (!competitors) {
+                    try { competitors = JSON.parse(localStorage.getItem('tkd_competitors_v3') || '[]'); } catch(e) {}
+                }
+                let divisionCourts = data.divisionCourts;
+                if (!divisionCourts) {
+                    try { divisionCourts = JSON.parse(localStorage.getItem('tkd_division_courts_v1') || '{}'); } catch(e) {}
+                }
+
+                const res = await fetch('/api/live-sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ brackets, competitors, divisionCourts })
+                });
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json && json.timestamp) {
+                        _lastServerSyncTimestamp = json.timestamp;
+                    }
+                }
+            } catch (err) {
+                // Background network error or offline mode, continue silently
+            } finally {
+                _isPushingLiveSync = false;
+            }
+        }, 200);
+    }
+    window.pushLiveMatchDataToServer = pushLiveMatchDataToServer;
+
+    // Cross-Device Real-Time Match Data Polling (/api/live-sync)
+    async function pollLiveMatchDataFromServer() {
+        try {
+            const res = await fetch('/api/live-sync?t=' + Date.now());
+            if (!res.ok) return;
+            const json = await res.json();
+            if (!json || !json.success) return;
+
+            if (json.timestamp && json.timestamp <= _lastServerSyncTimestamp) {
+                return; // Nothing new since our last push/poll
+            }
+            _lastServerSyncTimestamp = json.timestamp || Date.now();
+
+            let updatedAny = false;
+
+            // 1. Brackets Live Sync
+            if (json.brackets && typeof json.brackets === 'object') {
+                const serverBracketsStr = JSON.stringify(json.brackets);
+                if (serverBracketsStr !== '{}' && localStorage.getItem('tkd_brackets_v3') !== serverBracketsStr) {
+                    localStorage.setItem('tkd_brackets_v3', serverBracketsStr);
+                    localStorage.setItem('tkd_match_updated', Date.now().toString());
+                    updatedAny = true;
+                }
+            }
+
+            // 2. Competitors Live Sync
+            if (json.competitors && Array.isArray(json.competitors)) {
+                const serverCompsStr = JSON.stringify(json.competitors);
+                if (json.competitors.length > 0 && localStorage.getItem('tkd_competitors_v3') !== serverCompsStr) {
+                    localStorage.setItem('tkd_competitors_v3', serverCompsStr);
+                    localStorage.setItem('tkd_competitors_v1', serverCompsStr);
+                    updatedAny = true;
+                }
+            }
+
+            // 3. Division Courts Live Sync
+            if (json.divisionCourts && typeof json.divisionCourts === 'object') {
+                const serverCourtsStr = JSON.stringify(json.divisionCourts);
+                if (serverCourtsStr !== '{}' && localStorage.getItem('tkd_division_courts_v1') !== serverCourtsStr) {
+                    localStorage.setItem('tkd_division_courts_v1', serverCourtsStr);
+                    updatedAny = true;
+                }
+            }
+
+            if (updatedAny) {
+                // Reactive update for Draws iframe
+                const drawsIframe = document.getElementById('tkd-draws-iframe');
+                if (drawsIframe && drawsIframe.contentWindow) {
+                    try { drawsIframe.contentWindow.postMessage({ type: 'TKD_RELOAD_BRACKETS' }, '*'); } catch(e) {}
+                }
+                // Reactive update for Jury section
+                const juryContainer = document.getElementById('tkd-jury-main-container');
+                if (juryContainer && juryContainer.parentElement && typeof renderJurySection === 'function') {
+                    const courtSelect = document.getElementById('jury-court-select');
+                    const currentCourt = courtSelect ? courtSelect.value : '1';
+                    renderJurySection(juryContainer.parentElement, currentCourt);
+                }
+            }
+        } catch (e) {
+            // Offline / network pause
+        }
+    }
+    window.pollLiveMatchDataFromServer = pollLiveMatchDataFromServer;
+
+    if (typeof window !== 'undefined') {
+        setInterval(pollLiveMatchDataFromServer, 3500);
+        window.addEventListener('focus', pollLiveMatchDataFromServer);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                pollLiveMatchDataFromServer();
+            }
+        });
+    }
 
     // Synchronize manually added competitors from draws-app into store.athletes
     function syncManualDrawsCompetitorsToStore() {
@@ -3002,16 +3201,13 @@
     window.syncManualDrawsCompetitorsToStore = syncManualDrawsCompetitorsToStore;
 
     // Auto-synchronize active championship athletes into Draws engine on load & deduplicate
-    // User Requirement: "name should come in draws only if they have passed the weighin"
+    // User Requirement: "only the passed athletes details come come to draws section when clicked sync athletes from kyorix rooster"
     function syncTournamentAthletesToDraws(notify = false) {
         if (_isSyncingTournamentToDraws) return;
         _isSyncingTournamentToDraws = true;
         try {
-            // First ingest any manually added competitors from draws-app into store
-            syncManualDrawsCompetitorsToStore();
-
             const activeTourn = (typeof store !== 'undefined' && store.getActiveTournament) 
-                ? (store.getActiveTournament() || (store.getTournaments() || [])[0] || {}) 
+                ? (store.getActiveTournament() || (store.getTournaments ? store.getTournaments()[0] : null) || {}) 
                 : {};
             const allAthletes = (typeof store !== 'undefined' && store.getAthletes) ? (store.getAthletes() || []) : [];
             const tournAthletes = (activeTourn && activeTourn.id && store.getAthletesForTournament) 
@@ -3023,33 +3219,32 @@
                 return;
             }
 
-            // Load existing competitors to ensure manual additions in draws are preserved
-            let existingComps = [];
-            try {
-                existingComps = JSON.parse(localStorage.getItem('tkd_competitors_v3') || '[]');
-            } catch(e) {}
+            // Identify all athletes from roster who did NOT pass weigh-in
+            const unpassedRosterNames = new Set(
+                allAthletes
+                    .filter(a => !isAthletePassed(a))
+                    .map(a => cleanAthleteNameAndClub(a.name).name.trim().toLowerCase())
+                    .filter(Boolean)
+            );
 
-            // Strict Requirement: "name should come in draws only if they have passed the weighin"
-            // Athletes whose weigh-in is on hold, overweight, pending, or not done yet MUST NOT appear in draws!
-            const passedAthletes = athletes.filter(a => {
-                const s = (a.status || '').toString().trim().toLowerCase();
-                const ws = (a.weighInStatus || '').toString().trim().toLowerCase();
-                return s === 'passed' || ws === 'passed';
-            });
+            // Filter roster: ONLY passed athletes qualify for draws!
+            const passedAthletes = athletes.filter(a => isAthletePassed(a));
 
-            // Strict deduplication by normalized competitor name & id
+            // Deduplicate passed athletes by normalized name
             const seenCompNames = new Set();
             const uniqueAthletes = [];
             for (const a of passedAthletes) {
-                const norm = (a.name || '').trim().toLowerCase();
+                const clean = cleanAthleteNameAndClub(a.name, a.dojangName || a.club);
+                const norm = clean.name.trim().toLowerCase();
                 if (!norm || seenCompNames.has(norm)) continue;
                 seenCompNames.add(norm);
-                uniqueAthletes.push(a);
+                uniqueAthletes.push({ athlete: a, clean });
             }
 
-            // Map Kyorix athletes to Draws Engine format with strict weight and age resolution
-            const mapped = uniqueAthletes.map((a, idx) => {
-                const cl = cleanAthleteNameAndClub(a.name, a.dojangName || a.club);
+            // Map passed athletes to Draws Engine format
+            const mapped = uniqueAthletes.map((item, idx) => {
+                const a = item.athlete;
+                const cl = item.clean;
                 const isG4 = a.competitionFormat === 'Group-4' || (a.category && a.category.includes('Group-4')) || a.group4Category;
                 let ageCategory = 'Junior';
                 if (isG4) {
@@ -3091,74 +3286,90 @@
                     ageCategory: ageCategory,
                     weightClass: isG4 ? '' : weightClass,
                     rank: a.belt || a.rank || '1st Dan',
-                    status: a.status || 'Pending',
-                    weighInStatus: a.weighInStatus || 'Pending'
+                    status: 'Passed',
+                    weighInStatus: 'Passed',
+                    __weighInPassed: true
                 };
             });
 
-            // Preserve any existing competitors in tkd_competitors_v3 that were added manually in draws
+            // Inspect existing competitors: PURGE mock samples and any unpassed roster athletes!
+            let existingComps = [];
+            try {
+                existingComps = JSON.parse(localStorage.getItem('tkd_competitors_v3') || '[]');
+            } catch(e) {}
+
             existingComps.forEach(ec => {
                 if (!ec || !ec.name) return;
                 const ecClean = cleanAthleteNameAndClub(ec.name, ec.club);
                 const normEc = ecClean.name.trim().toLowerCase();
+                // 1. Purge mock sample competitors
+                if (isMockSampleCompetitor(ec)) return;
+                // 2. Purge unpassed roster athletes
+                if (unpassedRosterNames.has(normEc)) return;
+                // 3. Purge competitors whose status is explicitly unpassed
+                const st = (ec.status || '').toString().toLowerCase();
+                const wst = (ec.weighInStatus || '').toString().toLowerCase();
+                if ((st && st !== 'passed') || (wst && wst !== 'passed')) return;
+
                 if (!seenCompNames.has(normEc)) {
                     seenCompNames.add(normEc);
                     mapped.push({
                         ...ec,
                         name: ecClean.name,
                         club: ecClean.club,
-                        weightClass: formatWeightClassForDraws(ec.weightClass, 'Under 55kg')
+                        weightClass: formatWeightClassForDraws(ec.weightClass, 'Under 55kg'),
+                        status: 'Passed',
+                        weighInStatus: 'Passed',
+                        __weighInPassed: true
                     });
                 }
             });
 
-            // Write to both tkd_competitors_v3 and tkd_competitors_v1 ONLY if content actually changed
+            // Save clean competitors list to localStorage
             const serializedMapped = JSON.stringify(mapped);
             if (localStorage.getItem('tkd_competitors_v3') !== serializedMapped) {
                 localStorage.setItem('tkd_competitors_v3', serializedMapped);
                 localStorage.setItem('tkd_competitors_v1', serializedMapped);
             }
 
-            // Validate brackets: Ensure manual competitor brackets are 100% protected
+            // Clean brackets: purge unpassed/mock athletes from unstarted bracket matches
             const validNamesSet = new Set(mapped.map(m => m.name.toLowerCase()));
             const storedBrackets = localStorage.getItem('tkd_brackets_v3');
+            let parsedBrackets = {};
             if (storedBrackets) {
                 try {
-                    const parsedBrackets = JSON.parse(storedBrackets);
+                    parsedBrackets = JSON.parse(storedBrackets);
                     let cleaned = false;
                     for (const divKey of Object.keys(parsedBrackets)) {
                         const br = parsedBrackets[divKey];
-                        const namesInBracket = [];
                         if (Array.isArray(br)) {
                             for (const round of br) {
                                 if (Array.isArray(round)) {
                                     for (const m of round) {
-                                        if (m && m.p1 && m.p1.name && m.p1.name !== 'TBD' && !m.p1.name.startsWith('Winner') && m.p1.id !== 'bye') {
-                                            namesInBracket.push(m.p1.name.trim().toLowerCase());
-                                        }
-                                        if (m && m.p2 && m.p2.name && m.p2.name !== 'TBD' && !m.p2.name.startsWith('Winner') && m.p2.id !== 'bye') {
-                                            namesInBracket.push(m.p2.name.trim().toLowerCase());
+                                        if (m.status !== 'completed') {
+                                            if (m.p1 && m.p1.name && !validNamesSet.has(m.p1.name.trim().toLowerCase())) {
+                                                if (m.p1.id !== 'bye' && !m.p1.name.startsWith('Winner') && m.p1.name !== 'TBD') {
+                                                    m.p1 = null;
+                                                    cleaned = true;
+                                                }
+                                            }
+                                            if (m.p2 && m.p2.name && !validNamesSet.has(m.p2.name.trim().toLowerCase())) {
+                                                if (m.p2.id !== 'bye' && !m.p2.name.startsWith('Winner') && m.p2.name !== 'TBD') {
+                                                    m.p2 = null;
+                                                    cleaned = true;
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                        // If bracket has participants, protect them in validNamesSet so they are never purged
-                        if (namesInBracket.length > 0) {
-                            namesInBracket.forEach(n => validNamesSet.add(n));
-                        }
                     }
                     if (cleaned) {
-                        const serializedCleaned = JSON.stringify(parsedBrackets);
-                        if (localStorage.getItem('tkd_brackets_v3') !== serializedCleaned) {
-                            localStorage.setItem('tkd_brackets_v3', serializedCleaned);
-                        }
+                        localStorage.setItem('tkd_brackets_v3', JSON.stringify(parsedBrackets));
+                        localStorage.setItem('tkd_match_updated', Date.now().toString());
                     }
-                } catch (e) {
-                    if (localStorage.getItem('tkd_brackets_v3') !== '{}') {
-                        localStorage.setItem('tkd_brackets_v3', JSON.stringify({}));
-                    }
-                }
+                } catch (e) {}
             }
 
             const hasG4 = mapped.some(m => m.ageCategory && (m.ageCategory.startsWith('U-') || m.ageCategory.startsWith('A-')));
@@ -3167,18 +3378,27 @@
                 localStorage.setItem('tkd_tournament_mode_v1', newMode);
             }
 
+            // Notify Draws iframe reactive listener and refresh
             if (typeof document !== 'undefined') {
                 const iframe = document.getElementById('tkd-draws-iframe');
-                if (iframe && notify) {
-                    iframe.src = 'draws-app/index.html?v=453&t=' + Date.now();
+                if (iframe) {
+                    if (notify) {
+                        iframe.src = 'draws-app/index.html?v=460&t=' + Date.now();
+                    } else if (iframe.contentWindow) {
+                        try { iframe.contentWindow.postMessage({ type: 'TKD_RELOAD_BRACKETS' }, '*'); } catch(e) {}
+                    }
                 }
             }
+
+            // Push updated roster and brackets to backend server for live cross-device sync
+            pushLiveMatchDataToServer({ competitors: mapped, brackets: parsedBrackets });
+
             if (notify && typeof showToast === 'function') {
-                showToast(`Successfully synced ${mapped.length} scale-passed qualified competitors into Draws Engine!`, 'success');
+                showToast(`Successfully synced ${mapped.length} weigh-in passed athletes into Draws Engine!`, 'success');
             }
         } catch (err) {
             console.error('Error syncing roster to draws:', err);
-            if (notify && typeof showToast === 'function') showToast('Failed to write competitors to local storage: ' + err.message, 'error');
+            if (notify && typeof showToast === 'function') showToast('Failed to sync competitors: ' + err.message, 'error');
         } finally {
             _isSyncingTournamentToDraws = false;
         }
@@ -15181,7 +15401,7 @@
 
                 <!-- Full Embedded Draws Engine Iframe -->
                 <div class="relative w-full bg-slate-900 rounded-2xl overflow-hidden shadow-lg border border-slate-200">
-                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=453" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
+                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=460" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
                 </div>
             </div>
         `;
@@ -15303,17 +15523,24 @@
             curBrackets = JSON.parse(localStorage.getItem('tkd_brackets_v3') || '{}');
         } catch(e) {}
 
-        let actualDivId = divId;
-        let rounds = curBrackets[divId];
+        const bFound = findBracketForDivision(divId, curBrackets);
+        let actualDivId = bFound ? bFound.key : divId;
+        let rounds = bFound ? bFound.rounds : curBrackets[divId];
+
         if (!rounds || !Array.isArray(rounds)) {
-            // Check for inverted key (e.g. Junior_Male vs Male_Junior)
-            const parts = divId.split('_');
-            if (parts.length >= 3) {
-                const alt = `${parts[1]}_${parts[0]}_${parts.slice(2).join('_')}`;
-                if (curBrackets[alt] && Array.isArray(curBrackets[alt])) {
-                    rounds = curBrackets[alt];
-                    actualDivId = alt;
+            // Match-level exhaustive scan across all brackets
+            for (const k of Object.keys(curBrackets)) {
+                const br = curBrackets[k];
+                if (Array.isArray(br)) {
+                    for (const r of br) {
+                        if (Array.isArray(r) && r.some(m => m.id === matchId)) {
+                            rounds = br;
+                            actualDivId = k;
+                            break;
+                        }
+                    }
                 }
+                if (rounds) break;
             }
         }
         if (!rounds || !Array.isArray(rounds)) return null;
@@ -15362,13 +15589,17 @@
             iDown = nextMIdx;
         }
 
-        // Recalculate tree advancement and numbers
+        // Advance tree and recalculate match numbers
         advanceWalkoversInTree(rounds);
         assignMatchNumbers(rounds);
 
-        // Keep brackets in sync
+        // Keep brackets in sync across canonical and alias keys
         curBrackets[actualDivId] = rounds;
-        if (actualDivId !== divId) {
+        const cKey = normalizeDivKey(actualDivId);
+        if (cKey && cKey !== actualDivId) {
+            curBrackets[cKey] = rounds;
+        }
+        if (divId && divId !== actualDivId) {
             curBrackets[divId] = rounds;
         }
 
@@ -15378,7 +15609,7 @@
             localStorage.setItem('tkd_match_updated', Date.now().toString());
         } catch(e) {}
 
-        // Notify store if addResult is available
+        // Notify store ledger
         if (store && typeof store.addResult === 'function') {
             try {
                 store.addResult({
@@ -15392,7 +15623,7 @@
             } catch(e) {}
         }
 
-        // Auto-compile live certificates and podium standings if this was a division final match
+        // Final match podium compile
         const isFinalMatch = (targetRoundIdx === rounds.length - 1);
         if (isFinalMatch && store && typeof store.publishResults === 'function') {
             try {
@@ -15400,7 +15631,7 @@
             } catch(e) {}
         }
 
-        // Send postMessage directly to draws-app iframe for immediate reactive update
+        // Direct reactive postMessage to draws-app iframe
         const drawsIframe = document.getElementById('tkd-draws-iframe');
         if (drawsIframe && drawsIframe.contentWindow) {
             try {
@@ -15411,10 +15642,11 @@
                     winnerId: resolvedWinnerId,
                     brackets: curBrackets
                 }, '*');
+                drawsIframe.contentWindow.postMessage({ type: 'TKD_RELOAD_BRACKETS' }, '*');
             } catch(e) {}
         }
 
-        // Trigger window storage event so draws-app iframe updates immediately
+        // Trigger storage event for local windows
         try {
             window.dispatchEvent(new StorageEvent('storage', {
                 key: 'tkd_brackets_v3',
@@ -15422,6 +15654,9 @@
             }));
             window.dispatchEvent(new Event('storage'));
         } catch(e) {}
+
+        // Live sync push to backend server for other devices
+        pushLiveMatchDataToServer({ brackets: curBrackets });
 
         return { targetMatch, winner, curBrackets };
     }
@@ -15718,32 +15953,16 @@
             }
         }
 
-        // If brackets are empty or missing for active divisions, auto-generate or use alternate key
-        let updatedBrackets = false;
+        // Preserve user brackets from draws-app: NEVER overwrite with newly generated random brackets!
         Object.keys(divisionsMap).forEach(divKey => {
-            const cKey = normalizeDivKey(divKey) || divKey;
-            if (!brackets[cKey] || !Array.isArray(brackets[cKey]) || brackets[cKey].length === 0) {
-                const aths = (divisionsMap[cKey] && divisionsMap[cKey].athletes.length >= 2)
-                    ? divisionsMap[cKey].athletes
-                    : (divisionsMap[divKey] ? divisionsMap[divKey].athletes : []);
-                if (aths.length >= 2) {
-                    const gen = generateCanonicalBracket(cKey, aths);
-                    brackets[cKey] = gen;
-                    brackets[divKey] = gen;
-                    updatedBrackets = true;
-                }
-            } else {
-                // Ensure match numbers are assigned
-                assignMatchNumbers(brackets[cKey]);
+            const bFound = findBracketForDivision(divKey, brackets);
+            if (bFound && Array.isArray(bFound.rounds)) {
+                assignMatchNumbers(bFound.rounds);
+                brackets[divKey] = bFound.rounds;
+                const cKey = normalizeDivKey(divKey);
+                if (cKey) brackets[cKey] = bFound.rounds;
             }
         });
-
-        if (updatedBrackets) {
-            try {
-                localStorage.setItem('tkd_brackets_v3', JSON.stringify(brackets));
-                localStorage.setItem('tkd_match_updated', Date.now().toString());
-            } catch(e) {}
-        }
 
         // Ensure default court distribution if unassigned
         const divKeys = Object.keys(divisionsMap);
@@ -16349,6 +16568,29 @@
 
         document.body.appendChild(modalDiv);
 
+        const arenaIframe = document.getElementById('jury-conduct-arena-iframe');
+        if (arenaIframe) {
+            arenaIframe.onload = () => {
+                try {
+                    arenaIframe.contentWindow.postMessage({
+                        type: 'TKD_ESS_INIT_MATCH',
+                        blue: clP1.name,
+                        red: clP2.name,
+                        blueCountry: p1.country || 'IND',
+                        redCountry: p2.country || 'IND',
+                        duration: 120,
+                        interval: 60,
+                        ptg: 15,
+                        event: eventTitle,
+                        matchId: match.id,
+                        divisionId: data.divisionId,
+                        courtNo: String(data.courtNo || '1'),
+                        matchNo: data.displayMatchNo || 'Match'
+                    }, '*');
+                } catch(e) {}
+            };
+        }
+
         // Recalculate round wins live
         function recalculateScores() {
             const r1c = Number(document.getElementById('jury-score-chong-r1')?.value || 0);
@@ -16463,23 +16705,28 @@
         const p1 = match.p1 || { id: 'p1_temp', name: 'Chong Player', club: 'Academy' };
         const p2 = match.p2 || { id: 'p2_temp', name: 'Hong Player', club: 'Academy' };
 
+        const clP1 = cleanAthleteNameAndClub(p1.name || 'CHUNG', p1.club || p1.dojangName);
+        const clP2 = cleanAthleteNameAndClub(p2.name || 'HONG', p2.club || p2.dojangName);
+        const eventTitle = `${data.displayMatchNo} • ${data.divisionName}`;
+
         const essParams = new URLSearchParams({
             conduct: '1',
+            role: 'jury',
             matchId: match.id,
             divId: data.divisionId,
             court: String(data.courtNo || '1'),
             matchNo: data.displayMatchNo || 'Match',
-            blue: p1.name || 'Chong Player',
-            blueClub: p1.club || p1.dojangName || 'Academy',
-            blueCountry: 'IND',
-            red: p2.name || 'Hong Player',
-            redClub: p2.club || p2.dojangName || 'Academy',
-            redCountry: 'IND',
+            blue: clP1.name,
+            blueClub: clP1.club || 'Academy',
+            blueCountry: p1.country || 'IND',
+            red: clP2.name,
+            redClub: clP2.club || 'Academy',
+            redCountry: p2.country || 'IND',
             p1Id: p1.id || '',
             p2Id: p2.id || '',
-            event: `${data.divisionName} • ${data.stageName}`,
-            duration: '90',
-            interval: '30',
+            event: eventTitle,
+            duration: '120',
+            interval: '60',
             ptg: '15'
         });
 
@@ -16604,14 +16851,32 @@
         if (!payload || payload.type !== 'TKD_ESS_MATCH_COMPLETED') return;
         const matchId = payload.matchId;
         const divId = payload.divisionId;
-        if (!matchId || !divId) return;
+        if (!matchId) return;
 
         let curBrackets = {};
         try {
             curBrackets = JSON.parse(localStorage.getItem('tkd_brackets_v3') || '{}');
         } catch(e) {}
 
-        const rounds = curBrackets[divId];
+        const bFound = findBracketForDivision(divId, curBrackets);
+        let actualDivId = bFound ? bFound.key : divId;
+        let rounds = bFound ? bFound.rounds : curBrackets[divId];
+
+        if (!rounds || !Array.isArray(rounds)) {
+            for (const k of Object.keys(curBrackets)) {
+                const br = curBrackets[k];
+                if (Array.isArray(br)) {
+                    for (const r of br) {
+                        if (Array.isArray(r) && r.some(m => m.id === matchId)) {
+                            rounds = br;
+                            actualDivId = k;
+                            break;
+                        }
+                    }
+                }
+                if (rounds) break;
+            }
+        }
         if (!rounds || !Array.isArray(rounds)) return;
 
         let targetMatch = null;
@@ -16622,18 +16887,23 @@
         if (!targetMatch) return;
 
         let winnerId = payload.winnerId;
-        if (!winnerId) {
+        if (!winnerId || (winnerId !== targetMatch.p1?.id && winnerId !== targetMatch.p2?.id)) {
             winnerId = (payload.winner === 'blue') ? targetMatch.p1?.id : targetMatch.p2?.id;
         }
-
-        // Check if already updated with same results to prevent redundant writes
-        if (targetMatch.status === 'completed' && targetMatch.winnerId === winnerId && targetMatch.score1 === payload.score1 && targetMatch.score2 === payload.score2) {
-            return;
+        if (!winnerId) {
+            const wName = (payload.winnerName || '').trim().toLowerCase();
+            if (targetMatch.p1 && targetMatch.p1.name && targetMatch.p1.name.trim().toLowerCase() === wName) {
+                winnerId = targetMatch.p1.id;
+            } else if (targetMatch.p2 && targetMatch.p2.name && targetMatch.p2.name.trim().toLowerCase() === wName) {
+                winnerId = targetMatch.p2.id;
+            } else {
+                winnerId = (payload.winner === 'blue') ? (targetMatch.p1?.id || 'p1') : (targetMatch.p2?.id || 'p2');
+            }
         }
 
-        const res = applyBracketMatchScore(divId, matchId, winnerId, payload.score1, payload.score2, payload.winType, payload.roundScores);
+        const res = applyBracketMatchScore(actualDivId, matchId, winnerId, payload.score1, payload.score2, payload.winType, payload.roundScores);
 
-        const winnerName = res?.winner?.name || payload.winnerName || 'Winner';
+        const winnerName = res?.winner?.name || payload.winnerName || (payload.winner === 'blue' ? targetMatch.p1?.name : targetMatch.p2?.name) || 'Winner';
         if (typeof showToast === 'function') {
             showToast(`🏆 ${payload.displayMatchNo || 'Match'} Concluded! ${winnerName} won (${payload.score1}-${payload.score2} ${payload.winType || 'WPS'}).`, 'success');
         }
@@ -16655,7 +16925,6 @@
         }
     }
 
-    // Register message and storage listeners for live ESS score sync and draws sync
     window.addEventListener('message', (e) => {
         if (!e.data) return;
         if (e.data.type === 'TKD_ESS_MATCH_COMPLETED') {

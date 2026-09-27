@@ -8,13 +8,24 @@ const DATA_DIR = IS_VERCEL ? os.tmpdir() : path.join(__dirname, '../data');
 const PAYMENTS_FILE = path.join(DATA_DIR, 'payments.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'payment-settings.json');
 const ATHLETES_FILE = path.join(DATA_DIR, 'athletes.json');
+const BRACKETS_FILE = path.join(DATA_DIR, 'brackets.json');
+const COMPETITORS_FILE = path.join(DATA_DIR, 'competitors.json');
+const COURTS_FILE = path.join(DATA_DIR, 'division-courts.json');
+
 const SEED_PAYMENTS_FILE = path.join(__dirname, '../data/payments.json');
 const SEED_SETTINGS_FILE = path.join(__dirname, '../data/payment-settings.json');
 const SEED_ATHLETES_FILE = path.join(__dirname, '../data/athletes.json');
+const SEED_BRACKETS_FILE = path.join(__dirname, '../data/brackets.json');
+const SEED_COMPETITORS_FILE = path.join(__dirname, '../data/competitors.json');
+const SEED_COURTS_FILE = path.join(__dirname, '../data/division-courts.json');
 
 // In-memory fallback
 let _memPayments = [];
 let _memAthletes = [];
+let _memBrackets = {};
+let _memCompetitors = [];
+let _memCourts = {};
+let _lastSyncTimestamp = Date.now();
 let _memSettings = {
     enablePaymentPage: true,
     qrImageUrl: '/payment-qr.png',
@@ -64,12 +75,87 @@ function initStorage() {
                 fs.writeFileSync(SETTINGS_FILE, JSON.stringify(_memSettings, null, 2), 'utf8');
             }
         }
+        if (!fs.existsSync(BRACKETS_FILE)) {
+            if (fs.existsSync(SEED_BRACKETS_FILE)) {
+                fs.copyFileSync(SEED_BRACKETS_FILE, BRACKETS_FILE);
+            } else {
+                fs.writeFileSync(BRACKETS_FILE, '{}', 'utf8');
+            }
+        }
+        if (!fs.existsSync(COMPETITORS_FILE)) {
+            if (fs.existsSync(SEED_COMPETITORS_FILE)) {
+                fs.copyFileSync(SEED_COMPETITORS_FILE, COMPETITORS_FILE);
+            } else {
+                fs.writeFileSync(COMPETITORS_FILE, '[]', 'utf8');
+            }
+        }
+        if (!fs.existsSync(COURTS_FILE)) {
+            if (fs.existsSync(SEED_COURTS_FILE)) {
+                fs.copyFileSync(SEED_COURTS_FILE, COURTS_FILE);
+            } else {
+                fs.writeFileSync(COURTS_FILE, '{}', 'utf8');
+            }
+        }
     } catch (err) {
         console.warn('Init storage error (using memory cache fallback):', err);
     }
 }
 
 initStorage();
+
+function getBracketsServer() {
+    try {
+        if (fs.existsSync(BRACKETS_FILE)) {
+            _memBrackets = JSON.parse(fs.readFileSync(BRACKETS_FILE, 'utf8'));
+        }
+    } catch (e) {}
+    return _memBrackets || {};
+}
+
+function saveBracketsServer(brackets) {
+    _memBrackets = brackets || {};
+    _lastSyncTimestamp = Date.now();
+    try {
+        fs.writeFileSync(BRACKETS_FILE, JSON.stringify(_memBrackets, null, 2), 'utf8');
+    } catch (e) {}
+    return true;
+}
+
+function getCompetitorsServer() {
+    try {
+        if (fs.existsSync(COMPETITORS_FILE)) {
+            _memCompetitors = JSON.parse(fs.readFileSync(COMPETITORS_FILE, 'utf8'));
+        }
+    } catch (e) {}
+    return _memCompetitors || [];
+}
+
+function saveCompetitorsServer(competitors) {
+    _memCompetitors = competitors || [];
+    _lastSyncTimestamp = Date.now();
+    try {
+        fs.writeFileSync(COMPETITORS_FILE, JSON.stringify(_memCompetitors, null, 2), 'utf8');
+    } catch (e) {}
+    return true;
+}
+
+function getCourtsServer() {
+    try {
+        if (fs.existsSync(COURTS_FILE)) {
+            _memCourts = JSON.parse(fs.readFileSync(COURTS_FILE, 'utf8'));
+        }
+    } catch (e) {}
+    return _memCourts || {};
+}
+
+function saveCourtsServer(courts) {
+    _memCourts = courts || {};
+    _lastSyncTimestamp = Date.now();
+    try {
+        fs.writeFileSync(COURTS_FILE, JSON.stringify(_memCourts, null, 2), 'utf8');
+    } catch (e) {}
+    return true;
+}
 
 function getAthletesServer() {
     try {
@@ -730,6 +816,90 @@ module.exports = async function handler(req, res) {
             return sendJson(res, 200, { success: true, athlete: athletes[idx] });
         } catch (err) {
             return sendJson(res, 500, { success: false, error: 'Failed to update athlete.' });
+        }
+    }
+
+    // 11. GET /api/brackets
+    if (method === 'GET' && pathname === '/api/brackets') {
+        const brackets = getBracketsServer();
+        return sendJson(res, 200, { success: true, brackets, timestamp: _lastSyncTimestamp });
+    }
+
+    // 12. POST /api/brackets
+    if (method === 'POST' && pathname === '/api/brackets') {
+        try {
+            const body = await parseJsonBody(req);
+            const brackets = body.brackets || body || {};
+            saveBracketsServer(brackets);
+            return sendJson(res, 200, { success: true, timestamp: _lastSyncTimestamp });
+        } catch (err) {
+            return sendJson(res, 500, { success: false, error: 'Failed to save brackets.' });
+        }
+    }
+
+    // 13. GET /api/competitors
+    if (method === 'GET' && pathname === '/api/competitors') {
+        const competitors = getCompetitorsServer();
+        return sendJson(res, 200, { success: true, competitors, timestamp: _lastSyncTimestamp });
+    }
+
+    // 14. POST /api/competitors
+    if (method === 'POST' && pathname === '/api/competitors') {
+        try {
+            const body = await parseJsonBody(req);
+            const competitors = Array.isArray(body) ? body : (body.competitors || []);
+            saveCompetitorsServer(competitors);
+            return sendJson(res, 200, { success: true, timestamp: _lastSyncTimestamp });
+        } catch (err) {
+            return sendJson(res, 500, { success: false, error: 'Failed to save competitors.' });
+        }
+    }
+
+    // 15. GET /api/courts
+    if (method === 'GET' && pathname === '/api/courts') {
+        const divisionCourts = getCourtsServer();
+        return sendJson(res, 200, { success: true, divisionCourts, timestamp: _lastSyncTimestamp });
+    }
+
+    // 16. POST /api/courts
+    if (method === 'POST' && pathname === '/api/courts') {
+        try {
+            const body = await parseJsonBody(req);
+            const courts = body.divisionCourts || body || {};
+            saveCourtsServer(courts);
+            return sendJson(res, 200, { success: true, timestamp: _lastSyncTimestamp });
+        } catch (err) {
+            return sendJson(res, 500, { success: false, error: 'Failed to save courts.' });
+        }
+    }
+
+    // 17. GET /api/live-sync
+    if (method === 'GET' && pathname === '/api/live-sync') {
+        return sendJson(res, 200, {
+            success: true,
+            brackets: getBracketsServer(),
+            competitors: getCompetitorsServer(),
+            divisionCourts: getCourtsServer(),
+            timestamp: _lastSyncTimestamp
+        });
+    }
+
+    // 18. POST /api/live-sync
+    if (method === 'POST' && pathname === '/api/live-sync') {
+        try {
+            const body = await parseJsonBody(req);
+            if (body.brackets) saveBracketsServer(body.brackets);
+            if (body.competitors) saveCompetitorsServer(body.competitors);
+            if (body.divisionCourts) saveCourtsServer(body.divisionCourts);
+            return sendJson(res, 200, {
+                success: true,
+                timestamp: _lastSyncTimestamp,
+                brackets: _memBrackets,
+                competitors: _memCompetitors,
+                divisionCourts: _memCourts
+            });
+        } catch (err) {
+            return sendJson(res, 500, { success: false, error: 'Failed to sync live data.' });
         }
     }
 

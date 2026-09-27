@@ -8,6 +8,9 @@ const DATA_DIR = path.join(__dirname, 'data');
 const PAYMENTS_FILE = path.join(DATA_DIR, 'payments.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'payment-settings.json');
 const ATHLETES_FILE = path.join(DATA_DIR, 'athletes.json');
+const BRACKETS_FILE = path.join(DATA_DIR, 'brackets.json');
+const COMPETITORS_FILE = path.join(DATA_DIR, 'competitors.json');
+const COURTS_FILE = path.join(DATA_DIR, 'division-courts.json');
 
 // Ensure data directory and file exist
 if (!fs.existsSync(DATA_DIR)) {
@@ -18,6 +21,15 @@ if (!fs.existsSync(PAYMENTS_FILE)) {
 }
 if (!fs.existsSync(ATHLETES_FILE)) {
     fs.writeFileSync(ATHLETES_FILE, '[]', 'utf8');
+}
+if (!fs.existsSync(BRACKETS_FILE)) {
+    fs.writeFileSync(BRACKETS_FILE, '{}', 'utf8');
+}
+if (!fs.existsSync(COMPETITORS_FILE)) {
+    fs.writeFileSync(COMPETITORS_FILE, '[]', 'utf8');
+}
+if (!fs.existsSync(COURTS_FILE)) {
+    fs.writeFileSync(COURTS_FILE, '{}', 'utf8');
 }
 if (!fs.existsSync(SETTINGS_FILE)) {
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify({
@@ -31,6 +43,41 @@ if (!fs.existsSync(SETTINGS_FILE)) {
         ifscCode: 'KKBK0008094',
         bankName: 'Kotak Mahindra Bank'
     }, null, 2), 'utf8');
+}
+
+let _localLastSyncTimestamp = Date.now();
+function getBracketsServer() {
+    try {
+        if (fs.existsSync(BRACKETS_FILE)) return JSON.parse(fs.readFileSync(BRACKETS_FILE, 'utf8'));
+    } catch(e) {}
+    return {};
+}
+function saveBracketsServer(b) {
+    _localLastSyncTimestamp = Date.now();
+    try { fs.writeFileSync(BRACKETS_FILE, JSON.stringify(b, null, 2), 'utf8'); } catch(e) {}
+    return true;
+}
+function getCompetitorsServer() {
+    try {
+        if (fs.existsSync(COMPETITORS_FILE)) return JSON.parse(fs.readFileSync(COMPETITORS_FILE, 'utf8'));
+    } catch(e) {}
+    return [];
+}
+function saveCompetitorsServer(c) {
+    _localLastSyncTimestamp = Date.now();
+    try { fs.writeFileSync(COMPETITORS_FILE, JSON.stringify(c, null, 2), 'utf8'); } catch(e) {}
+    return true;
+}
+function getCourtsServer() {
+    try {
+        if (fs.existsSync(COURTS_FILE)) return JSON.parse(fs.readFileSync(COURTS_FILE, 'utf8'));
+    } catch(e) {}
+    return {};
+}
+function saveCourtsServer(c) {
+    _localLastSyncTimestamp = Date.now();
+    try { fs.writeFileSync(COURTS_FILE, JSON.stringify(c, null, 2), 'utf8'); } catch(e) {}
+    return true;
 }
 
 // Helper to read payments
@@ -719,6 +766,90 @@ const server = http.createServer(async (req, res) => {
             return sendJson(res, 200, { success: true, athlete: athletes[idx] });
         } catch (err) {
             return sendJson(res, 500, { success: false, error: 'Failed to update athlete.' });
+        }
+    }
+
+    // 11. GET /api/brackets
+    if (method === 'GET' && pathname === '/api/brackets') {
+        const brackets = getBracketsServer();
+        return sendJson(res, 200, { success: true, brackets, timestamp: _localLastSyncTimestamp });
+    }
+
+    // 12. POST /api/brackets
+    if (method === 'POST' && pathname === '/api/brackets') {
+        try {
+            const body = await parseJsonBody(req);
+            const brackets = body.brackets || body || {};
+            saveBracketsServer(brackets);
+            return sendJson(res, 200, { success: true, timestamp: _localLastSyncTimestamp });
+        } catch (err) {
+            return sendJson(res, 500, { success: false, error: 'Failed to save brackets.' });
+        }
+    }
+
+    // 13. GET /api/competitors
+    if (method === 'GET' && pathname === '/api/competitors') {
+        const competitors = getCompetitorsServer();
+        return sendJson(res, 200, { success: true, competitors, timestamp: _localLastSyncTimestamp });
+    }
+
+    // 14. POST /api/competitors
+    if (method === 'POST' && pathname === '/api/competitors') {
+        try {
+            const body = await parseJsonBody(req);
+            const competitors = Array.isArray(body) ? body : (body.competitors || []);
+            saveCompetitorsServer(competitors);
+            return sendJson(res, 200, { success: true, timestamp: _localLastSyncTimestamp });
+        } catch (err) {
+            return sendJson(res, 500, { success: false, error: 'Failed to save competitors.' });
+        }
+    }
+
+    // 15. GET /api/courts
+    if (method === 'GET' && pathname === '/api/courts') {
+        const divisionCourts = getCourtsServer();
+        return sendJson(res, 200, { success: true, divisionCourts, timestamp: _localLastSyncTimestamp });
+    }
+
+    // 16. POST /api/courts
+    if (method === 'POST' && pathname === '/api/courts') {
+        try {
+            const body = await parseJsonBody(req);
+            const courts = body.divisionCourts || body || {};
+            saveCourtsServer(courts);
+            return sendJson(res, 200, { success: true, timestamp: _localLastSyncTimestamp });
+        } catch (err) {
+            return sendJson(res, 500, { success: false, error: 'Failed to save courts.' });
+        }
+    }
+
+    // 17. GET /api/live-sync
+    if (method === 'GET' && pathname === '/api/live-sync') {
+        return sendJson(res, 200, {
+            success: true,
+            brackets: getBracketsServer(),
+            competitors: getCompetitorsServer(),
+            divisionCourts: getCourtsServer(),
+            timestamp: _localLastSyncTimestamp
+        });
+    }
+
+    // 18. POST /api/live-sync
+    if (method === 'POST' && pathname === '/api/live-sync') {
+        try {
+            const body = await parseJsonBody(req);
+            if (body.brackets) saveBracketsServer(body.brackets);
+            if (body.competitors) saveCompetitorsServer(body.competitors);
+            if (body.divisionCourts) saveCourtsServer(body.divisionCourts);
+            return sendJson(res, 200, {
+                success: true,
+                timestamp: _localLastSyncTimestamp,
+                brackets: getBracketsServer(),
+                competitors: getCompetitorsServer(),
+                divisionCourts: getCourtsServer()
+            });
+        } catch (err) {
+            return sendJson(res, 500, { success: false, error: 'Failed to sync live data.' });
         }
     }
 
