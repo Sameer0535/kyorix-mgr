@@ -18582,6 +18582,8 @@ ${templateBg ? `
             const navTournBtn = document.querySelector('[data-view="events"]');
 
             // Header state updates
+            const isStaffRole = Boolean(user && (user.role === 'admin' || user.role === 'organizer'));
+
             if (user) {
                 if (authBtn) {
                     authBtn.innerHTML = '<i class="fa-solid fa-right-from-bracket me-1 text-rose-500"></i>Logout';
@@ -18622,7 +18624,6 @@ ${templateBg ? `
                 }
 
                 if (navTournBtn) navTournBtn.style.display = 'flex';
-                if (navWeighinBtn) navWeighinBtn.style.display = 'flex';
             } else {
                 if (authBtn) {
                     authBtn.innerHTML = '<i class="fa-solid fa-user-plus me-1.5 text-blue-100"></i>Login / Register';
@@ -18632,18 +18633,12 @@ ${templateBg ? `
                 if (adminBtn) adminBtn.style.display = 'none';
                 if (userBadge) userBadge.innerHTML = '';
                 if (navAdminBtn) navAdminBtn.style.display = 'none';
-                if (navDashboardBtn) {
-                    navDashboardBtn.style.display = 'flex';
-                    const span = typeof navDashboardBtn.querySelector === 'function' ? navDashboardBtn.querySelector('span') : null;
-                    if (span) span.textContent = 'Academy Hub';
-                }
+                if (navDashboardBtn) navDashboardBtn.style.display = 'none';
                 if (navOrganizerBtn) navOrganizerBtn.style.display = 'none';
                 if (navTournBtn) navTournBtn.style.display = 'flex';
-                if (navWeighinBtn) navWeighinBtn.style.display = isStaffRole ? 'flex' : 'none';
             }
 
             // Top-nav item visibility — nav bar is always shown, just toggle individual items
-            const isStaffRole = user && (user.role === 'admin' || user.role === 'organizer');
             const opsDiv   = document.getElementById('sidebar-ops-divider');
             const weighinBtn = document.getElementById('nav-btn-weighin');
             const catBtn     = document.getElementById('nav-btn-categories');
