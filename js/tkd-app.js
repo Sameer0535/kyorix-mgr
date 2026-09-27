@@ -1159,31 +1159,25 @@
                             a.weighInDate = null;
                             changed = true;
                         }
-                        // Fix individual athletes' academy names and codes
-                        if (a.name === 'Darshan Hegde' || a.athleteId === 'ATH-108217') {
-                            a.dojangName = 'Shivamogga Taekwondo Club';
-                            a.dojangCode = 'STC';
-                            a.academyName = 'Shivamogga Taekwondo Club';
-                            changed = true;
-                        } else if (a.name === 'Rohit Verma' || a.athleteId === 'ATH-108218') {
-                            a.dojangName = 'Ballari Taekwondo Club';
-                            a.dojangCode = 'BTC';
-                            a.academyName = 'Ballari Taekwondo Club';
-                            changed = true;
-                        } else if (a.name === 'Vikramaditya Rao' || a.athleteId === 'ATH-108204') {
-                            a.dojangName = 'Mangalore Taekwondo Academy';
-                            a.dojangCode = 'MTA';
-                            a.academyName = 'Mangalore Taekwondo Academy';
-                            changed = true;
-                        } else if (a.name === "Rhea D'Souza" || a.athleteId === 'ATH-108209') {
-                            a.dojangName = 'Bangalore Taekwondo Club';
-                            a.dojangCode = 'BTC';
-                            a.academyName = 'Bangalore Taekwondo Club';
-                            changed = true;
-                        } else if (a.name === 'Syed Farhan' || a.athleteId === 'ATH-108213') {
-                            a.dojangName = 'Mysore Taekwondo Academy';
-                            a.dojangCode = 'MTA';
-                            a.academyName = 'Mysore Taekwondo Academy';
+                        // Canonical sync for seed/demo athletes (including Rohan Nair ATH-108210)
+                        const aName = (a.name || '').trim().toLowerCase();
+                        const aId = a.athleteId || a.id || a.kukkiwonNo || '';
+                        const seedMatch = SEED_ATHLETES.find(s => (s.athleteId && (s.athleteId === aId || s.id === aId)) || (s.name && s.name.trim().toLowerCase() === aName));
+                        if (seedMatch) {
+                            if (a.dojangName !== seedMatch.dojangName || !a.dojangCode || a.dojangId === 'ind-competitor' || a.dojangId === 'ind-1' || a.isIndividual !== seedMatch.isIndividual) {
+                                a.dojangName = seedMatch.dojangName;
+                                a.dojangCode = seedMatch.dojangCode;
+                                a.dojangId = seedMatch.dojangId;
+                                a.academyName = seedMatch.dojangName;
+                                if (seedMatch.isIndividual !== undefined) a.isIndividual = seedMatch.isIndividual;
+                                changed = true;
+                            }
+                        } else if (a.name === 'Rohan Nair' || a.athleteId === 'ATH-108210') {
+                            a.dojangName = 'Tiger Martial Arts Academy';
+                            a.dojangCode = 'TMA';
+                            a.dojangId = 'dojang-tiger';
+                            a.academyName = 'Tiger Martial Arts Academy';
+                            a.isIndividual = false;
                             changed = true;
                         } else if (a.academyName && (!a.dojangName || a.dojangName === 'Individual Competitor' || a.dojangName === 'Individual (Unattached)')) {
                             a.dojangName = a.academyName;
@@ -10155,6 +10149,27 @@
                                     if (nameMatch) {
                                         athDisplayName = nameMatch[1].trim();
                                         athDisplayDojang = nameMatch[2].trim();
+                                    }
+                                }
+                                // Dynamic resolution for seed athletes (e.g. Rohan Nair ATH-108210) & custom registered academies
+                                if (!athDisplayDojang || athDisplayDojang === 'Individual Competitor' || athDisplayDojang === 'Individual (Unattached)' || athDisplayName.toLowerCase() === 'rohan nair' || a.athleteId === 'ATH-108210') {
+                                    const aLow = athDisplayName.toLowerCase();
+                                    const aId = a.athleteId || a.id || a.kukkiwonNo || '';
+                                    const seedMatch = (typeof SEED_ATHLETES !== 'undefined' && Array.isArray(SEED_ATHLETES))
+                                        ? SEED_ATHLETES.find(s => (s.athleteId && (s.athleteId === aId || s.id === aId)) || (s.name && s.name.trim().toLowerCase() === aLow))
+                                        : null;
+                                    if (seedMatch && seedMatch.dojangName && seedMatch.dojangName !== 'Individual Competitor' && seedMatch.dojangName !== 'Individual (Unattached)') {
+                                        athDisplayDojang = seedMatch.dojangName;
+                                        a.dojangName = seedMatch.dojangName;
+                                        if (!a.dojangCode) a.dojangCode = seedMatch.dojangCode;
+                                        if (a.dojangId === 'ind-competitor' || !a.dojangId) a.dojangId = seedMatch.dojangId;
+                                    } else if (aLow === 'rohan nair' || a.athleteId === 'ATH-108210') {
+                                        athDisplayDojang = 'Tiger Martial Arts Academy';
+                                        a.dojangName = 'Tiger Martial Arts Academy';
+                                        a.dojangCode = 'TMA';
+                                        a.dojangId = 'dojang-tiger';
+                                    } else if (a.academyName && a.academyName !== 'Individual Competitor' && a.academyName !== 'Individual (Unattached)') {
+                                        athDisplayDojang = a.academyName;
                                     }
                                 }
 
