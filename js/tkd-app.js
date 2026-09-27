@@ -2868,8 +2868,10 @@
     window.findCourtForDivision = findCourtForDivision;
 
     // Cross-Device Real-Time Match Data Push (/api/live-sync)
+    let _lastPushedLocalTimestamp = 0;
     function pushLiveMatchDataToServer(data = {}) {
         if (_isPushingLiveSync) return;
+        _lastPushedLocalTimestamp = Date.now();
         clearTimeout(_livePushDebounceTimer);
         _livePushDebounceTimer = setTimeout(async () => {
             _isPushingLiveSync = true;
@@ -2903,29 +2905,32 @@
             } finally {
                 _isPushingLiveSync = false;
             }
-        }, 200);
+        }, 300);
     }
     window.pushLiveMatchDataToServer = pushLiveMatchDataToServer;
 
     // Cross-Device Real-Time Match Data Polling (/api/live-sync)
     async function pollLiveMatchDataFromServer() {
+        if (_isPushingLiveSync) return;
         try {
             const res = await fetch('/api/live-sync?t=' + Date.now());
             if (!res.ok) return;
             const json = await res.json();
             if (!json || !json.success) return;
 
-            if (json.timestamp && json.timestamp <= _lastServerSyncTimestamp) {
-                return; // Nothing new since our last push/poll
+            // If we pushed local changes more recently than server timestamp, skip overwrite
+            if (json.timestamp && json.timestamp <= Math.max(_lastServerSyncTimestamp, _lastPushedLocalTimestamp)) {
+                return;
             }
             _lastServerSyncTimestamp = json.timestamp || Date.now();
 
             let updatedAny = false;
 
             // 1. Brackets Live Sync
-            if (json.brackets && typeof json.brackets === 'object') {
+            if (json.brackets && typeof json.brackets === 'object' && Object.keys(json.brackets).length > 0) {
                 const serverBracketsStr = JSON.stringify(json.brackets);
-                if (serverBracketsStr !== '{}' && localStorage.getItem('tkd_brackets_v3') !== serverBracketsStr) {
+                const currentBracketsStr = localStorage.getItem('tkd_brackets_v3') || '{}';
+                if (currentBracketsStr !== serverBracketsStr) {
                     localStorage.setItem('tkd_brackets_v3', serverBracketsStr);
                     localStorage.setItem('tkd_match_updated', Date.now().toString());
                     updatedAny = true;
@@ -2933,9 +2938,10 @@
             }
 
             // 2. Competitors Live Sync
-            if (json.competitors && Array.isArray(json.competitors)) {
+            if (json.competitors && Array.isArray(json.competitors) && json.competitors.length > 0) {
                 const serverCompsStr = JSON.stringify(json.competitors);
-                if (json.competitors.length > 0 && localStorage.getItem('tkd_competitors_v3') !== serverCompsStr) {
+                const currentCompsStr = localStorage.getItem('tkd_competitors_v3') || '[]';
+                if (currentCompsStr !== serverCompsStr) {
                     localStorage.setItem('tkd_competitors_v3', serverCompsStr);
                     localStorage.setItem('tkd_competitors_v1', serverCompsStr);
                     updatedAny = true;
@@ -2943,9 +2949,10 @@
             }
 
             // 3. Division Courts Live Sync
-            if (json.divisionCourts && typeof json.divisionCourts === 'object') {
+            if (json.divisionCourts && typeof json.divisionCourts === 'object' && Object.keys(json.divisionCourts).length > 0) {
                 const serverCourtsStr = JSON.stringify(json.divisionCourts);
-                if (serverCourtsStr !== '{}' && localStorage.getItem('tkd_division_courts_v1') !== serverCourtsStr) {
+                const currentCourtsStr = localStorage.getItem('tkd_division_courts_v1') || '{}';
+                if (currentCourtsStr !== serverCourtsStr) {
                     localStorage.setItem('tkd_division_courts_v1', serverCourtsStr);
                     updatedAny = true;
                 }
@@ -2957,12 +2964,18 @@
                 if (drawsIframe && drawsIframe.contentWindow) {
                     try { drawsIframe.contentWindow.postMessage({ type: 'TKD_RELOAD_BRACKETS' }, '*'); } catch(e) {}
                 }
-                // Reactive update for Jury section
-                const juryContainer = document.getElementById('tkd-jury-main-container');
-                if (juryContainer && juryContainer.parentElement && typeof renderJurySection === 'function') {
-                    const courtSelect = document.getElementById('jury-court-select');
-                    const currentCourt = courtSelect ? courtSelect.value : '1';
-                    renderJurySection(juryContainer.parentElement, currentCourt);
+                // Reactive update for Jury section ONLY if currently active on screen
+                const isJuryVisible = window.location.hash === '#jury' || document.getElementById('tkd-jury-main-container');
+                if (isJuryVisible) {
+                    clearTimeout(window._juryPollDebounce);
+                    window._juryPollDebounce = setTimeout(() => {
+                        const juryContainer = document.getElementById('tkd-jury-main-container');
+                        if (juryContainer && juryContainer.parentElement && typeof renderJurySection === 'function') {
+                            const courtSelect = document.getElementById('jury-court-select');
+                            const currentCourt = courtSelect ? courtSelect.value : '1';
+                            renderJurySection(juryContainer.parentElement, currentCourt);
+                        }
+                    }, 200);
                 }
             }
         } catch (e) {
@@ -2972,7 +2985,8 @@
     window.pollLiveMatchDataFromServer = pollLiveMatchDataFromServer;
 
     if (typeof window !== 'undefined') {
-        setInterval(pollLiveMatchDataFromServer, 3500);
+        // Poll every 12 seconds to prevent excessive CPU / render thrashing
+        setInterval(pollLiveMatchDataFromServer, 12000);
         window.addEventListener('focus', pollLiveMatchDataFromServer);
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
@@ -15663,372 +15677,134 @@
 
 // 5.5. OFFICIAL JURY SECTION: COURT MATCH SCHEDULING & BOUT SCORING DESK
     // ========================================================================
+    let _isRenderingJury = false;
     function renderJurySection(container, selectedCourt = '1') {
-        const tournaments = store.getTournaments ? store.getTournaments() : [];
-        const selectedTournId = store.getSelectedTournamentId ? store.getSelectedTournamentId() : null;
-        const activeTourn = (store.getTournament && selectedTournId) ? (store.getTournament(selectedTournId) || tournaments[0] || {}) : (tournaments[0] || {});
-        const compTitle = activeTourn.title || '48TH STATE LEVEL TAEKWONDO CHAMPIONSHIP 2026';
-
-        // Auto-run sync so Draws Engine and Jury section use the latest scale-passed roster
-        if (typeof window.syncTournamentAthletesToDraws === 'function') {
-            try { window.syncTournamentAthletesToDraws(false); } catch(e) {}
-        }
-
-        // 1. Load active brackets from storage and normalize division keys (gender_age_wt)
-        let rawBrackets = {};
+        if (_isRenderingJury) return;
+        _isRenderingJury = true;
         try {
-            rawBrackets = JSON.parse(localStorage.getItem('tkd_brackets_v3') || '{}');
-        } catch(e) {}
+            const tournaments = store.getTournaments ? store.getTournaments() : [];
+            const selectedTournId = store.getSelectedTournamentId ? store.getSelectedTournamentId() : null;
+            const activeTourn = (store.getTournament && selectedTournId) ? (store.getTournament(selectedTournId) || tournaments[0] || {}) : (tournaments[0] || {});
+            const compTitle = activeTourn.title || '48TH STATE LEVEL TAEKWONDO CHAMPIONSHIP 2026';
 
-        let brackets = {};
-        let bracketsNeedSave = false;
-        Object.keys(rawBrackets).forEach(k => {
-            const br = rawBrackets[k];
-            const canonicalKey = normalizeDivKey(k) || k;
-            if (canonicalKey !== k) {
-                bracketsNeedSave = true;
-            }
-            if (!brackets[canonicalKey]) {
-                brackets[canonicalKey] = br;
-            }
-            brackets[k] = br;
-        });
-        if (bracketsNeedSave) {
-            try { localStorage.setItem('tkd_brackets_v3', JSON.stringify(brackets)); } catch(e) {}
-        }
+            // 1. Read active brackets from storage (READ-ONLY, NEVER WRITE OR RESET USER BRACKETS)
+            let rawBrackets = {};
+            try {
+                rawBrackets = JSON.parse(localStorage.getItem('tkd_brackets_v3') || '{}');
+            } catch(e) {}
 
-        // 2. Load court assignments and normalize keys
-        let rawCourts = {};
-        try {
-            rawCourts = JSON.parse(localStorage.getItem('tkd_division_courts_v1') || '{}');
-        } catch(e) {}
-        let divisionCourts = {};
-        let courtsNeedSave = false;
-        Object.keys(rawCourts).forEach(k => {
-            const val = rawCourts[k];
-            const canonicalKey = normalizeDivKey(k) || k;
-            if (canonicalKey !== k) {
-                courtsNeedSave = true;
-            }
-            divisionCourts[canonicalKey] = String(val);
-            divisionCourts[k] = String(val);
-        });
-        if (courtsNeedSave) {
-            try { localStorage.setItem('tkd_division_courts_v1', JSON.stringify(divisionCourts)); } catch(e) {}
-        }
-
-        // 3. Load active scale-passed competitors and divisions matching draws-app
-        let competitors = [];
-        try {
-            competitors = JSON.parse(localStorage.getItem('tkd_competitors_v3') || '[]');
-        } catch(e) {}
-
-        const athletes = store.getAthletes ? store.getAthletes() : [];
-        const passedAthletes = athletes.filter(a => {
-            const s = (a.status || '').toString().trim().toLowerCase();
-            const ws = (a.weighInStatus || '').toString().trim().toLowerCase();
-            return s === 'passed' || ws === 'passed';
-        });
-
-        // Group competitors by division matching draws-app exactly: ${gender}_${age}_${wt}
-        const divisionsMap = {};
-        const sourceList = (competitors && competitors.length > 0) ? competitors : passedAthletes;
-        sourceList.forEach(a => {
-            const isG4 = a.competitionFormat === 'Group-4' || (a.category && a.category.includes('Group-4')) || (a.ageCategory && (a.ageCategory.startsWith('U-') || a.ageCategory.startsWith('A-')));
-            const gender = (a.gender === 'Female' || a.gender === 'F' || (a.gender && a.gender.toLowerCase().includes('female'))) ? 'Female' : 'Male';
-            let divKey = '';
-            let divName = '';
-            if (isG4) {
-                const age = a.group4Category || a.ageCategory || 'U-10';
-                divKey = `${gender}_${age}`.replace(/\s+/g, '_');
-                divName = `${gender} ${age}`;
-            } else {
-                const age = a.ageCategory || a.category || 'Junior';
-                const wt = formatWeightClassForDraws(a.weightClass, 'Under 55kg');
-                divKey = `${gender}_${age}_${wt}`.replace(/\s+/g, '_');
-                divName = `${gender} ${age} ${wt}`;
-            }
-            const cKey = normalizeDivKey(divKey) || divKey;
-            if (!divisionsMap[cKey]) {
-                divisionsMap[cKey] = { id: cKey, name: divName, athletes: [] };
-            }
-            divisionsMap[cKey].athletes.push(a);
-        });
-
-        // Also incorporate any existing division keys in brackets (avoiding inverted duplicates)
-        Object.keys(brackets).forEach(divKey => {
-            const cKey = normalizeDivKey(divKey) || divKey;
-            if (!divisionsMap[cKey]) {
-                divisionsMap[cKey] = { id: cKey, name: cKey.replace(/_/g, ' '), athletes: [] };
-            }
-        });
-
-        // Canonical bracket generator matching draws-app exactly
-        function generateCanonicalBracket(divKey, athletes) {
-            if (!athletes || athletes.length < 2) return [];
-            let seenE = new Set();
-            const clean = (athletes || []).filter(x => {
-                let k = (x.name || '').trim().toLowerCase();
-                if (!k || seenE.has(k)) return false;
-                seenE.add(k);
-                return true;
-            });
-            if (clean.length < 2) return [];
-
-            let t = clean.length, n = 2;
-            for (; n < t;) n *= 2;
-
-            // Separate academies and seeds (matching draws-app T)
-            let nArray = Array(n).fill(null);
-            let r = [...clean];
-            for (let e = r.length - 1; e > 0; e--) {
-                let idx = Math.floor(Math.random() * (e + 1));
-                [r[e], r[idx]] = [r[idx], r[e]];
-            }
-            let i = {};
-            r.forEach(e => {
-                let club = (e.club || e.dojangName || 'Independent').trim(), lc = club.toLowerCase();
-                if (!i[lc]) i[lc] = { name: club, members: [] };
-                i[lc].members.push(e);
-            });
-            Object.values(i).forEach(e => {
-                let members = e.members;
-                for (let idx = members.length - 1; idx > 0; idx--) {
-                    let sw = Math.floor(Math.random() * (idx + 1));
-                    [members[idx], members[sw]] = [members[sw], members[idx]];
+            let brackets = {};
+            Object.keys(rawBrackets).forEach(k => {
+                const br = rawBrackets[k];
+                brackets[k] = br;
+                const canonicalKey = normalizeDivKey(k) || k;
+                if (!brackets[canonicalKey]) {
+                    brackets[canonicalKey] = br;
                 }
             });
-            let a = Object.values(i).sort((e, t) => {
-                let diff = t.members.length - e.members.length;
-                return diff === 0 ? Math.random() - 0.5 : diff;
+
+            // 2. Read court assignments from storage (READ-ONLY)
+            let divisionCourts = {};
+            try {
+                divisionCourts = JSON.parse(localStorage.getItem('tkd_division_courts_v1') || '{}');
+            } catch(e) {}
+
+            // 3. Read active competitors from storage
+            let competitors = [];
+            try {
+                competitors = JSON.parse(localStorage.getItem('tkd_competitors_v3') || '[]');
+            } catch(e) {}
+
+            const athletes = store.getAthletes ? store.getAthletes() : [];
+            const passedAthletes = athletes.filter(a => isAthletePassed(a));
+
+            // Group competitors by division matching draws-app exactly: ${gender}_${age}_${wt}
+            const divisionsMap = {};
+            const sourceList = (competitors && competitors.length > 0) ? competitors : passedAthletes;
+            sourceList.forEach(a => {
+                const isG4 = a.competitionFormat === 'Group-4' || (a.category && a.category.includes('Group-4')) || (a.ageCategory && (a.ageCategory.startsWith('U-') || a.ageCategory.startsWith('A-')));
+                const gender = (a.gender === 'Female' || a.gender === 'F' || (a.gender && a.gender.toLowerCase().includes('female'))) ? 'Female' : 'Male';
+                let divKey = '';
+                let divName = '';
+                if (isG4) {
+                    const age = a.group4Category || a.ageCategory || 'U-10';
+                    divKey = `${gender}_${age}`.replace(/\s+/g, '_');
+                    divName = `${gender} ${age}`;
+                } else {
+                    const age = a.ageCategory || a.category || 'Junior';
+                    const wt = formatWeightClassForDraws(a.weightClass, 'Under 55kg');
+                    divKey = `${gender}_${age}_${wt}`.replace(/\s+/g, '_');
+                    divName = `${gender} ${age} ${wt}`;
+                }
+                const cKey = normalizeDivKey(divKey) || divKey;
+                if (!divisionsMap[cKey]) {
+                    divisionsMap[cKey] = { id: cKey, name: divName, athletes: [] };
+                }
+                divisionsMap[cKey].athletes.push(a);
             });
-            let o = Math.log2(n), s = [];
-            for (let e = 0; e < n; e++) {
-                let val = 0;
-                for (let bit = 0; bit < o; bit++) {
-                    if ((e >> bit) & 1) val |= 1 << (o - 1 - bit);
+
+            // Incorporate any divisions defined in brackets
+            Object.keys(brackets).forEach(divKey => {
+                const cKey = normalizeDivKey(divKey) || divKey;
+                if (!divisionsMap[cKey]) {
+                    divisionsMap[cKey] = { id: cKey, name: cKey.replace(/_/g, ' '), athletes: [] };
                 }
-                s.push(val);
-            }
-            let c = Math.floor(Math.random() * n);
-            let l = s.map(e => (e + c) % n), u = [], d = true, f = 0;
-            while (d) {
-                d = false;
-                a.forEach(e => {
-                    if (f < e.members.length) {
-                        u.push(e.members[f]);
-                        d = true;
-                    }
-                });
-                f++;
-            }
-            for (let e = 0; e < u.length; e++) {
-                nArray[l[e]] = u[e];
+            });
+
+            // Resolve existing brackets for each division
+            Object.keys(divisionsMap).forEach(divKey => {
+                const bFound = findBracketForDivision(divKey, brackets);
+                if (bFound && Array.isArray(bFound.rounds)) {
+                    assignMatchNumbers(bFound.rounds);
+                    brackets[divKey] = bFound.rounds;
+                    const cKey = normalizeDivKey(divKey);
+                    if (cKey) brackets[cKey] = bFound.rounds;
+                }
+            });
+
+            const divKeys = Object.keys(divisionsMap);
+
+            // Helper: Stage order and tournament phase calculation
+            function getStageInfo(roundIdx, totalRounds) {
+                const dist = totalRounds - 1 - roundIdx;
+                if (dist === 0) return { order: 5, phase: 3, name: 'Final' };
+                if (dist === 1) return { order: 4, phase: 2, name: 'Semifinal' };
+                if (dist === 2) return { order: 3, phase: 1, name: 'Quarterfinal' };
+                if (dist === 3) return { order: 2, phase: 1, name: 'Round of 16' };
+                if (dist === 4) return { order: 1, phase: 1, name: 'Round of 32' };
+                return { order: 0, phase: 1, name: `Round ${roundIdx + 1}` };
             }
 
-            // Bracket rounds building
-            let rounds = [], aRounds = n / 2, oRounds = 0;
-            while (aRounds >= 1) {
-                let roundMatches = [];
-                for (let t = 0; t < aRounds; t++) {
-                    roundMatches.push({
-                        id: `match_${oRounds}_${t}`,
-                        p1: null,
-                        p2: null,
-                        score1: null,
-                        score2: null,
-                        winnerId: null,
-                        winType: null,
-                        status: 'pending',
-                        roundIndex: oRounds,
-                        matchIndex: t,
-                        nextMatchId: aRounds > 1 ? `match_${oRounds + 1}_${Math.floor(t / 2)}` : null,
-                        nextMatchPosition: t % 2 === 0 ? 'p1' : 'p2'
-                    });
-                }
-                rounds.push(roundMatches);
-                aRounds /= 2;
-                oRounds++;
-            }
-
-            let firstRound = rounds[0];
-            for (let e = 0; e < firstRound.length; e++) {
-                let match = firstRound[e];
-                match.p1 = nArray[e * 2] || null;
-                match.p2 = nArray[e * 2 + 1] || null;
-                if (match.p1 && !match.p2) {
-                    match.winnerId = match.p1.id;
-                    match.status = 'walkover';
-                } else if (!match.p1 && match.p2) {
-                    match.winnerId = match.p2.id;
-                    match.status = 'walkover';
-                } else if (!match.p1 && !match.p2) {
-                    match.status = 'walkover';
-                }
-            }
-
-            // Advance walkovers and set match numbers
-            advanceWalkoversInTree(rounds);
-            assignMatchNumbers(rounds);
-            return rounds;
-        }
-
-        function advanceWalkoversInTree(rounds) {
-            if (!rounds || rounds.length === 0) return;
-            const t0 = rounds[0], n = [];
-            for (let e = 0; e < t0.length; e++) { n.push(t0[e].p1); n.push(t0[e].p2); }
-            const r = (roundIdx, matchIdx) => {
-                const count = 2 ** (roundIdx + 1);
-                const start = matchIdx * count;
-                for (let e = start; e < start + count; e++) {
-                    if (n[e] !== null && n[e] !== undefined) return true;
-                }
-                return false;
-            };
-            for (let t = 1; t < rounds.length; t++) {
-                for (let m of rounds[t]) {
-                    m.p1 = null;
-                    m.p2 = null;
-                    if (m.status !== 'completed') {
-                        m.winnerId = null;
-                        m.status = 'pending';
-                    }
-                }
-            }
-            for (let t = 0; t < rounds.length; t++) {
-                const curr = rounds[t], next = rounds[t + 1];
-                for (let e of curr) {
-                    if (t === 0) {
-                        if (e.p1 && !e.p2) { e.winnerId = e.p1.id; e.status = 'walkover'; }
-                        else if (!e.p1 && e.p2) { e.winnerId = e.p2.id; e.status = 'walkover'; }
-                        else if (!e.p1 && !e.p2) { e.status = 'walkover'; }
-                    }
-                    if (e.winnerId && next) {
-                        const nextM = next[Math.floor(e.matchIndex / 2)];
-                        const winnerComp = e.winnerId === e.p1?.id ? e.p1 : e.p2;
-                        if (nextM) {
-                            if (e.matchIndex % 2 === 0) nextM.p1 = winnerComp;
-                            else nextM.p2 = winnerComp;
+            // Helper: Resolve feeder match winner label (e.g. W1, W2) for downstream rounds
+            function getFeederMatchLabel(rounds, rIdx, mIdx, isChong) {
+                if (rIdx === 0) return 'TBD';
+                const prevRound = rounds[rIdx - 1];
+                if (!prevRound) return 'TBD';
+                const feederIdx = mIdx * 2 + (isChong ? 0 : 1);
+                const feederMatch = prevRound[feederIdx];
+                if (feederMatch) {
+                    if ((feederMatch.status === 'completed' || feederMatch.status === 'walkover') && feederMatch.winnerId) {
+                        const winner = (feederMatch.p1 && feederMatch.p1.id === feederMatch.winnerId) ? feederMatch.p1 : (feederMatch.p2 || feederMatch.p1);
+                        if (winner && winner.name) {
+                            const cl = cleanAthleteNameAndClub(winner.name, winner.club);
+                            return cl.name;
                         }
                     }
-                }
-            }
-            for (let t = 0; t < rounds.length - 1; t++) {
-                const next = rounds[t + 1];
-                for (let e = 0; e < next.length; e++) {
-                    const i = next[e], a = r(t, e * 2), o = r(t, e * 2 + 1);
-                    if (i.status === 'pending') {
-                        if (i.p1 && !o) { i.winnerId = i.p1.id; i.status = 'walkover'; }
-                        else if (i.p2 && !a) { i.winnerId = i.p2.id; i.status = 'walkover'; }
-                        else if (!a && !o) { i.status = 'walkover'; }
+                    if (feederMatch.matchNo) {
+                        return `W${feederMatch.matchNo}`;
                     }
                 }
+                return 'TBD';
             }
-            for (let t = 0; t < rounds.length - 1; t++) {
-                const curr = rounds[t], next = rounds[t + 1];
-                for (let e of curr) {
-                    if (e.winnerId && next) {
-                        const nextM = next[Math.floor(e.matchIndex / 2)];
-                        const winnerComp = e.winnerId === e.p1?.id ? e.p1 : e.p2;
-                        if (nextM) {
-                            if (e.matchIndex % 2 === 0) nextM.p1 = winnerComp;
-                            else nextM.p2 = winnerComp;
-                        }
-                    }
-                }
-            }
-        }
 
-        function assignMatchNumbers(rounds) {
-            let count = 1;
-            for (let r = 0; r < rounds.length; r++) {
-                for (let m = 0; m < rounds[r].length; m++) {
-                    let match = rounds[r][m];
-                    if (match.status === 'walkover') {
-                        match.matchNo = null;
-                    } else {
-                        match.matchNo = count++;
-                    }
-                }
-            }
-        }
-
-        // Preserve user brackets from draws-app: NEVER overwrite with newly generated random brackets!
-        Object.keys(divisionsMap).forEach(divKey => {
-            const bFound = findBracketForDivision(divKey, brackets);
-            if (bFound && Array.isArray(bFound.rounds)) {
-                assignMatchNumbers(bFound.rounds);
-                brackets[divKey] = bFound.rounds;
-                const cKey = normalizeDivKey(divKey);
-                if (cKey) brackets[cKey] = bFound.rounds;
-            }
-        });
-
-        // Ensure default court distribution if unassigned
-        const divKeys = Object.keys(divisionsMap);
-        let updatedCourts = false;
-        if (divKeys.length > 0) {
-            divKeys.forEach((k, idx) => {
-                const cKey = normalizeDivKey(k) || k;
-                if (!divisionCourts[cKey] && !divisionCourts[k]) {
-                    const defCourt = String((idx % 4) + 1);
-                    divisionCourts[cKey] = defCourt;
-                    divisionCourts[k] = defCourt;
-                    updatedCourts = true;
-                }
+            // Filter divisions strictly matching selectedCourt using universal finder
+            const assignedDivKeys = divKeys.filter(k => {
+                if (selectedCourt === 'all') return true;
+                const courtNo = findCourtForDivision(k, divisionCourts);
+                return String(courtNo) === String(selectedCourt);
             });
-            if (updatedCourts) {
-                try {
-                    localStorage.setItem('tkd_division_courts_v1', JSON.stringify(divisionCourts));
-                } catch(e) {}
-            }
-        }
 
-        // Helper: Stage order and tournament phase calculation
-        // Phase 1: All Prelims (R32, R16, etc.) and Quarterfinals across all categories
-        // Phase 2: All Semifinals across all categories
-        // Phase 3: All Finals across all categories
-        function getStageInfo(roundIdx, totalRounds) {
-            const dist = totalRounds - 1 - roundIdx;
-            if (dist === 0) return { order: 5, phase: 3, name: 'Final' };
-            if (dist === 1) return { order: 4, phase: 2, name: 'Semifinal' };
-            if (dist === 2) return { order: 3, phase: 1, name: 'Quarterfinal' };
-            if (dist === 3) return { order: 2, phase: 1, name: 'Round of 16' };
-            if (dist === 4) return { order: 1, phase: 1, name: 'Round of 32' };
-            return { order: 0, phase: 1, name: `Round ${roundIdx + 1}` };
-        }
-
-        // Helper: Resolve feeder match winner label (e.g. W1, W2) for downstream rounds
-        function getFeederMatchLabel(rounds, rIdx, mIdx, isChong) {
-            if (rIdx === 0) return 'TBD';
-            const prevRound = rounds[rIdx - 1];
-            if (!prevRound) return 'TBD';
-            const feederIdx = mIdx * 2 + (isChong ? 0 : 1);
-            const feederMatch = prevRound[feederIdx];
-            if (feederMatch) {
-                if ((feederMatch.status === 'completed' || feederMatch.status === 'walkover') && feederMatch.winnerId) {
-                    const winner = (feederMatch.p1 && feederMatch.p1.id === feederMatch.winnerId) ? feederMatch.p1 : (feederMatch.p2 || feederMatch.p1);
-                    if (winner && winner.name) {
-                        const cl = cleanAthleteNameAndClub(winner.name, winner.club);
-                        return cl.name;
-                    }
-                }
-                if (feederMatch.matchNo) {
-                    return `W${feederMatch.matchNo}`;
-                }
-            }
-            return 'TBD';
-        }
-
-        // Filter divisions assigned to selectedCourt
-        const assignedDivKeys = divKeys.filter(k => {
-            if (selectedCourt === 'all') return true;
-            const cKey = normalizeDivKey(k) || k;
-            const courtNo = divisionCourts[cKey] || divisionCourts[k] || '1';
-            return String(courtNo) === String(selectedCourt);
-        });
-
-        const scheduledMatches = [];
+            const scheduledMatches = [];
 
         assignedDivKeys.forEach(divKey => {
             const cKey = normalizeDivKey(divKey) || divKey;
@@ -16411,6 +16187,9 @@
             renderJurySection(container, selectedCourt);
         }
         window.handleSaveJuryScore = handleSaveJuryScore;
+        } finally {
+            _isRenderingJury = false;
+        }
     }
 
     // Modal: Jury Best-of-3 Scoring Modal (Matching Reference Image 2)
@@ -16567,29 +16346,6 @@
         `;
 
         document.body.appendChild(modalDiv);
-
-        const arenaIframe = document.getElementById('jury-conduct-arena-iframe');
-        if (arenaIframe) {
-            arenaIframe.onload = () => {
-                try {
-                    arenaIframe.contentWindow.postMessage({
-                        type: 'TKD_ESS_INIT_MATCH',
-                        blue: clP1.name,
-                        red: clP2.name,
-                        blueCountry: p1.country || 'IND',
-                        redCountry: p2.country || 'IND',
-                        duration: 120,
-                        interval: 60,
-                        ptg: 15,
-                        event: eventTitle,
-                        matchId: match.id,
-                        divisionId: data.divisionId,
-                        courtNo: String(data.courtNo || '1'),
-                        matchNo: data.displayMatchNo || 'Match'
-                    }, '*');
-                } catch(e) {}
-            };
-        }
 
         // Recalculate round wins live
         function recalculateScores() {
@@ -16810,6 +16566,29 @@
 
         document.body.appendChild(modalDiv);
 
+        const arenaIframe = document.getElementById('jury-conduct-arena-iframe');
+        if (arenaIframe) {
+            arenaIframe.onload = () => {
+                try {
+                    arenaIframe.contentWindow.postMessage({
+                        type: 'TKD_ESS_INIT_MATCH',
+                        blue: clP1.name,
+                        red: clP2.name,
+                        blueCountry: p1.country || 'IND',
+                        redCountry: p2.country || 'IND',
+                        duration: 120,
+                        interval: 60,
+                        ptg: 15,
+                        event: eventTitle,
+                        matchId: match.id,
+                        divisionId: data.divisionId,
+                        courtNo: String(data.courtNo || '1'),
+                        matchNo: data.displayMatchNo || 'Match'
+                    }, '*');
+                } catch(e) {}
+            };
+        }
+
         function closeEssConductModal() {
             const modals = document.querySelectorAll('.jury-conduct-modal-overlay, #tkd-jury-conduct-modal');
             modals.forEach(m => m.remove());
@@ -16942,6 +16721,18 @@
                 if (typeof window.syncManualDrawsCompetitorsToStore === 'function') {
                     window.syncManualDrawsCompetitorsToStore();
                 }
+            }
+            if (e.data.courts && typeof e.data.courts === 'object') {
+                try {
+                    localStorage.setItem('tkd_division_courts_v1', JSON.stringify(e.data.courts));
+                    pushLiveMatchDataToServer({ divisionCourts: e.data.courts });
+                } catch(err) {}
+            }
+            if (e.data.brackets && typeof e.data.brackets === 'object') {
+                try {
+                    localStorage.setItem('tkd_brackets_v3', JSON.stringify(e.data.brackets));
+                    pushLiveMatchDataToServer({ brackets: e.data.brackets });
+                } catch(err) {}
             }
             // Re-render Jury court sheet if currently open to reflect updated matches/players
             clearTimeout(window._juryMsgDebounce);
