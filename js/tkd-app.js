@@ -1721,7 +1721,8 @@
                     status: status,
                     weighInStatus: status,
                     measuredWeight: wt,
-                    weight: wt
+                    weight: wt,
+                    weighInBy: status === 'Passed' ? (list[idx].weighInBy || 'Official Scale Marshall') : null
                 };
                 localStorage.setItem('tkd_athletes', JSON.stringify(list));
                 this.notify();
@@ -2778,203 +2779,224 @@
     }
     window.normalizeDivKey = normalizeDivKey;
 
+    let _isSyncingDrawsToStore = false;
+    let _isSyncingTournamentToDraws = false;
+
     // Synchronize manually added competitors from draws-app into store.athletes
     function syncManualDrawsCompetitorsToStore() {
-        let competitors = [];
+        if (_isSyncingDrawsToStore) return;
+        _isSyncingDrawsToStore = true;
         try {
-            competitors = JSON.parse(localStorage.getItem('tkd_competitors_v3') || '[]');
-        } catch(e) {}
+            let competitors = [];
+            try {
+                competitors = JSON.parse(localStorage.getItem('tkd_competitors_v3') || '[]');
+            } catch(e) {}
 
-        let brackets = {};
-        try {
-            brackets = JSON.parse(localStorage.getItem('tkd_brackets_v3') || '{}');
-        } catch(e) {}
+            let brackets = {};
+            try {
+                brackets = JSON.parse(localStorage.getItem('tkd_brackets_v3') || '{}');
+            } catch(e) {}
 
-        // Also extract all competitors mentioned in brackets
-        Object.keys(brackets).forEach(divKey => {
-            const rounds = brackets[divKey];
-            if (!Array.isArray(rounds)) return;
-            rounds.forEach(round => {
-                if (!Array.isArray(round)) return;
-                round.forEach(m => {
-                    if (m && m.p1 && m.p1.name && !m.p1.name.startsWith('Winner') && m.p1.name !== 'TBD' && m.p1.id !== 'bye') {
-                        const cl = cleanAthleteNameAndClub(m.p1.name, m.p1.club);
-                        const cNorm = cl.name.trim().toLowerCase();
-                        if (!competitors.some(c => (c.id && c.id === m.p1.id) || (c.name && c.name.trim().toLowerCase() === cNorm))) {
-                            competitors.push({ ...m.p1, name: cl.name, club: cl.club });
+            // Also extract all competitors mentioned in brackets
+            Object.keys(brackets).forEach(divKey => {
+                const rounds = brackets[divKey];
+                if (!Array.isArray(rounds)) return;
+                rounds.forEach(round => {
+                    if (!Array.isArray(round)) return;
+                    round.forEach(m => {
+                        if (m && m.p1 && m.p1.name && !m.p1.name.startsWith('Winner') && m.p1.name !== 'TBD' && m.p1.id !== 'bye') {
+                            const cl = cleanAthleteNameAndClub(m.p1.name, m.p1.club);
+                            const cNorm = cl.name.trim().toLowerCase();
+                            if (!competitors.some(c => (c.id && c.id === m.p1.id) || (c.name && c.name.trim().toLowerCase() === cNorm))) {
+                                competitors.push({ ...m.p1, name: cl.name, club: cl.club });
+                            }
                         }
-                    }
-                    if (m && m.p2 && m.p2.name && !m.p2.name.startsWith('Winner') && m.p2.name !== 'TBD' && m.p2.id !== 'bye') {
-                        const cl = cleanAthleteNameAndClub(m.p2.name, m.p2.club);
-                        const cNorm = cl.name.trim().toLowerCase();
-                        if (!competitors.some(c => (c.id && c.id === m.p2.id) || (c.name && c.name.trim().toLowerCase() === cNorm))) {
-                            competitors.push({ ...m.p2, name: cl.name, club: cl.club });
+                        if (m && m.p2 && m.p2.name && !m.p2.name.startsWith('Winner') && m.p2.name !== 'TBD' && m.p2.id !== 'bye') {
+                            const cl = cleanAthleteNameAndClub(m.p2.name, m.p2.club);
+                            const cNorm = cl.name.trim().toLowerCase();
+                            if (!competitors.some(c => (c.id && c.id === m.p2.id) || (c.name && c.name.trim().toLowerCase() === cNorm))) {
+                                competitors.push({ ...m.p2, name: cl.name, club: cl.club });
+                            }
                         }
-                    }
+                    });
                 });
             });
-        });
 
-        if (!competitors || competitors.length === 0) return;
+            if (!competitors || competitors.length === 0) return;
 
-        // Clean all competitors in competitors list and persist
-        let compsChanged = false;
-        competitors.forEach(c => {
-            if (c && c.name) {
-                const cl = cleanAthleteNameAndClub(c.name, c.club);
-                if (cl.name !== c.name || (cl.club && cl.club !== 'Independent' && c.club !== cl.club)) {
-                    c.name = cl.name;
-                    c.club = cl.club;
-                    compsChanged = true;
+            // Clean all competitors in competitors list and persist
+            let compsChanged = false;
+            competitors.forEach(c => {
+                if (c && c.name) {
+                    const cl = cleanAthleteNameAndClub(c.name, c.club);
+                    if (cl.name !== c.name || (cl.club && cl.club !== 'Independent' && c.club !== cl.club)) {
+                        c.name = cl.name;
+                        c.club = cl.club;
+                        compsChanged = true;
+                    }
                 }
+            });
+            if (compsChanged) {
+                try {
+                    const serializedComps = JSON.stringify(competitors);
+                    if (localStorage.getItem('tkd_competitors_v3') !== serializedComps) {
+                        localStorage.setItem('tkd_competitors_v3', serializedComps);
+                        localStorage.setItem('tkd_competitors_v1', serializedComps);
+                    }
+                } catch(e) {}
             }
-        });
-        if (compsChanged) {
-            try {
-                localStorage.setItem('tkd_competitors_v3', JSON.stringify(competitors));
-                localStorage.setItem('tkd_competitors_v1', JSON.stringify(competitors));
-            } catch(e) {}
-        }
 
-        const currentAthletes = (typeof store !== 'undefined' && store.getAthletes) ? (store.getAthletes() || []) : [];
-        const activeTourn = (typeof store !== 'undefined' && store.getActiveTournament) 
-            ? (store.getActiveTournament() || (store.getTournaments ? store.getTournaments()[0] : null) || {}) 
-            : {};
-        const tournId = activeTourn.id || 'tourn-state-2026';
+            const currentAthletes = (typeof store !== 'undefined' && store.getAthletes) ? (store.getAthletes() || []) : [];
+            const activeTourn = (typeof store !== 'undefined' && store.getActiveTournament) 
+                ? (store.getActiveTournament() || (store.getTournaments ? store.getTournaments()[0] : null) || {}) 
+                : {};
+            const tournId = activeTourn.id || 'tourn-state-2026';
 
-        let addedAny = false;
-        competitors.forEach((comp, idx) => {
-            if (!comp || !comp.name) return;
-            const cl = cleanAthleteNameAndClub(comp.name, comp.club);
-            const normName = cl.name.trim().toLowerCase();
-            if (normName === 'bye' || normName === 'tbd' || normName.startsWith('winner')) return;
+            let addedAny = false;
+            competitors.forEach((comp, idx) => {
+                if (!comp || !comp.name) return;
+                const cl = cleanAthleteNameAndClub(comp.name, comp.club);
+                const normName = cl.name.trim().toLowerCase();
+                if (normName === 'bye' || normName === 'tbd' || normName.startsWith('winner')) return;
 
-            const clubName = (cl.club && cl.club.toLowerCase() !== 'independent' && cl.club.toLowerCase() !== 'unattached')
-                ? cl.club
-                : 'Independent Taekwondo Club';
+                const clubName = (cl.club && cl.club.toLowerCase() !== 'independent' && cl.club.toLowerCase() !== 'unattached')
+                    ? cl.club
+                    : 'Independent Taekwondo Club';
 
-            // Auto-register academy in store.dojangs so Fee Ledger, Academy list, and Category filters include this dojang
-            let targetDojang = null;
-            if (typeof store !== 'undefined') {
-                if (!Array.isArray(store.dojangs)) store.dojangs = store.getDojangs ? (store.getDojangs() || []) : [];
-                targetDojang = store.dojangs.find(d => d.name && d.name.trim().toLowerCase() === clubName.trim().toLowerCase());
+                // Auto-register academy in store.dojangs so Fee Ledger, Academy list, and Category filters include this dojang
+                let targetDojang = null;
+                if (typeof store !== 'undefined') {
+                    if (!Array.isArray(store.dojangs)) store.dojangs = store.getDojangs ? (store.getDojangs() || []) : [];
+                    targetDojang = store.dojangs.find(d => d.name && d.name.trim().toLowerCase() === clubName.trim().toLowerCase());
+                    if (!targetDojang) {
+                        const cleanCode = clubName.split(/\s+/).map(w => w[0] || '').join('').toUpperCase().slice(0, 5) || 'ACAD';
+                        const safeId = 'dojang-' + clubName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 30);
+                        targetDojang = {
+                            id: safeId,
+                            name: clubName,
+                            code: cleanCode,
+                            coachName: 'Head Coach',
+                            coachEmail: `coach@${safeId}.org`,
+                            coachPhone: '+91 98765 43210',
+                            city: 'Championship Host',
+                            state: 'State',
+                            status: 'Active',
+                            registeredTournaments: Array.from(new Set([tournId, 'tourn-state-2026', 'all'])),
+                            athletesCount: 1
+                        };
+                        store.dojangs.push(targetDojang);
+                        try { localStorage.setItem('tkd_dojangs', JSON.stringify(store.dojangs)); } catch(e) {}
+                    } else {
+                        if (!Array.isArray(targetDojang.registeredTournaments)) targetDojang.registeredTournaments = [];
+                        if (!targetDojang.registeredTournaments.includes(tournId)) targetDojang.registeredTournaments.push(tournId);
+                        if (!targetDojang.registeredTournaments.includes('tourn-state-2026')) targetDojang.registeredTournaments.push('tourn-state-2026');
+                    }
+                }
                 if (!targetDojang) {
-                    const cleanCode = clubName.split(/\s+/).map(w => w[0] || '').join('').toUpperCase().slice(0, 5) || 'ACAD';
-                    const safeId = 'dojang-' + clubName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 30);
-                    targetDojang = {
-                        id: safeId,
-                        name: clubName,
-                        code: cleanCode,
-                        coachName: 'Head Coach',
-                        coachEmail: `coach@${safeId}.org`,
-                        coachPhone: '+91 98765 43210',
-                        city: 'Championship Host',
-                        state: 'State',
-                        status: 'Active',
-                        registeredTournaments: Array.from(new Set([tournId, 'tourn-state-2026', 'all'])),
-                        athletesCount: 1
-                    };
-                    store.dojangs.push(targetDojang);
-                    try { localStorage.setItem('tkd_dojangs', JSON.stringify(store.dojangs)); } catch(e) {}
-                } else {
-                    if (!Array.isArray(targetDojang.registeredTournaments)) targetDojang.registeredTournaments = [];
-                    if (!targetDojang.registeredTournaments.includes(tournId)) targetDojang.registeredTournaments.push(tournId);
-                    if (!targetDojang.registeredTournaments.includes('tourn-state-2026')) targetDojang.registeredTournaments.push('tourn-state-2026');
+                    targetDojang = { id: 'ind-competitor', code: 'IND', name: clubName };
                 }
-            }
-            if (!targetDojang) {
-                targetDojang = { id: 'ind-competitor', code: 'IND', name: clubName };
-            }
 
-            const isFem = (comp.gender === 'Female' || comp.gender === 'F' || (comp.gender && comp.gender.toLowerCase().includes('female')));
-            const ageCat = comp.ageCategory || 'Junior';
-            const wtClass = formatWeightClassForDraws(comp.weightClass, isFem ? 'Under 49kg' : 'Under 55kg');
-            const wtNumMatch = String(comp.weightClass || comp.weight || '').match(/(\d+(?:\.\d+)?)/);
-            const parsedWeightNum = wtNumMatch ? parseFloat(wtNumMatch[1]) : (isFem ? 48.5 : 54.2);
-            const isG4 = (ageCat.startsWith('U-') || ageCat.startsWith('A-') || (comp.category && comp.category.includes('Group-4')));
+                const isFem = (comp.gender === 'Female' || comp.gender === 'F' || (comp.gender && comp.gender.toLowerCase().includes('female')));
+                const ageCat = comp.ageCategory || 'Junior';
+                const wtClass = formatWeightClassForDraws(comp.weightClass, isFem ? 'Under 49kg' : 'Under 55kg');
+                const wtNumMatch = String(comp.weightClass || comp.weight || '').match(/(\d+(?:\.\d+)?)/);
+                const parsedWeightNum = wtNumMatch ? parseFloat(wtNumMatch[1]) : (isFem ? 48.5 : 54.2);
+                const isG4 = (ageCat.startsWith('U-') || ageCat.startsWith('A-') || (comp.category && comp.category.includes('Group-4')));
 
-            const existingAth = currentAthletes.find(a => {
-                if (a.id && comp.id && a.id === comp.id) return true;
-                if (a.athleteId && comp.id && a.athleteId === comp.id) return true;
-                if (a.athleteId && comp.athleteId && a.athleteId === comp.athleteId) return true;
-                if (a.name && a.name.trim().toLowerCase() === normName) return true;
-                return false;
+                const existingAth = currentAthletes.find(a => {
+                    if (a.id && comp.id && a.id === comp.id) return true;
+                    if (a.athleteId && comp.id && a.athleteId === comp.id) return true;
+                    if (a.athleteId && comp.athleteId && a.athleteId === comp.athleteId) return true;
+                    if (a.name && a.name.trim().toLowerCase() === normName) return true;
+                    return false;
+                });
+
+                if (!existingAth) {
+                    const newAth = {
+                        id: comp.id || `ath-draws-${Date.now()}-${idx}`,
+                        athleteId: comp.athleteId || `ATH-${Math.floor(100000 + Math.random() * 900000)}`,
+                        name: cl.name,
+                        gender: isFem ? 'Female' : 'Male',
+                        category: isG4 ? `Group-4 ${ageCat}` : ageCat,
+                        ageCategory: ageCat,
+                        group4Category: isG4 ? ageCat : undefined,
+                        competitionFormat: isG4 ? 'Group-4' : 'Official',
+                        discipline: comp.discipline || 'Kyorugi',
+                        weightClass: wtClass,
+                        weight: (comp.weight !== undefined && comp.weight !== null) ? comp.weight : parsedWeightNum,
+                        measuredWeight: null,
+                        dojangName: targetDojang.name,
+                        dojangId: targetDojang.id,
+                        dojangCode: targetDojang.code,
+                        belt: comp.rank || comp.belt || '1st Dan',
+                        beltId: 'dan-1',
+                        country: comp.country || 'IND',
+                        status: 'Pending',
+                        weighInStatus: 'Pending',
+                        paymentStatus: 'Paid',
+                        feeStatus: 'Paid',
+                        docStatus: 'Verified',
+                        tournId: tournId,
+                        registeredTournaments: Array.from(new Set([tournId, 'tourn-state-2026', 'all'])),
+                        isIndividual: (clubName === 'Independent Taekwondo Club'),
+                        source: 'draws_manual'
+                    };
+                    currentAthletes.push(newAth);
+                    addedAny = true;
+                } else {
+                    let updatedExisting = false;
+                    if (clubName !== 'Independent Taekwondo Club' && targetDojang) {
+                        if (existingAth.dojangName !== targetDojang.name || existingAth.dojangId !== targetDojang.id || existingAth.dojangCode !== targetDojang.code) {
+                            existingAth.dojangName = targetDojang.name;
+                            existingAth.dojangId = targetDojang.id;
+                            existingAth.dojangCode = targetDojang.code;
+                            updatedExisting = true;
+                        }
+                    }
+                    if (!existingAth.weight && parsedWeightNum) {
+                        existingAth.weight = parsedWeightNum;
+                        updatedExisting = true;
+                    }
+                    if (!Array.isArray(existingAth.registeredTournaments)) {
+                        existingAth.registeredTournaments = [];
+                        updatedExisting = true;
+                    }
+                    if (tournId && !existingAth.registeredTournaments.includes(tournId)) {
+                        existingAth.registeredTournaments.push(tournId);
+                        updatedExisting = true;
+                    }
+                    if (!existingAth.registeredTournaments.includes('tourn-state-2026')) {
+                        existingAth.registeredTournaments.push('tourn-state-2026');
+                        updatedExisting = true;
+                    }
+                    if (updatedExisting) addedAny = true;
+                }
             });
 
-            if (!existingAth) {
-                const newAth = {
-                    id: comp.id || `ath-draws-${Date.now()}-${idx}`,
-                    athleteId: comp.athleteId || `ATH-${Math.floor(100000 + Math.random() * 900000)}`,
-                    name: cl.name,
-                    gender: isFem ? 'Female' : 'Male',
-                    category: isG4 ? `Group-4 ${ageCat}` : ageCat,
-                    ageCategory: ageCat,
-                    group4Category: isG4 ? ageCat : undefined,
-                    competitionFormat: isG4 ? 'Group-4' : 'Official',
-                    discipline: comp.discipline || 'Kyorugi',
-                    weightClass: wtClass,
-                    weight: (comp.weight !== undefined && comp.weight !== null) ? comp.weight : parsedWeightNum,
-                    measuredWeight: null,
-                    dojangName: targetDojang.name,
-                    dojangId: targetDojang.id,
-                    dojangCode: targetDojang.code,
-                    belt: comp.rank || comp.belt || '1st Dan',
-                    beltId: 'dan-1',
-                    country: comp.country || 'IND',
-                    status: 'Pending',
-                    weighInStatus: 'Pending',
-                    paymentStatus: 'Paid',
-                    feeStatus: 'Paid',
-                    docStatus: 'Verified',
-                    tournId: tournId,
-                    registeredTournaments: Array.from(new Set([tournId, 'tourn-state-2026', 'all'])),
-                    isIndividual: (clubName === 'Independent Taekwondo Club'),
-                    source: 'draws_manual'
-                };
-                currentAthletes.push(newAth);
-                addedAny = true;
-            } else {
-                let updatedExisting = false;
-                if (clubName !== 'Independent Taekwondo Club' && targetDojang) {
-                    existingAth.dojangName = targetDojang.name;
-                    existingAth.dojangId = targetDojang.id;
-                    existingAth.dojangCode = targetDojang.code;
-                    updatedExisting = true;
-                }
-                if (!existingAth.weight) {
-                    existingAth.weight = parsedWeightNum;
-                    updatedExisting = true;
-                }
-                if (!Array.isArray(existingAth.registeredTournaments)) {
-                    existingAth.registeredTournaments = [];
-                }
-                if (!existingAth.registeredTournaments.includes(tournId)) {
-                    existingAth.registeredTournaments.push(tournId);
-                    updatedExisting = true;
-                }
-                if (!existingAth.registeredTournaments.includes('tourn-state-2026')) {
-                    existingAth.registeredTournaments.push('tourn-state-2026');
-                    updatedExisting = true;
-                }
-                if (updatedExisting) addedAny = true;
+            if (addedAny) {
+                try {
+                    const serializedAthletes = JSON.stringify(currentAthletes);
+                    if (localStorage.getItem('tkd_athletes') !== serializedAthletes) {
+                        localStorage.setItem('tkd_athletes', serializedAthletes);
+                    }
+                    if (typeof store !== 'undefined') {
+                        store.athletes = currentAthletes;
+                        if (typeof store.notify === 'function') store.notify();
+                    }
+                    if (typeof fetch === 'function') {
+                        clearTimeout(window._athletesSyncDebounce);
+                        window._athletesSyncDebounce = setTimeout(() => {
+                            fetch('/api/athletes', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: serializedAthletes
+                            }).catch(() => {});
+                        }, 500);
+                    }
+                } catch(e) {}
             }
-        });
-
-        if (addedAny) {
-            try {
-                localStorage.setItem('tkd_athletes', JSON.stringify(currentAthletes));
-                if (typeof store !== 'undefined') {
-                    store.athletes = currentAthletes;
-                    if (typeof store.notify === 'function') store.notify();
-                }
-                if (typeof fetch === 'function') {
-                    fetch('/api/athletes', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(currentAthletes)
-                    }).catch(() => {});
-                }
-            } catch(e) {}
+        } finally {
+            _isSyncingDrawsToStore = false;
         }
     }
     window.syncManualDrawsCompetitorsToStore = syncManualDrawsCompetitorsToStore;
@@ -2982,6 +3004,8 @@
     // Auto-synchronize active championship athletes into Draws engine on load & deduplicate
     // User Requirement: "name should come in draws only if they have passed the weighin"
     function syncTournamentAthletesToDraws(notify = false) {
+        if (_isSyncingTournamentToDraws) return;
+        _isSyncingTournamentToDraws = true;
         try {
             // First ingest any manually added competitors from draws-app into store
             syncManualDrawsCompetitorsToStore();
@@ -3088,9 +3112,12 @@
                 }
             });
 
-            // Write to both tkd_competitors_v3 and tkd_competitors_v1
-            localStorage.setItem('tkd_competitors_v3', JSON.stringify(mapped));
-            localStorage.setItem('tkd_competitors_v1', JSON.stringify(mapped));
+            // Write to both tkd_competitors_v3 and tkd_competitors_v1 ONLY if content actually changed
+            const serializedMapped = JSON.stringify(mapped);
+            if (localStorage.getItem('tkd_competitors_v3') !== serializedMapped) {
+                localStorage.setItem('tkd_competitors_v3', serializedMapped);
+                localStorage.setItem('tkd_competitors_v1', serializedMapped);
+            }
 
             // Validate brackets: Ensure manual competitor brackets are 100% protected
             const validNamesSet = new Set(mapped.map(m => m.name.toLowerCase()));
@@ -3122,15 +3149,23 @@
                         }
                     }
                     if (cleaned) {
-                        localStorage.setItem('tkd_brackets_v3', JSON.stringify(parsedBrackets));
+                        const serializedCleaned = JSON.stringify(parsedBrackets);
+                        if (localStorage.getItem('tkd_brackets_v3') !== serializedCleaned) {
+                            localStorage.setItem('tkd_brackets_v3', serializedCleaned);
+                        }
                     }
                 } catch (e) {
-                    localStorage.setItem('tkd_brackets_v3', JSON.stringify({}));
+                    if (localStorage.getItem('tkd_brackets_v3') !== '{}') {
+                        localStorage.setItem('tkd_brackets_v3', JSON.stringify({}));
+                    }
                 }
             }
 
             const hasG4 = mapped.some(m => m.ageCategory && (m.ageCategory.startsWith('U-') || m.ageCategory.startsWith('A-')));
-            localStorage.setItem('tkd_tournament_mode_v1', hasG4 ? 'group4' : 'official');
+            const newMode = hasG4 ? 'group4' : 'official';
+            if (localStorage.getItem('tkd_tournament_mode_v1') !== newMode) {
+                localStorage.setItem('tkd_tournament_mode_v1', newMode);
+            }
 
             if (typeof document !== 'undefined') {
                 const iframe = document.getElementById('tkd-draws-iframe');
@@ -3144,6 +3179,8 @@
         } catch (err) {
             console.error('Error syncing roster to draws:', err);
             if (notify && typeof showToast === 'function') showToast('Failed to write competitors to local storage: ' + err.message, 'error');
+        } finally {
+            _isSyncingTournamentToDraws = false;
         }
     }
 
@@ -16632,16 +16669,21 @@
             }
         }
         if (e.data.type === 'TKD_DRAWS_UPDATED' || e.data.type === 'TKD_COMPETITORS_UPDATED' || e.data.type === 'TKD_COURTS_UPDATED') {
-            if (typeof window.syncManualDrawsCompetitorsToStore === 'function') {
-                window.syncManualDrawsCompetitorsToStore();
+            if (!_isSyncingDrawsToStore && !_isSyncingTournamentToDraws) {
+                if (typeof window.syncManualDrawsCompetitorsToStore === 'function') {
+                    window.syncManualDrawsCompetitorsToStore();
+                }
             }
             // Re-render Jury court sheet if currently open to reflect updated matches/players
-            const juryContainer = document.getElementById('tkd-jury-main-container');
-            if (juryContainer && juryContainer.parentElement && typeof renderJurySection === 'function') {
-                const courtSelect = document.getElementById('jury-court-select');
-                const currentCourt = courtSelect ? courtSelect.value : '1';
-                renderJurySection(juryContainer.parentElement, currentCourt);
-            }
+            clearTimeout(window._juryMsgDebounce);
+            window._juryMsgDebounce = setTimeout(() => {
+                const juryContainer = document.getElementById('tkd-jury-main-container');
+                if (juryContainer && juryContainer.parentElement && typeof renderJurySection === 'function') {
+                    const courtSelect = document.getElementById('jury-court-select');
+                    const currentCourt = courtSelect ? courtSelect.value : '1';
+                    renderJurySection(juryContainer.parentElement, currentCourt);
+                }
+            }, 100);
         }
     });
 
@@ -16653,15 +16695,20 @@
             } catch(err) {}
         }
         if (e.key === 'tkd_competitors_v3' || e.key === 'tkd_brackets_v3' || e.key === 'tkd_division_courts_v1') {
-            if (typeof window.syncManualDrawsCompetitorsToStore === 'function') {
-                window.syncManualDrawsCompetitorsToStore();
+            if (!_isSyncingDrawsToStore && !_isSyncingTournamentToDraws) {
+                if (typeof window.syncManualDrawsCompetitorsToStore === 'function') {
+                    window.syncManualDrawsCompetitorsToStore();
+                }
             }
-            const juryContainer = document.getElementById('tkd-jury-main-container');
-            if (juryContainer && juryContainer.parentElement && typeof renderJurySection === 'function') {
-                const courtSelect = document.getElementById('jury-court-select');
-                const currentCourt = courtSelect ? courtSelect.value : '1';
-                renderJurySection(juryContainer.parentElement, currentCourt);
-            }
+            clearTimeout(window._juryStorageDebounce);
+            window._juryStorageDebounce = setTimeout(() => {
+                const juryContainer = document.getElementById('tkd-jury-main-container');
+                if (juryContainer && juryContainer.parentElement && typeof renderJurySection === 'function') {
+                    const courtSelect = document.getElementById('jury-court-select');
+                    const currentCourt = courtSelect ? courtSelect.value : '1';
+                    renderJurySection(juryContainer.parentElement, currentCourt);
+                }
+            }, 100);
         }
     });
 
@@ -18348,7 +18395,10 @@ ${templateBg ? `
             this.render();
 
             store.subscribe(() => {
-                this.render();
+                if (this._renderDebounce) cancelAnimationFrame(this._renderDebounce);
+                this._renderDebounce = requestAnimationFrame(() => {
+                    this.render();
+                });
             });
         }
 
@@ -18705,7 +18755,10 @@ ${templateBg ? `
         }
 
         render() {
-            const user = store.getCurrentUser();
+            if (this._isRendering) return;
+            this._isRendering = true;
+            try {
+                const user = store.getCurrentUser();
             const mainContainer = document.getElementById('main-content');
             const authBtn = document.getElementById('btn-header-auth');
             const orgBtn = document.getElementById('btn-header-organizer');
@@ -18985,6 +19038,16 @@ ${templateBg ? `
                         returnLabel: 'Back to Tournament Home'
                     });
                 }
+            } else if (this.currentView === 'athletes' || this.currentView === 'athlete' || this.currentView === 'roster') {
+                if (user && (user.role === 'admin' || user.role === 'organizer')) {
+                    this.currentOrganizerSubTab = 'athletes';
+                    window._currentOrgSubTab = 'athletes';
+                    renderOrganizerDashboard(mainContainer, 'athletes', user);
+                } else if (user) {
+                    renderLoggedInDashboard(mainContainer, 'athletes');
+                } else {
+                    renderCategoriesView(mainContainer);
+                }
             } else if (this.currentView === 'tatami') {
                 this.navigate('events');
             } else {
@@ -18997,8 +19060,11 @@ ${templateBg ? `
                     returnLabel: 'Return to Tournament Platform'
                 });
             }
+        } finally {
+            this._isRendering = false;
         }
     }
+}
 
     // ────────────────────────────────────────────────────────────────────────
     // COMPETITION CATEGORIES & WEIGHT DIVISIONS ROSTER VIEW
