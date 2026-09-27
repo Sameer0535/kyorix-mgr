@@ -77,6 +77,45 @@
             phone: '+91 9845034567',
             email: 'garuda@tkd.in',
             registeredTournaments: ['tourn-state-2026']
+        },
+        {
+            id: 'dojang-shivamogga',
+            name: 'Shivamogga Taekwondo Club',
+            shortCode: 'STC',
+            uid: 'STC-04',
+            city: 'Shivamogga',
+            state: 'Karnataka',
+            masterName: 'Master Nagendra Hegde',
+            coachName: 'Coach Nagendra Hegde',
+            phone: '+91 9845045678',
+            email: 'shivamogga@tkd.in',
+            registeredTournaments: ['tourn-state-2026']
+        },
+        {
+            id: 'dojang-ballari',
+            name: 'Ballari Taekwondo Club',
+            shortCode: 'BTC',
+            uid: 'BTC-05',
+            city: 'Ballari',
+            state: 'Karnataka',
+            masterName: 'Master Santosh Verma',
+            coachName: 'Coach Santosh Verma',
+            phone: '+91 9845056789',
+            email: 'ballari@tkd.in',
+            registeredTournaments: ['tourn-state-2026']
+        },
+        {
+            id: 'dojang-mangalore',
+            name: 'Mangalore Taekwondo Academy',
+            shortCode: 'MTA',
+            uid: 'MTA-06',
+            city: 'Mangaluru',
+            state: 'Karnataka',
+            masterName: 'Master Anand Rao',
+            coachName: 'Coach Anand Rao',
+            phone: '+91 9845067890',
+            email: 'mangalore@tkd.in',
+            registeredTournaments: ['tourn-state-2026']
         }
     ];
     const SEED_COACHES = [];
@@ -317,9 +356,10 @@
                 "docStatus": "Verified",
                 "docVerifiedBy": "Tournament Organizing Committee",
                 "docVerifiedAt": "2026-06-01T10:00:00Z",
-                "dojangId": "ind-competitor",
-                "dojangName": "Individual Competitor",
-                "dojangCode": "IND",
+                "dojangId": "dojang-mangalore",
+                "dojangName": "Mangalore Taekwondo Academy",
+                "dojangCode": "MTA",
+                "academyName": "Mangalore Taekwondo Academy",
                 "isIndividual": true,
                 "tournId": "tourn-state-2026",
                 "registeredTournaments": [
@@ -562,9 +602,10 @@
                 "docStatus": "Verified",
                 "docVerifiedBy": "Tournament Organizing Committee",
                 "docVerifiedAt": "2026-06-01T10:00:00Z",
-                "dojangId": "ind-competitor",
-                "dojangName": "Individual Competitor",
-                "dojangCode": "IND",
+                "dojangId": "dojang-bangalore",
+                "dojangName": "Bangalore Taekwondo Club",
+                "dojangCode": "BTC",
+                "academyName": "Bangalore Taekwondo Club",
                 "isIndividual": true,
                 "tournId": "tourn-state-2026",
                 "registeredTournaments": [
@@ -758,9 +799,10 @@
                 "docStatus": "Verified",
                 "docVerifiedBy": "Tournament Organizing Committee",
                 "docVerifiedAt": "2026-06-01T10:00:00Z",
-                "dojangId": "ind-competitor",
-                "dojangName": "Individual Competitor",
-                "dojangCode": "IND",
+                "dojangId": "dojang-mysore",
+                "dojangName": "Mysore Taekwondo Academy",
+                "dojangCode": "MTA",
+                "academyName": "Mysore Taekwondo Academy",
                 "isIndividual": true,
                 "tournId": "tourn-state-2026",
                 "registeredTournaments": [
@@ -954,9 +996,10 @@
                 "docStatus": "Verified",
                 "docVerifiedBy": "Tournament Organizing Committee",
                 "docVerifiedAt": "2026-06-01T10:00:00Z",
-                "dojangId": "ind-competitor",
-                "dojangName": "Individual Competitor",
-                "dojangCode": "IND",
+                "dojangId": "dojang-shivamogga",
+                "dojangName": "Shivamogga Taekwondo Club",
+                "dojangCode": "STC",
+                "academyName": "Shivamogga Taekwondo Club",
                 "isIndividual": true,
                 "tournId": "tourn-state-2026",
                 "registeredTournaments": [
@@ -1003,9 +1046,10 @@
                 "docStatus": "Verified",
                 "docVerifiedBy": "Tournament Organizing Committee",
                 "docVerifiedAt": "2026-06-01T10:00:00Z",
-                "dojangId": "ind-competitor",
-                "dojangName": "Individual Competitor",
-                "dojangCode": "IND",
+                "dojangId": "dojang-ballari",
+                "dojangName": "Ballari Taekwondo Club",
+                "dojangCode": "BTC",
+                "academyName": "Ballari Taekwondo Club",
                 "isIndividual": true,
                 "tournId": "tourn-state-2026",
                 "registeredTournaments": [
@@ -1095,19 +1139,74 @@
             if (!localStorage.getItem('tkd_results'))     localStorage.setItem('tkd_results',     JSON.stringify(SEED_RESULTS));
             if (!localStorage.getItem('tkd_fee_notifs'))  localStorage.setItem('tkd_fee_notifs',  JSON.stringify(SEED_FEE_NOTIFICATIONS));
 
-            // Normalize any legacy ind-1 competitor dojangIds to canonical ind-competitor
+            // Normalize any legacy ind-1 competitor dojangIds to canonical ind-competitor and fix individual academy names
             try {
                 const rawA = localStorage.getItem('tkd_athletes');
                 if (rawA) {
                     const parsed = JSON.parse(rawA);
                     let changed = false;
                     parsed.forEach(a => {
-                        if (a && a.dojangId === 'ind-1') {
+                        if (!a) return;
+                        if (a.dojangId === 'ind-1') {
                             a.dojangId = 'ind-competitor';
+                            changed = true;
+                        }
+                        // "dont passs anyones weigh-in": Reset any unverified auto-passed weigh-ins back to Pending
+                        if ((a.status === 'Passed' || a.weighInStatus === 'Passed') && !a.weighInBy) {
+                            a.status = 'Pending';
+                            a.weighInStatus = 'Pending';
+                            a.measuredWeight = null;
+                            a.weighInDate = null;
+                            changed = true;
+                        }
+                        // Fix individual athletes' academy names and codes
+                        if (a.name === 'Darshan Hegde' || a.athleteId === 'ATH-108217') {
+                            a.dojangName = 'Shivamogga Taekwondo Club';
+                            a.dojangCode = 'STC';
+                            a.academyName = 'Shivamogga Taekwondo Club';
+                            changed = true;
+                        } else if (a.name === 'Rohit Verma' || a.athleteId === 'ATH-108218') {
+                            a.dojangName = 'Ballari Taekwondo Club';
+                            a.dojangCode = 'BTC';
+                            a.academyName = 'Ballari Taekwondo Club';
+                            changed = true;
+                        } else if (a.name === 'Vikramaditya Rao' || a.athleteId === 'ATH-108204') {
+                            a.dojangName = 'Mangalore Taekwondo Academy';
+                            a.dojangCode = 'MTA';
+                            a.academyName = 'Mangalore Taekwondo Academy';
+                            changed = true;
+                        } else if (a.name === "Rhea D'Souza" || a.athleteId === 'ATH-108209') {
+                            a.dojangName = 'Bangalore Taekwondo Club';
+                            a.dojangCode = 'BTC';
+                            a.academyName = 'Bangalore Taekwondo Club';
+                            changed = true;
+                        } else if (a.name === 'Syed Farhan' || a.athleteId === 'ATH-108213') {
+                            a.dojangName = 'Mysore Taekwondo Academy';
+                            a.dojangCode = 'MTA';
+                            a.academyName = 'Mysore Taekwondo Academy';
+                            changed = true;
+                        } else if (a.academyName && (!a.dojangName || a.dojangName === 'Individual Competitor' || a.dojangName === 'Individual (Unattached)')) {
+                            a.dojangName = a.academyName;
                             changed = true;
                         }
                     });
                     if (changed) localStorage.setItem('tkd_athletes', JSON.stringify(parsed));
+                }
+            } catch (e) {}
+
+            // Ensure SEED_DOJANGS are present in tkd_dojangs
+            try {
+                const rawD = localStorage.getItem('tkd_dojangs');
+                if (rawD) {
+                    const parsedD = JSON.parse(rawD);
+                    let changedD = false;
+                    SEED_DOJANGS.forEach(sd => {
+                        if (!parsedD.some(d => d.id === sd.id || (d.name && d.name.toLowerCase() === sd.name.toLowerCase()))) {
+                            parsedD.push(sd);
+                            changedD = true;
+                        }
+                    });
+                    if (changedD) localStorage.setItem('tkd_dojangs', JSON.stringify(parsedD));
                 }
             } catch (e) {}
         }
@@ -1787,7 +1886,9 @@
                     aadharDoc: athData.aadharDoc || '',
                     birthCertDoc: athData.birthCertDoc || '',
                     docStatus: athData.docStatus || 'Pending',
-                    status: 'Passed',
+                    status: 'Pending',
+                    weighInStatus: 'Pending',
+                    measuredWeight: null,
                     paymentStatus: 'Paid',
                     feeStatus: 'Paid',
                     paidDate: (payment.approvedAt || new Date().toISOString()).split('T')[0],
@@ -1946,7 +2047,9 @@
                             aadharDoc: athData.aadharDoc || '',
                             birthCertDoc: athData.birthCertDoc || '',
                             docStatus: athData.docStatus || 'Pending',
-                            status: 'Passed',
+                            status: 'Pending',
+                            weighInStatus: 'Pending',
+                            measuredWeight: null,
                             paymentStatus: p.status === 'Approved' ? 'Paid' : 'Pending',
                             feeStatus: p.status === 'Approved' ? 'Paid' : 'Pending',
                             txnId: p.status === 'Approved' ? (p.id || `TXN-${p.utr}`) : null,
@@ -2817,15 +2920,15 @@
                     discipline: comp.discipline || 'Kyorugi',
                     weightClass: wtClass,
                     weight: (comp.weight !== undefined && comp.weight !== null) ? comp.weight : parsedWeightNum,
-                    measuredWeight: (comp.measuredWeight !== undefined && comp.measuredWeight !== null) ? comp.measuredWeight : parsedWeightNum,
+                    measuredWeight: null,
                     dojangName: targetDojang.name,
                     dojangId: targetDojang.id,
                     dojangCode: targetDojang.code,
                     belt: comp.rank || comp.belt || '1st Dan',
                     beltId: 'dan-1',
                     country: comp.country || 'IND',
-                    status: 'Passed',
-                    weighInStatus: 'Passed',
+                    status: 'Pending',
+                    weighInStatus: 'Pending',
                     paymentStatus: 'Paid',
                     feeStatus: 'Paid',
                     docStatus: 'Verified',
@@ -2838,20 +2941,14 @@
                 addedAny = true;
             } else {
                 let updatedExisting = false;
-                if (existingAth.status !== 'Passed' || existingAth.weighInStatus !== 'Passed') {
-                    existingAth.status = 'Passed';
-                    existingAth.weighInStatus = 'Passed';
-                    updatedExisting = true;
-                }
                 if (clubName !== 'Independent Taekwondo Club' && targetDojang) {
                     existingAth.dojangName = targetDojang.name;
                     existingAth.dojangId = targetDojang.id;
                     existingAth.dojangCode = targetDojang.code;
                     updatedExisting = true;
                 }
-                if (!existingAth.weight || !existingAth.measuredWeight) {
-                    existingAth.weight = existingAth.weight || parsedWeightNum;
-                    existingAth.measuredWeight = existingAth.measuredWeight || parsedWeightNum;
+                if (!existingAth.weight) {
+                    existingAth.weight = parsedWeightNum;
                     updatedExisting = true;
                 }
                 if (!Array.isArray(existingAth.registeredTournaments)) {
@@ -2976,8 +3073,8 @@
                     ageCategory: ageCategory,
                     weightClass: isG4 ? '' : weightClass,
                     rank: a.belt || a.rank || '1st Dan',
-                    status: a.status || 'Passed',
-                    weighInStatus: a.weighInStatus || 'Passed'
+                    status: a.status || 'Pending',
+                    weighInStatus: a.weighInStatus || 'Pending'
                 };
             });
 
@@ -5535,14 +5632,22 @@
             const enteredAcademy = document.getElementById('reg-p-academy')?.value.trim() || '';
             let cleanDojangName = (currentUser && currentUser.role === 'dojang' && currentDojang) 
                 ? currentDojang.name 
-                : (enteredAcademy || (loggedAth && loggedAth.dojangName !== 'Individual Competitor' ? loggedAth.dojangName : '') || 'Individual Competitor');
+                : (enteredAcademy || (loggedAth && loggedAth.dojangName !== 'Individual Competitor' ? (loggedAth.dojangName || loggedAth.academyName) : '') || '');
 
             const nameAcMatch = cleanAthName.match(/^(.+?)\s*\(([^)]+)\)$/);
             if (nameAcMatch) {
-                if (!cleanDojangName || cleanDojangName === 'Individual Competitor') {
+                if (!cleanDojangName) {
                     cleanDojangName = nameAcMatch[1].trim();
                 }
                 cleanAthName = nameAcMatch[2].trim();
+            }
+
+            const isInd = !(currentUser && currentUser.role === 'dojang' && currentDojang);
+            let code = 'IND';
+            if (currentUser && currentUser.role === 'dojang' && currentDojang) {
+                code = currentDojang.shortCode || 'TKD';
+            } else if (cleanDojangName && cleanDojangName !== 'Individual Competitor' && cleanDojangName !== 'Individual (Unattached)') {
+                code = cleanDojangName.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 4) || 'IND';
             }
 
             const newAthlete = store.addAthlete({
@@ -5559,11 +5664,13 @@
                 gender: finalGender,
                 category: finalCategory,
                 weight: finalWeight,
+                measuredWeight: null,
                 weightClass: finalWeightClass,
                 competitionFormat: competitionFormat,
                 discipline: discipline,
                 group4Category: group4Cat,
                 status: 'Pending',
+                weighInStatus: 'Pending',
                 paymentStatus: 'Pending',
                 feeStatus: 'Pending',
                 photo: finalPhoto,
@@ -5571,11 +5678,24 @@
                 birthCertDoc: finalBirthCert,
                 docStatus: 'Pending',
                 dojangId: (currentUser && currentUser.role === 'dojang' && currentDojang) ? currentDojang.id : ((loggedAth && loggedAth.dojangId && loggedAth.dojangId !== 'ind-1') ? loggedAth.dojangId : 'ind-competitor'),
-                dojangName: cleanDojangName,
-                dojangCode: (currentUser && currentUser.role === 'dojang' && currentDojang) ? currentDojang.shortCode : (loggedAth ? (loggedAth.dojangCode || 'IND') : 'IND'),
-                isIndividual: !(currentUser && currentUser.role === 'dojang' && currentDojang),
+                dojangName: cleanDojangName || 'Individual Competitor',
+                academyName: cleanDojangName || '',
+                dojangCode: code,
+                isIndividual: isInd,
                 registeredTournaments: [tournId]
             });
+
+            if (cleanDojangName && cleanDojangName !== 'Individual Competitor' && cleanDojangName !== 'Individual (Unattached)') {
+                const existingD = store.getDojangs().find(d => d.name.toLowerCase() === cleanDojangName.toLowerCase());
+                if (!existingD) {
+                    store.addDojang({
+                        name: cleanDojangName,
+                        shortCode: code,
+                        city: (address.split(',')[0] || 'Karnataka').trim(),
+                        tournId: tournId
+                    });
+                }
+            }
             if (loggedAth) {
                 store.updateAthlete(loggedAth.id, {
                     name: cleanAthName,
@@ -7203,7 +7323,8 @@
                         if (errBox) errBox.classList.add('hidden');
 
                         const name       = document.getElementById('ath-reg-name').value.trim();
-                        const dojangName = document.getElementById('ath-reg-dojang')?.value.trim() || 'Individual Competitor';
+                        const dojangName = document.getElementById('ath-reg-dojang')?.value.trim() || '';
+                        const dojangCode = dojangName ? (dojangName.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 4) || 'IND') : 'IND';
                         const day        = document.getElementById('ath-reg-dob-day')?.value || '15';
                         const month      = document.getElementById('ath-reg-dob-month')?.value || '06';
                         const year       = document.getElementById('ath-reg-dob-year')?.value || '2009';
@@ -7248,16 +7369,20 @@
                         const targetTournId = store.getSelectedTournamentId() || 'tourn-state-2026';
                         const newAth = store.addAthlete({
                             name, dob, age, gender, phone: `${cc} ${phone}`, email, weight,
+                            measuredWeight: null,
                             beltId: belt.id, beltName: belt.name,
                             category: 'Junior (15–17 yrs)',
                             weightClass: `Junior ${gender} -55 kg`,
                             athleteId: generatedAthId,
                             dojangName: dojangName || 'Individual Competitor',
+                            academyName: dojangName || '',
                             dojangId: 'ind-competitor',
-                            dojangCode: 'IND',
+                            dojangCode: dojangCode,
+                            isIndividual: true,
                             tournId: targetTournId,
                             registeredTournaments: [targetTournId],
                             status: 'Pending',
+                            weighInStatus: 'Pending',
                             paymentStatus: 'Pending',
                             feeStatus: 'Pending',
                             photo: athPhotoBase64,
@@ -10024,11 +10149,13 @@
                                 const isPendingFeeApproval = !isPaid && (a.paymentStatus === 'Pending Approval' || a.feeStatus === 'Pending Approval' || a.utr);
 
                                 let athDisplayName = (a.name || '').trim();
-                                let athDisplayDojang = (a.dojangName || '').trim();
-                                const nameMatch = athDisplayName.match(/^(.+?)\s*\(([^)]+)\)$/);
-                                if (nameMatch) {
-                                    athDisplayDojang = nameMatch[1].trim();
-                                    athDisplayName = nameMatch[2].trim();
+                                let athDisplayDojang = (a.dojangName || a.academyName || '').trim();
+                                if (!athDisplayDojang) {
+                                    const nameMatch = athDisplayName.match(/^(.+?)\s*\(([^)]+)\)$/);
+                                    if (nameMatch) {
+                                        athDisplayName = nameMatch[1].trim();
+                                        athDisplayDojang = nameMatch[2].trim();
+                                    }
                                 }
 
                                 return `
@@ -10047,13 +10174,7 @@
                                         <td>
                                             ${(athDisplayDojang && athDisplayDojang !== 'Individual Competitor' && athDisplayDojang !== 'Individual (Unattached)') ? `
                                                 <div class="text-xs text-slate-800 font-bold">${athDisplayDojang}</div>
-                                                ${(a.dojangId === 'ind-competitor' || a.isIndividual) ? `
-                                                    <div class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-semibold">
-                                                        <i class="fa-solid fa-user text-[9px] text-amber-600"></i> Direct Entry
-                                                    </div>
-                                                ` : `
-                                                    <div class="text-[10px] text-slate-500 font-mono">${a.dojangCode || 'TKD'}</div>
-                                                `}
+                                                <div class="text-[10px] text-slate-500 font-mono">${a.dojangCode || (athDisplayDojang.split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,4)) || 'TKD'}</div>
                                             ` : `
                                                 <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-200 text-[11px] font-bold">
                                                     <i class="fa-solid fa-user text-[10px] text-amber-600"></i> Individual (Unattached)
