@@ -16483,7 +16483,8 @@
             event: eventTitle,
             duration: '120',
             interval: '60',
-            ptg: '15'
+            ptg: '15',
+            t: String(Date.now())
         });
 
         const essUrl = `/ess-app/index.html?${essParams.toString()}`;
@@ -16526,6 +16527,9 @@
 
                     <!-- Actions -->
                     <div class="flex items-center gap-2 shrink-0">
+                        <button type="button" class="tkd-btn tkd-btn-xs tkd-btn-outline font-bold text-slate-300 border-slate-700 hover:text-white hover:bg-slate-800 cursor-pointer" id="btn-conduct-reload" title="Refresh Scoring Arena Frame">
+                            <i class="fa-solid fa-arrows-rotate me-1"></i><span class="hidden sm:inline">Reload Arena</span>
+                        </button>
                         <button type="button" class="tkd-btn tkd-btn-xs tkd-btn-outline font-bold text-slate-300 border-slate-700 hover:text-white hover:bg-slate-800 cursor-pointer" id="btn-conduct-popout" title="Open scoreboard in separate window for second monitor or arena TV">
                             <i class="fa-solid fa-arrow-up-right-from-square me-1"></i><span class="hidden sm:inline">Arena Big Screen</span>
                         </button>
@@ -16552,7 +16556,12 @@
                 </div>
 
                 <!-- Scoreboard Frame -->
-                <div class="jury-conduct-iframe-wrap">
+                <div class="jury-conduct-iframe-wrap relative">
+                    <div id="jury-conduct-loading-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a0a] text-white z-10 transition-opacity duration-300 pointer-events-none">
+                        <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                        <div class="text-sm font-bold text-slate-200">Initializing Scoring Arena...</div>
+                        <div class="text-xs text-slate-400 mt-1">${clP1.name} vs ${clP2.name}</div>
+                    </div>
                     <iframe 
                         id="jury-conduct-arena-iframe" 
                         src="${essUrl}" 
@@ -16567,9 +16576,9 @@
         document.body.appendChild(modalDiv);
 
         const arenaIframe = document.getElementById('jury-conduct-arena-iframe');
-        if (arenaIframe) {
-            arenaIframe.onload = () => {
-                try {
+        const sendInit = () => {
+            try {
+                if (arenaIframe && arenaIframe.contentWindow) {
                     arenaIframe.contentWindow.postMessage({
                         type: 'TKD_ESS_INIT_MATCH',
                         blue: clP1.name,
@@ -16585,9 +16594,33 @@
                         courtNo: String(data.courtNo || '1'),
                         matchNo: data.displayMatchNo || 'Match'
                     }, '*');
-                } catch(e) {}
+                }
+            } catch(e) {}
+        };
+
+        if (arenaIframe) {
+            arenaIframe.onload = () => {
+                setTimeout(() => {
+                    const loader = document.getElementById('jury-conduct-loading-overlay');
+                    if (loader) {
+                        loader.style.opacity = '0';
+                        setTimeout(() => loader.remove(), 300);
+                    }
+                }, 400);
+                sendInit();
+                setTimeout(sendInit, 400);
+                setTimeout(sendInit, 1200);
             };
         }
+
+        // Safety fallback: if iframe loading takes over 4 seconds, remove loader
+        setTimeout(() => {
+            const loader = document.getElementById('jury-conduct-loading-overlay');
+            if (loader) {
+                loader.style.opacity = '0';
+                setTimeout(() => loader.remove(), 300);
+            }
+        }, 4000);
 
         function closeEssConductModal() {
             const modals = document.querySelectorAll('.jury-conduct-modal-overlay, #tkd-jury-conduct-modal');
@@ -16608,6 +16641,13 @@
 
         document.getElementById('btn-conduct-return-court')?.addEventListener('click', () => {
             modalDiv.remove();
+        });
+
+        document.getElementById('btn-conduct-reload')?.addEventListener('click', () => {
+            if (arenaIframe) {
+                const refreshedUrl = `/ess-app/index.html?${essParams.toString()}&t=${Date.now()}`;
+                arenaIframe.src = refreshedUrl;
+            }
         });
 
         document.getElementById('btn-conduct-popout')?.addEventListener('click', () => {

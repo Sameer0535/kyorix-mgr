@@ -12,16 +12,26 @@
     <link rel="apple-touch-icon" href="/app/app-icon.jpeg" />
     <link rel="manifest" href="./manifest.json" />
     <title>Kyorix - Taekwondo ESS</title>
-    <script type="module" crossorigin src="./assets/index-QdE4vVcg.js?v=465"></script>
+    <script type="module" crossorigin src="./assets/index-v470.js?v=470"></script>
     <link rel="stylesheet" crossorigin href="./assets/index-Dvd7vwAm.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
     <script>
+      // Clean up any stale service workers and caches
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js');
-        });
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (var reg of registrations) {
+            reg.unregister().catch(function() {});
+          }
+        }).catch(function() {});
+      }
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          for (var name of names) {
+            caches.delete(name).catch(function() {});
+          }
+        }).catch(function() {});
       }
     </script>
   </body>
