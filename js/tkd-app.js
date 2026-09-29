@@ -2023,7 +2023,6 @@
         const club = String(c.club || '').trim().toLowerCase();
         if (id.startsWith('ath-demo-') || athId.startsWith('ath-1082') || id === 'ath-405901' || athId === 'ath-405901') return true;
         if (id.startsWith('dasara') || id.startsWith('ath-dasara') || id.startsWith('player_') || athId.startsWith('ind-560')) return true;
-        if (n.startsWith('player ') || n.startsWith('competitor ')) return true;
         if (MOCK_SAMPLE_NAMES.has(n)) return true;
         if ((club === 'd taekwondo academy' || club === 'darshan a') && (n === 'sameer' || n === 'purvi' || n === 'darshan' || n === 'ath-405901')) return true;
         return false;
@@ -2163,15 +2162,7 @@
             }
 
             // 2. Competitors Live Sync (Safe non-destructive merge)
-            if (json.competitors && Array.isArray(json.competitors)) {
-                if (json.competitors.length === 0) {
-                    const currentCompsStr = localStorage.getItem('tkd_competitors_v3') || '[]';
-                    if (currentCompsStr !== '[]') {
-                        localStorage.setItem('tkd_competitors_v3', '[]');
-                        localStorage.setItem('tkd_competitors_v1', '[]');
-                        updatedAny = true;
-                    }
-                } else {
+            if (json.competitors && Array.isArray(json.competitors) && json.competitors.length > 0) {
                     const cleanServerComps = json.competitors.filter(c => !isMockSampleCompetitor(c));
                     let curComps = [];
                     try { curComps = JSON.parse(localStorage.getItem('tkd_competitors_v3') || '[]'); } catch(e) {}
@@ -2195,7 +2186,6 @@
                         updatedAny = true;
                     }
                 }
-            }
 
             // 3. Division Courts Live Sync
             if (json.divisionCourts && typeof json.divisionCourts === 'object' && Object.keys(json.divisionCourts).length > 0) {
@@ -14618,7 +14608,7 @@
 
                 <!-- Full Embedded Draws Engine Iframe -->
                 <div class="relative w-full bg-slate-900 rounded-2xl overflow-hidden shadow-lg border border-slate-200">
-                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=473" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
+                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=474" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
                 </div>
             </div>
         `;
