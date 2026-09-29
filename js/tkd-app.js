@@ -273,23 +273,26 @@
                         }
                     });
 
-                    // Active purge of demo/mock athletes from localStorage (Aarav Sharma, Rohan Nair, ath-demo-*, etc.)
+                    // Active purge of demo/mock athletes and the 4 permanent test athletes (Sameer, purvi, Darshan, ATH-405901)
                     const demoNames = new Set([
                         'aarav sharma', 'karan patel', 'mohammed zaid', 'rahul varma', 'vikram singh',
                         'ananya deshmukh', 'pooja hegde', 'sneha kulkarni', "rhea d'souza", 'rohan nair',
                         'aditya joshi', 'pranav bhat', 'arjun rao', 'varun kumar', 'manjunath reddy',
                         'chetan kumar', 'darshan hegde', 'rohit verma', 'jin park', 'lucas silva',
                         'mateo rossi', 'tyler vance', 'kai takahashi', 'dmitri voronov', "liam o'connor",
-                        'marcus chen', 'sofia al-mansoor', 'camila rodriguez', 'chloe zhang', 'amina diallo', 'yuki tanaka'
+                        'marcus chen', 'sofia al-mansoor', 'camila rodriguez', 'chloe zhang', 'amina diallo', 'yuki tanaka',
+                        'sameer', 'purvi', 'darshan', 'ath-405901'
                     ]);
                     const beforeLenA = parsed.length;
                     parsed = parsed.filter(a => {
                         if (!a) return false;
-                        const id = String(a.id || '');
-                        const athId = String(a.athleteId || '');
-                        if (id.startsWith('ath-demo-') || athId.startsWith('ATH-1082') || /^ath-[0-9]+$/.test(id)) return false;
+                        const id = String(a.id || '').toLowerCase();
+                        const athId = String(a.athleteId || '').toLowerCase();
                         const n = (a.name || '').trim().toLowerCase();
+                        const club = (a.dojangName || a.club || '').trim().toLowerCase();
+                        if (id.startsWith('ath-demo-') || athId.startsWith('ath-1082') || id === 'ath-405901' || athId === 'ath-405901') return false;
                         if (demoNames.has(n)) return false;
+                        if ((club === 'd taekwondo academy' || club === 'darshan a') && (n === 'sameer' || n === 'purvi' || n === 'darshan' || n === 'ath-405901')) return false;
                         return true;
                     });
                     if (parsed.length !== beforeLenA) changed = true;
@@ -297,7 +300,7 @@
                 }
             } catch (e) {}
 
-            // Purge demo competitors from tkd_competitors_v3 so Draws section is 100% clean
+            // Purge demo and 4 permanent test competitors from tkd_competitors_v3 so Draws section is 100% clean
             try {
                 const rawC = localStorage.getItem('tkd_competitors_v3');
                 if (rawC) {
@@ -316,15 +319,18 @@
                         'aarav sharma', 'karan patel', 'mohammed zaid', 'rahul varma', 'vikram singh',
                         'ananya deshmukh', 'pooja hegde', 'sneha kulkarni', "rhea d'souza", 'rohan nair',
                         'aditya joshi', 'pranav bhat', 'arjun rao', 'varun kumar', 'manjunath reddy',
-                        'chetan kumar', 'darshan hegde', 'rohit verma'
+                        'chetan kumar', 'darshan hegde', 'rohit verma',
+                        'sameer', 'purvi', 'darshan', 'ath-405901'
                     ]);
                     const filteredC = parsedC.filter(c => {
                         if (!c) return false;
-                        const id = String(c.id || '');
-                        const athId = String(c.athleteId || '');
-                        if (id.startsWith('ath-demo-') || athId.startsWith('ATH-1082') || id.startsWith('c_large_') || id.startsWith('g4_')) return false;
+                        const id = String(c.id || '').toLowerCase();
+                        const athId = String(c.athleteId || '').toLowerCase();
                         const n = (c.name || '').trim().toLowerCase();
+                        const club = (c.club || '').trim().toLowerCase();
+                        if (id.startsWith('ath-demo-') || athId.startsWith('ath-1082') || id === 'ath-405901' || athId === 'ath-405901') return false;
                         if (demoCompNames.has(n)) return false;
+                        if ((club === 'd taekwondo academy' || club === 'darshan a') && (n === 'sameer' || n === 'purvi' || n === 'darshan' || n === 'ath-405901')) return false;
                         return true;
                     });
                     if (filteredC.length !== beforeLenC) {
@@ -333,6 +339,45 @@
                     }
                 }
             } catch(e) {}
+
+            // Clean demo and permanent test athletes from tkd_brackets_v3 so no orphaned matches exist
+            try {
+                const rawB = localStorage.getItem('tkd_brackets_v3');
+                if (rawB) {
+                    const brackets = JSON.parse(rawB);
+                    let cleanedB = false;
+                    const purgeNames = new Set(['sameer', 'purvi', 'darshan', 'ath-405901']);
+                    for (const divKey of Object.keys(brackets)) {
+                        const br = brackets[divKey];
+                        if (Array.isArray(br)) {
+                            for (const round of br) {
+                                if (Array.isArray(round)) {
+                                    for (const m of round) {
+                                        if (m.p1 && (purgeNames.has((m.p1.name || '').trim().toLowerCase()) || String(m.p1.id || '').includes('405901'))) {
+                                            m.p1 = null;
+                                            cleanedB = true;
+                                        }
+                                        if (m.p2 && (purgeNames.has((m.p2.name || '').trim().toLowerCase()) || String(m.p2.id || '').includes('405901'))) {
+                                            m.p2 = null;
+                                            cleanedB = true;
+                                        }
+                                        if (m.winnerId && (String(m.winnerId).includes('405901') || purgeNames.has(String(m.winnerId).toLowerCase()))) {
+                                            m.winnerId = null;
+                                            m.status = 'pending';
+                                            m.score1 = null;
+                                            m.score2 = null;
+                                            cleanedB = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (cleanedB) {
+                        localStorage.setItem('tkd_brackets_v3', JSON.stringify(brackets));
+                    }
+                }
+            } catch (e) {}
             // Ensure SEED_DOJANGS are present in tkd_dojangs
             try {
                 const rawD = localStorage.getItem('tkd_dojangs');
@@ -1955,17 +2000,19 @@
         'aditya joshi', 'pranav bhat', 'arjun rao', 'varun kumar', 'manjunath reddy',
         'chetan kumar', 'darshan hegde', 'rohit verma', 'jin park', 'lucas silva',
         'mateo rossi', 'tyler vance', 'kai takahashi', 'dmitri voronov', "liam o'connor",
-        'marcus chen', 'sofia al-mansoor', 'camila rodriguez', 'chloe zhang', 'amina diallo', 'yuki tanaka'
+        'marcus chen', 'sofia al-mansoor', 'camila rodriguez', 'chloe zhang', 'amina diallo', 'yuki tanaka',
+        'sameer', 'purvi', 'darshan', 'ath-405901'
     ]);
 
     function isMockSampleCompetitor(c) {
         if (!c) return true;
         const n = (c.name || '').trim().toLowerCase();
-        const id = String(c.id || '');
-        const athId = String(c.athleteId || '');
-        if (id.startsWith('ath-demo-') || athId.startsWith('ATH-1082') || /^ath-[0-9]+$/.test(id)) return true;
-        if (id.startsWith('c_large_') || id.startsWith('g4_')) return true;
+        const id = String(c.id || '').toLowerCase();
+        const athId = String(c.athleteId || '').toLowerCase();
+        const club = String(c.club || '').trim().toLowerCase();
+        if (id.startsWith('ath-demo-') || athId.startsWith('ath-1082') || id === 'ath-405901' || athId === 'ath-405901') return true;
         if (MOCK_SAMPLE_NAMES.has(n)) return true;
+        if ((club === 'd taekwondo academy' || club === 'darshan a') && (n === 'sameer' || n === 'purvi' || n === 'darshan' || n === 'ath-405901')) return true;
         return false;
     }
     window.isMockSampleCompetitor = isMockSampleCompetitor;
@@ -2058,7 +2105,7 @@
             } finally {
                 _isPushingLiveSync = false;
             }
-        }, 300);
+        }, 100);
     }
     window.pushLiveMatchDataToServer = pushLiveMatchDataToServer;
 
@@ -2091,10 +2138,17 @@
             }
 
             // 2. Competitors Live Sync
-            if (json.competitors && Array.isArray(json.competitors) && json.competitors.length > 0) {
-                const serverCompsStr = JSON.stringify(json.competitors);
+            if (json.competitors && Array.isArray(json.competitors)) {
+                const purgeNames = new Set(['sameer', 'purvi', 'darshan', 'ath-405901']);
+                const cleanServerComps = json.competitors.filter(c => {
+                    if (!c) return false;
+                    const n = (c.name || '').trim().toLowerCase();
+                    const id = String(c.id || '').toLowerCase();
+                    return !purgeNames.has(n) && !id.includes('405901');
+                });
+                const serverCompsStr = JSON.stringify(cleanServerComps);
                 const currentCompsStr = localStorage.getItem('tkd_competitors_v3') || '[]';
-                if (currentCompsStr !== serverCompsStr) {
+                if (currentCompsStr !== serverCompsStr && (cleanServerComps.length > 0 || currentCompsStr === '[]')) {
                     localStorage.setItem('tkd_competitors_v3', serverCompsStr);
                     localStorage.setItem('tkd_competitors_v1', serverCompsStr);
                     updatedAny = true;
@@ -2115,7 +2169,7 @@
                 // Reactive update for Draws iframe
                 const drawsIframe = document.getElementById('tkd-draws-iframe');
                 if (drawsIframe && drawsIframe.contentWindow) {
-                    try { drawsIframe.contentWindow.postMessage({ type: 'TKD_RELOAD_BRACKETS' }, '*'); } catch(e) {}
+                    try { drawsIframe.contentWindow.postMessage({ type: 'TKD_RELOAD_BRACKETS', competitors: json.competitors, brackets: json.brackets, courts: json.divisionCourts }, '*'); } catch(e) {}
                 }
                 // Reactive update for Jury section ONLY if currently active on screen
                 const isJuryVisible = window.location.hash === '#jury' || document.getElementById('tkd-jury-main-container');
@@ -2139,7 +2193,7 @@
 
     if (typeof window !== 'undefined') {
         // Poll every 12 seconds to prevent excessive CPU / render thrashing
-        setInterval(pollLiveMatchDataFromServer, 12000);
+        setInterval(pollLiveMatchDataFromServer, 2500); setTimeout(pollLiveMatchDataFromServer, 200);
         window.addEventListener('focus', pollLiveMatchDataFromServer);
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
@@ -2541,7 +2595,7 @@
                 const iframe = document.getElementById('tkd-draws-iframe');
                 if (iframe) {
                     if (notify) {
-                        iframe.src = 'draws-app/index.html?v=460&t=' + Date.now();
+                        iframe.src = 'draws-app/index.html?v=465&t=' + Date.now();
                     } else if (iframe.contentWindow) {
                         try { iframe.contentWindow.postMessage({ type: 'TKD_RELOAD_BRACKETS' }, '*'); } catch(e) {}
                     }
@@ -14559,15 +14613,13 @@
 
                 <!-- Full Embedded Draws Engine Iframe -->
                 <div class="relative w-full bg-slate-900 rounded-2xl overflow-hidden shadow-lg border border-slate-200">
-                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=460" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
+                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=465" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
                 </div>
             </div>
         `;
 
-        // Auto-run sync on load so Draws Engine always matches the active tournament roster without manual sync
-        if (typeof window.syncTournamentAthletesToDraws === 'function') {
-            window.syncTournamentAthletesToDraws(false);
-        }
+        // Auto-poll server on opening draws to sync latest live cross-device data
+        setTimeout(() => { if (typeof pollLiveMatchDataFromServer === "function") pollLiveMatchDataFromServer(); }, 150);
 
         // Notify iframe to reload latest brackets from localStorage
         setTimeout(() => {
@@ -15901,6 +15953,20 @@
             }
         }
         if (e.data.type === 'TKD_DRAWS_UPDATED' || e.data.type === 'TKD_COMPETITORS_UPDATED' || e.data.type === 'TKD_COURTS_UPDATED') {
+            if (e.data.competitors && Array.isArray(e.data.competitors)) {
+                try {
+                    const purgeNames = new Set(['sameer', 'purvi', 'darshan', 'ath-405901']);
+                    const cleanC = e.data.competitors.filter(c => {
+                        if (!c) return false;
+                        const n = (c.name || '').trim().toLowerCase();
+                        const id = String(c.id || '').toLowerCase();
+                        return !purgeNames.has(n) && !id.includes('405901');
+                    });
+                    localStorage.setItem('tkd_competitors_v3', JSON.stringify(cleanC));
+                    localStorage.setItem('tkd_competitors_v1', JSON.stringify(cleanC));
+                    pushLiveMatchDataToServer({ competitors: cleanC });
+                } catch(err) {}
+            }
             if (!_isSyncingDrawsToStore && !_isSyncingTournamentToDraws) {
                 if (typeof window.syncManualDrawsCompetitorsToStore === 'function') {
                     window.syncManualDrawsCompetitorsToStore();
