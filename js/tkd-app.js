@@ -14553,11 +14553,12 @@
 
     function renderDrawsViewer(container) {
         const user = store.getCurrentUser();
-        const tournaments = store.getTournaments();
-        const selectedTournId = store.getSelectedTournamentId();
-        const activeTourn = store.getTournament(selectedTournId) || tournaments[0] || {};
+        const tournaments = (store.getTournaments ? store.getTournaments() : []) || [];
+        const selectedTournId = store.getSelectedTournamentId ? store.getSelectedTournamentId() : null;
+        const activeTourn = (store.getTournament && selectedTournId) ? (store.getTournament(selectedTournId) || tournaments[0] || {}) : (tournaments[0] || {});
         const isAdmin = user && user.role === 'admin';
-        const roleTitle = isAdmin ? 'Federation Master Admin' : 'Tournament Organizing Committee';
+        const isOrganizer = user && user.role === 'organizer';
+        const roleTitle = isAdmin ? 'Federation Master Admin' : isOrganizer ? 'Tournament Organizing Committee' : 'Championship Fixtures';
 
         container.innerHTML = `
             <div class="space-y-4 animate-fade-in w-full py-2" id="draws-console-root">
@@ -14584,9 +14585,11 @@
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0">
-                        <button id="btn-sync-draws-roster" class="tkd-btn tkd-btn-sm tkd-btn-primary font-bold text-xs shadow-xs cursor-pointer" title="Sync registered athletes from active championship into draws generator">
-                            <i class="fa-solid fa-arrows-rotate me-1.5"></i>Sync Athletes from Kyorix Roster
-                        </button>
+                        ${(isAdmin || isOrganizer) ? `
+                            <button id="btn-sync-draws-roster" class="tkd-btn tkd-btn-sm tkd-btn-primary font-bold text-xs shadow-xs cursor-pointer" title="Sync registered athletes from active championship into draws generator">
+                                <i class="fa-solid fa-arrows-rotate me-1.5"></i>Sync Athletes from Kyorix Roster
+                            </button>
+                        ` : ''}
                         <button id="btn-popout-draws" class="tkd-btn tkd-btn-sm tkd-btn-outline font-bold text-xs cursor-pointer" title="Open draws application in full browser window">
                             <i class="fa-solid fa-arrow-up-right-from-square me-1.5 text-blue-600"></i>Fullscreen
                         </button>
@@ -14595,7 +14598,7 @@
 
                 <!-- Full Embedded Draws Engine Iframe -->
                 <div class="relative w-full bg-slate-900 rounded-2xl overflow-hidden shadow-lg border border-slate-200">
-                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=466" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
+                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=472" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
                 </div>
             </div>
         `;
@@ -18398,11 +18401,7 @@ ${templateBg ? `
             } else if (this.currentView === 'fee') {
                 renderFeeInvoiceView(mainContainer);
             } else if (this.currentView === 'draws' || this.currentView === 'brackets') {
-                if (isStaffUser) {
-                    renderDrawsViewer(mainContainer);
-                } else {
-                    renderRestrictedDrawsAccessView(mainContainer);
-                }
+                renderDrawsViewer(mainContainer);
             } else if (this.currentView === 'jury' || this.currentView === 'jury-desk' || this.currentView === 'jurydesk') {
                 if (isStaffRole) {
                     renderJurySection(mainContainer);

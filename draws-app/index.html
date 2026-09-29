@@ -10,10 +10,27 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="./assets/index-CwNWllZ5.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-B-8w22qY.css">
+    <script type="module" crossorigin src="./assets/index-CwNWllZ5.js?v=472"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-B-8w22qY.css?v=472">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
+    <script>
+      // Clean up any stale service workers and caches
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (var reg of registrations) {
+            reg.unregister().catch(function() {});
+          }
+        }).catch(function() {});
+      }
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          for (var name of names) {
+            caches.delete(name).catch(function() {});
+          }
+        }).catch(function() {});
+      }
+    </script>
   </body>
 </html>
