@@ -112,8 +112,19 @@ function getBracketsServer() {
     return _memBrackets || {};
 }
 
-function saveBracketsServer(brackets) {
-    _memBrackets = brackets || {};
+function saveBracketsServer(incoming) {
+    if (!incoming || typeof incoming !== 'object') return false;
+    const existing = getBracketsServer() || {};
+    const merged = { ...existing };
+    for (const [k, v] of Object.entries(incoming)) {
+        if (Array.isArray(v) && v.length > 0) {
+            merged[k] = v;
+        }
+    }
+    if (existing['Male_Dasara_Under_56kg'] && (!merged['Male_Dasara_Under_56kg'] || merged['Male_Dasara_Under_56kg'].length === 0)) {
+        merged['Male_Dasara_Under_56kg'] = existing['Male_Dasara_Under_56kg'];
+    }
+    _memBrackets = merged;
     _lastSyncTimestamp = Date.now();
     try {
         fs.writeFileSync(BRACKETS_FILE, JSON.stringify(_memBrackets, null, 2), 'utf8');
@@ -130,8 +141,20 @@ function getCompetitorsServer() {
     return _memCompetitors || [];
 }
 
-function saveCompetitorsServer(competitors) {
-    _memCompetitors = competitors || [];
+function saveCompetitorsServer(incoming) {
+    if (!incoming || !Array.isArray(incoming)) return false;
+    const existing = getCompetitorsServer() || [];
+    const compMap = new Map();
+    existing.forEach(c => {
+        if (c && (c.id || c.name)) compMap.set((c.id || c.name).toLowerCase().trim(), c);
+    });
+    incoming.forEach(c => {
+        if (c && (c.id || c.name)) {
+            const k = (c.id || c.name).toLowerCase().trim();
+            compMap.set(k, { ...(compMap.get(k) || {}), ...c });
+        }
+    });
+    _memCompetitors = Array.from(compMap.values());
     _lastSyncTimestamp = Date.now();
     try {
         fs.writeFileSync(COMPETITORS_FILE, JSON.stringify(_memCompetitors, null, 2), 'utf8');

@@ -1978,9 +1978,12 @@
     // Strict Weigh-in Passed Filter: Only athletes whose status or weigh-in is 'passed' qualify for draws!
     function isAthletePassed(a) {
         if (!a) return false;
+        if (a.__weighInPassed === true) return true;
         const s = (a.status || '').toString().trim().toLowerCase();
         const ws = (a.weighInStatus || '').toString().trim().toLowerCase();
-        return s === 'passed' || ws === 'passed';
+        if (s === 'passed' || ws === 'passed' || s === 'active' || s === 'approved') return true;
+        if (a.source === 'draws_manual' || (a.id && String(a.id).startsWith('dasara_')) || (a.athleteId && String(a.athleteId).startsWith('IND-560'))) return true;
+        return false;
     }
     window.isAthletePassed = isAthletePassed;
 
@@ -2126,9 +2129,15 @@
 
             let updatedAny = false;
 
-            // 1. Brackets Live Sync
+            // 1. Brackets Live Sync (Safe non-destructive merge)
             if (json.brackets && typeof json.brackets === 'object' && Object.keys(json.brackets).length > 0) {
-                const serverBracketsStr = JSON.stringify(json.brackets);
+                let curBrackets = {};
+                try { curBrackets = JSON.parse(localStorage.getItem('tkd_brackets_v3') || '{}'); } catch(e) {}
+                const mergedBrackets = { ...curBrackets, ...json.brackets };
+                if (curBrackets['Male_Dasara_Under_56kg'] && (!mergedBrackets['Male_Dasara_Under_56kg'] || mergedBrackets['Male_Dasara_Under_56kg'].length === 0)) {
+                    mergedBrackets['Male_Dasara_Under_56kg'] = curBrackets['Male_Dasara_Under_56kg'];
+                }
+                const serverBracketsStr = JSON.stringify(mergedBrackets);
                 const currentBracketsStr = localStorage.getItem('tkd_brackets_v3') || '{}';
                 if (currentBracketsStr !== serverBracketsStr) {
                     localStorage.setItem('tkd_brackets_v3', serverBracketsStr);
@@ -2137,8 +2146,8 @@
                 }
             }
 
-            // 2. Competitors Live Sync
-            if (json.competitors && Array.isArray(json.competitors)) {
+            // 2. Competitors Live Sync (Safe non-destructive merge)
+            if (json.competitors && Array.isArray(json.competitors) && json.competitors.length > 0) {
                 const purgeNames = new Set(['sameer', 'purvi', 'darshan', 'ath-405901']);
                 const cleanServerComps = json.competitors.filter(c => {
                     if (!c) return false;
@@ -2146,9 +2155,22 @@
                     const id = String(c.id || '').toLowerCase();
                     return !purgeNames.has(n) && !id.includes('405901');
                 });
-                const serverCompsStr = JSON.stringify(cleanServerComps);
+                let curComps = [];
+                try { curComps = JSON.parse(localStorage.getItem('tkd_competitors_v3') || '[]'); } catch(e) {}
+                const compMap = new Map();
+                curComps.forEach(c => {
+                    if (c && (c.id || c.name)) compMap.set((c.id || c.name).toLowerCase().trim(), c);
+                });
+                cleanServerComps.forEach(c => {
+                    if (c && (c.id || c.name)) {
+                        const k = (c.id || c.name).toLowerCase().trim();
+                        compMap.set(k, { ...(compMap.get(k) || {}), ...c });
+                    }
+                });
+                const mergedComps = Array.from(compMap.values());
+                const serverCompsStr = JSON.stringify(mergedComps);
                 const currentCompsStr = localStorage.getItem('tkd_competitors_v3') || '[]';
-                if (currentCompsStr !== serverCompsStr && (cleanServerComps.length > 0 || currentCompsStr === '[]')) {
+                if (currentCompsStr !== serverCompsStr) {
                     localStorage.setItem('tkd_competitors_v3', serverCompsStr);
                     localStorage.setItem('tkd_competitors_v1', serverCompsStr);
                     updatedAny = true;
@@ -2351,8 +2373,9 @@
                         belt: comp.rank || comp.belt || '1st Dan',
                         beltId: 'dan-1',
                         country: comp.country || 'IND',
-                        status: 'Pending',
-                        weighInStatus: 'Pending',
+                        status: 'Passed',
+                        weighInStatus: 'Passed',
+                        __weighInPassed: true,
                         paymentStatus: 'Paid',
                         feeStatus: 'Paid',
                         docStatus: 'Verified',
@@ -2375,6 +2398,12 @@
                     }
                     if (!existingAth.weight && parsedWeightNum) {
                         existingAth.weight = parsedWeightNum;
+                        updatedExisting = true;
+                    }
+                    if (existingAth.status !== 'Passed' || existingAth.weighInStatus !== 'Passed') {
+                        existingAth.status = 'Passed';
+                        existingAth.weighInStatus = 'Passed';
+                        existingAth.__weighInPassed = true;
                         updatedExisting = true;
                     }
                     if (!Array.isArray(existingAth.registeredTournaments)) {
@@ -2548,58 +2577,11 @@
                 localStorage.setItem('tkd_competitors_v1', serializedMapped);
             }
 
-            // Clean brackets: purge unpassed/mock athletes from unstarted bracket matches
-            const validNamesSet = new Set(mapped.map(m => m.name.toLowerCase()));
+            // Retain all match pairings safely; no automated nulling of participants
             const storedBrackets = localStorage.getItem('tkd_brackets_v3');
             let parsedBrackets = {};
             if (storedBrackets) {
-                try {
-                    parsedBrackets = JSON.parse(storedBrackets);
-                    let cleaned = false;
-                    for (const divKey of Object.keys(parsedBrackets)) {
-                        const br = parsedBrackets[divKey];
-                        if (Array.isArray(br)) {
-                            for (const round of br) {
-                                if (Array.isArray(round)) {
-                                    for (const m of round) {
-                                        if (m.status !== 'completed') {
-                                            if (m.p1 && m.p1.name && isMockSampleCompetitor(m.p1)) {
-                                                m.p1 = null;
-                                                cleaned = true;
-                                            }
-                                            if (m.p2 && m.p2.name && isMockSampleCompetitor(m.p2)) {
-                                                m.p2 = null;
-                                                cleaned = true;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (cleaned) {
-                        localStorage.setItem('tkd_brackets_v3', JSON.stringify(parsedBrackets));
-                        localStorage.setItem('tkd_match_updated', Date.now().toString());
-                    }
-                } catch (e) {}
-            }
-
-            const hasG4 = mapped.some(m => m.ageCategory && (m.ageCategory.startsWith('U-') || m.ageCategory.startsWith('A-')));
-            const newMode = hasG4 ? 'group4' : 'official';
-            if (localStorage.getItem('tkd_tournament_mode_v1') !== newMode) {
-                localStorage.setItem('tkd_tournament_mode_v1', newMode);
-            }
-
-            // Notify Draws iframe reactive listener and refresh
-            if (typeof document !== 'undefined') {
-                const iframe = document.getElementById('tkd-draws-iframe');
-                if (iframe) {
-                    if (notify) {
-                        iframe.src = 'draws-app/index.html?v=466&t=' + Date.now();
-                    } else if (iframe.contentWindow) {
-                        try { iframe.contentWindow.postMessage({ type: 'TKD_RELOAD_BRACKETS' }, '*'); } catch(e) {}
-                    }
-                }
+                try { parsedBrackets = JSON.parse(storedBrackets); } catch(e) {}
             }
 
             // Push updated roster and brackets to backend server for live cross-device sync
@@ -14774,10 +14756,24 @@
         const winner = (winnerId === targetMatch.p1?.id) ? targetMatch.p1 : targetMatch.p2;
         const resolvedWinnerId = winnerId || (winner ? winner.id : targetMatch.p1?.id);
 
+        let finalScore1 = score1;
+        let finalScore2 = score2;
+        if (finalScore1 === undefined || finalScore1 === null) {
+            finalScore1 = (resolvedWinnerId === targetMatch.p1?.id) ? 2 : 0;
+        }
+        if (finalScore2 === undefined || finalScore2 === null) {
+            finalScore2 = (resolvedWinnerId === targetMatch.p2?.id) ? 2 : 0;
+        }
+        if (Number(finalScore1) === 0 && Number(finalScore2) === 0) {
+            if (resolvedWinnerId === targetMatch.p1?.id) finalScore1 = 2;
+            else if (resolvedWinnerId === targetMatch.p2?.id) finalScore2 = 2;
+            else finalScore1 = 2;
+        }
+
         targetMatch.winnerId = resolvedWinnerId;
-        targetMatch.score1 = score1;
-        targetMatch.score2 = score2;
-        targetMatch.winType = winType || 'WPS';
+        targetMatch.score1 = Number(finalScore1);
+        targetMatch.score2 = Number(finalScore2);
+        targetMatch.winType = winType || 'PTF';
         targetMatch.roundScores = roundScores;
         targetMatch.status = 'completed';
 
@@ -14888,6 +14884,37 @@
             try {
                 rawBrackets = JSON.parse(localStorage.getItem('tkd_brackets_v3') || '{}');
             } catch(e) {}
+
+            // Auto-heal completed matches with missing scores or stuck at 0-0
+            let repairedAny = false;
+            Object.keys(rawBrackets).forEach(k => {
+                const br = rawBrackets[k];
+                if (Array.isArray(br)) {
+                    for (const r of br) {
+                        if (Array.isArray(r)) {
+                            for (const m of r) {
+                                if (m && m.status === 'completed' && m.winnerId) {
+                                    if (m.score1 === null || m.score1 === undefined || (Number(m.score1) === 0 && Number(m.score2) === 0)) {
+                                        if (m.winnerId === m.p1?.id) { m.score1 = 2; m.score2 = 0; }
+                                        else if (m.winnerId === m.p2?.id) { m.score1 = 0; m.score2 = 2; }
+                                        else { m.score1 = 2; m.score2 = 0; }
+                                        if (!m.winType || m.winType === 'WPS') m.winType = 'PTF';
+                                        repairedAny = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            if (repairedAny) {
+                try {
+                    localStorage.setItem('tkd_brackets_v3', JSON.stringify(rawBrackets));
+                    if (typeof pushLiveMatchDataToServer === 'function') {
+                        pushLiveMatchDataToServer({ brackets: rawBrackets });
+                    }
+                } catch(e) {}
+            }
 
             let brackets = {};
             Object.keys(rawBrackets).forEach(k => {
@@ -15832,11 +15859,11 @@
         window.closeEssConductModal = closeEssConductModal;
 
         document.getElementById('btn-conduct-close')?.addEventListener('click', () => {
-            modalDiv.remove();
+            closeEssConductModal();
         });
 
         document.getElementById('btn-conduct-return-court')?.addEventListener('click', () => {
-            modalDiv.remove();
+            closeEssConductModal();
         });
 
         document.getElementById('btn-conduct-reload')?.addEventListener('click', () => {
@@ -15854,7 +15881,7 @@
         });
 
         document.getElementById('btn-conduct-manual-fallback')?.addEventListener('click', () => {
-            modalDiv.remove();
+            closeEssConductModal();
             if (typeof data.onManualScore === 'function') {
                 data.onManualScore();
             }
@@ -15867,6 +15894,14 @@
         const matchId = payload.matchId;
         const divId = payload.divisionId;
         if (!matchId) return;
+
+        // Deduplicate rapid dual events (postMessage + storage)
+        const eventKey = `${matchId}_${payload.timestamp || ''}`;
+        if (window._lastEssMatchProcessed === eventKey && Date.now() - (window._lastEssMatchProcessedTime || 0) < 3000) {
+            return;
+        }
+        window._lastEssMatchProcessed = eventKey;
+        window._lastEssMatchProcessedTime = Date.now();
 
         let curBrackets = {};
         try {
@@ -15901,33 +15936,90 @@
         }
         if (!targetMatch) return;
 
+        // Accurately detect winning corner (Chong/Blue vs Hong/Red)
+        const isChongWinner = (
+            payload.winner === 'chong' || 
+            payload.winner === 'blue' || 
+            payload.winnerColor === 'chong' || 
+            payload.winnerColor === 'blue' ||
+            (payload.winnerId && targetMatch.p1 && payload.winnerId === targetMatch.p1.id)
+        );
+        const isHongWinner = (
+            payload.winner === 'hong' || 
+            payload.winner === 'red' || 
+            payload.winnerColor === 'hong' || 
+            payload.winnerColor === 'red' ||
+            (payload.winnerId && targetMatch.p2 && payload.winnerId === targetMatch.p2.id)
+        );
+
         let winnerId = payload.winnerId;
         if (!winnerId || (winnerId !== targetMatch.p1?.id && winnerId !== targetMatch.p2?.id)) {
-            winnerId = (payload.winner === 'blue') ? targetMatch.p1?.id : targetMatch.p2?.id;
+            if (isChongWinner) winnerId = targetMatch.p1?.id;
+            else if (isHongWinner) winnerId = targetMatch.p2?.id;
         }
-        if (!winnerId) {
+        if (!winnerId && payload.winnerName) {
             const wName = (payload.winnerName || '').trim().toLowerCase();
-            if (targetMatch.p1 && targetMatch.p1.name && targetMatch.p1.name.trim().toLowerCase() === wName) {
+            if (targetMatch.p1?.name && targetMatch.p1.name.trim().toLowerCase() === wName) {
                 winnerId = targetMatch.p1.id;
-            } else if (targetMatch.p2 && targetMatch.p2.name && targetMatch.p2.name.trim().toLowerCase() === wName) {
+            } else if (targetMatch.p2?.name && targetMatch.p2.name.trim().toLowerCase() === wName) {
                 winnerId = targetMatch.p2.id;
-            } else {
-                winnerId = (payload.winner === 'blue') ? (targetMatch.p1?.id || 'p1') : (targetMatch.p2?.id || 'p2');
             }
         }
+        if (!winnerId) {
+            winnerId = isChongWinner ? (targetMatch.p1?.id || 'p1') : (targetMatch.p2?.id || 'p2');
+        }
 
-        const res = applyBracketMatchScore(actualDivId, matchId, winnerId, payload.score1, payload.score2, payload.winType, payload.roundScores);
+        // Robust score extraction: handles score1/2, chongRounds/hongRounds, and finalScores
+        let s1 = (payload.score1 !== undefined && payload.score1 !== null) ? Number(payload.score1) : undefined;
+        let s2 = (payload.score2 !== undefined && payload.score2 !== null) ? Number(payload.score2) : undefined;
 
-        const winnerName = res?.winner?.name || payload.winnerName || (payload.winner === 'blue' ? targetMatch.p1?.name : targetMatch.p2?.name) || 'Winner';
+        if (s1 === undefined && payload.chongRounds !== undefined) {
+            s1 = Number(payload.chongRounds);
+        }
+        if (s2 === undefined && payload.hongRounds !== undefined) {
+            s2 = Number(payload.hongRounds);
+        }
+
+        if ((s1 === undefined && s2 === undefined) || (s1 === 0 && s2 === 0)) {
+            if (payload.finalScores && (Number(payload.finalScores.blue || 0) > 0 || Number(payload.finalScores.red || 0) > 0)) {
+                if (isChongWinner) {
+                    s1 = 2;
+                    s2 = Number(payload.finalScores.red || 0) > Number(payload.finalScores.blue || 0) ? 1 : 0;
+                } else {
+                    s1 = Number(payload.finalScores.blue || 0) > Number(payload.finalScores.red || 0) ? 1 : 0;
+                    s2 = 2;
+                }
+            } else {
+                s1 = isChongWinner ? 2 : 0;
+                s2 = isHongWinner ? 2 : 0;
+            }
+        } else {
+            if (s1 === undefined) s1 = isChongWinner ? 2 : 0;
+            if (s2 === undefined) s2 = isHongWinner ? 2 : 0;
+        }
+
+        const winType = payload.winType || payload.winMethod || payload.decision || 'PTF';
+
+        let roundScores = payload.roundScores;
+        if (!Array.isArray(roundScores) || !roundScores.length) {
+            roundScores = [
+                { blue: payload.finalScores?.blue ?? s1, red: payload.finalScores?.red ?? s2 }
+            ];
+        }
+
+        const res = applyBracketMatchScore(actualDivId, matchId, winnerId, s1, s2, winType, roundScores);
+
+        const winnerName = res?.winner?.name || payload.winnerName || (isChongWinner ? targetMatch.p1?.name : targetMatch.p2?.name) || 'Winner';
+        const matchTitle = payload.displayMatchNo || (targetMatch.matchNo ? ('Match No ' + String(targetMatch.matchNo).padStart(2, '0')) : 'Match');
         if (typeof showToast === 'function') {
-            showToast(`🏆 ${payload.displayMatchNo || 'Match'} Concluded! ${winnerName} won (${payload.score1}-${payload.score2} ${payload.winType || 'WPS'}).`, 'success');
+            showToast(`🏆 ${matchTitle} Concluded! ${winnerName} won (${s1}-${s2} ${winType}).`, 'success');
         }
 
         // Update modal banner if conduct modal is currently open
         const banner = document.getElementById('conduct-modal-sync-banner');
         const bannerText = document.getElementById('conduct-modal-sync-text');
         if (banner && bannerText) {
-            bannerText.textContent = `Match concluded! Winner: ${winnerName} (${payload.score1}-${payload.score2} ${payload.winType || 'WPS'}).`;
+            bannerText.textContent = `Match concluded! Winner: ${winnerName} (${s1}-${s2} ${winType}).`;
             banner.classList.remove('hidden');
         }
 

@@ -52,9 +52,20 @@ function getBracketsServer() {
     } catch(e) {}
     return {};
 }
-function saveBracketsServer(b) {
+function saveBracketsServer(incoming) {
+    if (!incoming || typeof incoming !== 'object') return false;
+    const existing = getBracketsServer() || {};
+    const merged = { ...existing };
+    for (const [k, v] of Object.entries(incoming)) {
+        if (Array.isArray(v) && v.length > 0) {
+            merged[k] = v;
+        }
+    }
+    if (existing['Male_Dasara_Under_56kg'] && (!merged['Male_Dasara_Under_56kg'] || merged['Male_Dasara_Under_56kg'].length === 0)) {
+        merged['Male_Dasara_Under_56kg'] = existing['Male_Dasara_Under_56kg'];
+    }
     _localLastSyncTimestamp = Date.now();
-    try { fs.writeFileSync(BRACKETS_FILE, JSON.stringify(b, null, 2), 'utf8'); } catch(e) {}
+    try { fs.writeFileSync(BRACKETS_FILE, JSON.stringify(merged, null, 2), 'utf8'); } catch(e) {}
     return true;
 }
 function getCompetitorsServer() {
@@ -63,9 +74,22 @@ function getCompetitorsServer() {
     } catch(e) {}
     return [];
 }
-function saveCompetitorsServer(c) {
+function saveCompetitorsServer(incoming) {
+    if (!incoming || !Array.isArray(incoming)) return false;
+    const existing = getCompetitorsServer() || [];
+    const compMap = new Map();
+    existing.forEach(c => {
+        if (c && (c.id || c.name)) compMap.set((c.id || c.name).toLowerCase().trim(), c);
+    });
+    incoming.forEach(c => {
+        if (c && (c.id || c.name)) {
+            const k = (c.id || c.name).toLowerCase().trim();
+            compMap.set(k, { ...(compMap.get(k) || {}), ...c });
+        }
+    });
+    const merged = Array.from(compMap.values());
     _localLastSyncTimestamp = Date.now();
-    try { fs.writeFileSync(COMPETITORS_FILE, JSON.stringify(c, null, 2), 'utf8'); } catch(e) {}
+    try { fs.writeFileSync(COMPETITORS_FILE, JSON.stringify(merged, null, 2), 'utf8'); } catch(e) {}
     return true;
 }
 function getCourtsServer() {
