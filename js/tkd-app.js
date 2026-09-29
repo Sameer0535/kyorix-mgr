@@ -310,19 +310,7 @@
                         'lee dae-hoon', 'alexei denisenko', 'joel gonzalez', 'servet tazegul', 'ahmad abughaush',
                         'jade jones', 'eva calvo', 'hedaya malak', 'kimia alizadeh', 'marc-andre', 'park tae-joon',
                         "vito dell'aquila", 'cheick sallah cisse', 'lutalo muhammad', 'milad beigi', 'albert gaun',
-                        'oussama oueslati', 'steven lopez', 'aaron cook', 'nikita rafalovich', 'rahul sharma',
-                        'aarav patel', 'kabir singh', 'vivaan joshi', 'rohan gupta', 'aditya verma', 'arjun mehta',
-                        'reyansh deshmukh', 'atharv kulkarni', 'vihaan saxena', 'ananya roy', 'diya kumar',
-                        'sanya malhotra', 'myra kapoor', 'isha bhatia', 'kavya sharma', 'riya sen', 'avani reddy',
-                        'devansh reddy', 'ishaan nair', 'reyansh rao', 'yash vardhan', 'pari choudhary',
-                        'nisha agarwal', 'simran gill', 'tanvi shah', 'meera iyer',
-                        'aarav sharma', 'karan patel', 'mohammed zaid', 'rahul varma', 'vikram singh',
-                        'ananya deshmukh', 'pooja hegde', 'sneha kulkarni', "rhea d'souza", 'rohan nair',
-                        'aditya joshi', 'pranav bhat', 'arjun rao', 'varun kumar', 'manjunath reddy',
-                        'chetan kumar', 'darshan hegde', 'rohit verma',
-                        'anjanaya', 'biraj rokaja', 'charls', 'darshan.b', 'dhanush', 'hrithik', 'jeevanth', 'manikanta', 'maruthi',
-                        'mohith kumar.m', 'nanda kishore', 'prajwal.g', 'praveen', 'punith', 'roshan', 'sai tharun', 'sanjay gowda',
-                        'sharan', 'sumanth', 'yashvanth.m', 'yogesh',
+                        'oussama oueslati', 'steven lopez', 'aaron cook', 'nikita rafalovich',
                         'sameer', 'purvi', 'darshan', 'ath-405901'
                     ]);
                     const filteredC = parsedC.filter(c => {
@@ -332,9 +320,6 @@
                         const n = (c.name || '').trim().toLowerCase();
                         const club = (c.club || '').trim().toLowerCase();
                         if (id.startsWith('ath-demo-') || athId.startsWith('ath-1082') || id === 'ath-405901' || athId === 'ath-405901') return false;
-                        if (id.startsWith('dasara') || id.startsWith('ath-dasara') || id.startsWith('player_') || athId.startsWith('ind-560')) return false;
-                        if (n.startsWith('player ') || n.startsWith('competitor ')) return false;
-                        if (demoCompNames.has(n)) return false;
                         if ((club === 'd taekwondo academy' || club === 'darshan a') && (n === 'sameer' || n === 'purvi' || n === 'darshan' || n === 'ath-405901')) return false;
                         return true;
                     });
@@ -1997,21 +1982,7 @@
         'lee dae-hoon', 'alexei denisenko', 'joel gonzalez', 'servet tazegul', 'ahmad abughaush',
         'jade jones', 'eva calvo', 'hedaya malak', 'kimia alizadeh', 'marc-andre', 'park tae-joon',
         "vito dell'aquila", 'cheick sallah cisse', 'lutalo muhammad', 'milad beigi', 'albert gaun',
-        'oussama oueslati', 'steven lopez', 'aaron cook', 'nikita rafalovich', 'rahul sharma',
-        'aarav patel', 'kabir singh', 'vivaan joshi', 'rohan gupta', 'aditya verma', 'arjun mehta',
-        'reyansh deshmukh', 'atharv kulkarni', 'vihaan saxena', 'ananya roy', 'diya kumar',
-        'sanya malhotra', 'myra kapoor', 'isha bhatia', 'kavya sharma', 'riya sen', 'avani reddy',
-        'devansh reddy', 'ishaan nair', 'reyansh rao', 'yash vardhan', 'pari choudhary',
-        'nisha agarwal', 'simran gill', 'tanvi shah', 'meera iyer',
-        'aarav sharma', 'karan patel', 'mohammed zaid', 'rahul varma', 'vikram singh',
-        'ananya deshmukh', 'pooja hegde', 'sneha kulkarni', "rhea d'souza", 'rohan nair',
-        'aditya joshi', 'pranav bhat', 'arjun rao', 'varun kumar', 'manjunath reddy',
-        'chetan kumar', 'darshan hegde', 'rohit verma', 'jin park', 'lucas silva',
-        'mateo rossi', 'tyler vance', 'kai takahashi', 'dmitri voronov', "liam o'connor",
-        'marcus chen', 'sofia al-mansoor', 'camila rodriguez', 'chloe zhang', 'amina diallo', 'yuki tanaka',
-        'anjanaya', 'biraj rokaja', 'charls', 'darshan.b', 'dhanush', 'hrithik', 'jeevanth', 'manikanta', 'maruthi',
-        'mohith kumar.m', 'nanda kishore', 'prajwal.g', 'praveen', 'punith', 'roshan', 'sai tharun', 'sanjay gowda',
-        'sharan', 'sumanth', 'yashvanth.m', 'yogesh',
+        'oussama oueslati', 'steven lopez', 'aaron cook', 'nikita rafalovich',
         'sameer', 'purvi', 'darshan', 'ath-405901'
     ]);
 
@@ -2021,8 +1992,7 @@
         const id = String(c.id || '').toLowerCase();
         const athId = String(c.athleteId || '').toLowerCase();
         const club = String(c.club || '').trim().toLowerCase();
-        if (id.startsWith('ath-demo-') || athId.startsWith('ath-1082') || id === 'ath-405901' || athId === 'ath-405901') return true;
-        if (id.startsWith('dasara') || id.startsWith('ath-dasara') || id.startsWith('player_') || athId.startsWith('ind-560')) return true;
+        if (id.startsWith('ath-demo-') || athId.startsWith('ath-demo-') || id === 'ath-405901' || athId === 'ath-405901') return true;
         if (MOCK_SAMPLE_NAMES.has(n)) return true;
         if ((club === 'd taekwondo academy' || club === 'darshan a') && (n === 'sameer' || n === 'purvi' || n === 'darshan' || n === 'ath-405901')) return true;
         return false;
@@ -14608,7 +14578,7 @@
 
                 <!-- Full Embedded Draws Engine Iframe -->
                 <div class="relative w-full bg-slate-900 rounded-2xl overflow-hidden shadow-lg border border-slate-200">
-                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=474" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
+                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=475" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
                 </div>
             </div>
         `;
