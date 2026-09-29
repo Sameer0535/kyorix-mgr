@@ -38,7 +38,7 @@ let _memSettings = {
     bankName: 'Kotak Mahindra Bank'
 };
 
-const SERVER_DATA_VERSION = 'v18_clean_real_athletes';
+const SERVER_DATA_VERSION = 'v20_clean_no_demo';
 const VERSION_FILE = path.join(DATA_DIR, 'version.txt');
 
 function initStorage() {
@@ -65,6 +65,21 @@ function initStorage() {
                 fs.copyFileSync(SEED_ATHLETES_FILE, ATHLETES_FILE);
             } else {
                 fs.writeFileSync(ATHLETES_FILE, '[]', 'utf8');
+            }
+            if (fs.existsSync(SEED_COMPETITORS_FILE)) {
+                fs.copyFileSync(SEED_COMPETITORS_FILE, COMPETITORS_FILE);
+            } else {
+                fs.writeFileSync(COMPETITORS_FILE, '[]', 'utf8');
+            }
+            if (fs.existsSync(SEED_BRACKETS_FILE)) {
+                fs.copyFileSync(SEED_BRACKETS_FILE, BRACKETS_FILE);
+            } else {
+                fs.writeFileSync(BRACKETS_FILE, '{}', 'utf8');
+            }
+            if (fs.existsSync(SEED_COURTS_FILE)) {
+                fs.copyFileSync(SEED_COURTS_FILE, COURTS_FILE);
+            } else {
+                fs.writeFileSync(COURTS_FILE, '{}', 'utf8');
             }
             try { fs.writeFileSync(VERSION_FILE, SERVER_DATA_VERSION, 'utf8'); } catch (e) {}
         }
@@ -114,17 +129,15 @@ function getBracketsServer() {
 
 function saveBracketsServer(incoming) {
     if (!incoming || typeof incoming !== 'object') return false;
-    const existing = getBracketsServer() || {};
-    const merged = { ...existing };
-    for (const [k, v] of Object.entries(incoming)) {
-        if (Array.isArray(v) && v.length > 0) {
-            merged[k] = v;
-        }
+    if (Object.keys(incoming).length === 0) {
+        _memBrackets = {};
+        _lastSyncTimestamp = Date.now();
+        try {
+            fs.writeFileSync(BRACKETS_FILE, '{}', 'utf8');
+        } catch (e) {}
+        return true;
     }
-    if (existing['Male_Dasara_Under_56kg'] && (!merged['Male_Dasara_Under_56kg'] || merged['Male_Dasara_Under_56kg'].length === 0)) {
-        merged['Male_Dasara_Under_56kg'] = existing['Male_Dasara_Under_56kg'];
-    }
-    _memBrackets = merged;
+    _memBrackets = incoming;
     _lastSyncTimestamp = Date.now();
     try {
         fs.writeFileSync(BRACKETS_FILE, JSON.stringify(_memBrackets, null, 2), 'utf8');
@@ -143,18 +156,15 @@ function getCompetitorsServer() {
 
 function saveCompetitorsServer(incoming) {
     if (!incoming || !Array.isArray(incoming)) return false;
-    const existing = getCompetitorsServer() || [];
-    const compMap = new Map();
-    existing.forEach(c => {
-        if (c && (c.id || c.name)) compMap.set((c.id || c.name).toLowerCase().trim(), c);
-    });
-    incoming.forEach(c => {
-        if (c && (c.id || c.name)) {
-            const k = (c.id || c.name).toLowerCase().trim();
-            compMap.set(k, { ...(compMap.get(k) || {}), ...c });
-        }
-    });
-    _memCompetitors = Array.from(compMap.values());
+    if (incoming.length === 0) {
+        _memCompetitors = [];
+        _lastSyncTimestamp = Date.now();
+        try {
+            fs.writeFileSync(COMPETITORS_FILE, '[]', 'utf8');
+        } catch (e) {}
+        return true;
+    }
+    _memCompetitors = incoming;
     _lastSyncTimestamp = Date.now();
     try {
         fs.writeFileSync(COMPETITORS_FILE, JSON.stringify(_memCompetitors, null, 2), 'utf8');

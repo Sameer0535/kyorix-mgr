@@ -320,6 +320,9 @@
                         'ananya deshmukh', 'pooja hegde', 'sneha kulkarni', "rhea d'souza", 'rohan nair',
                         'aditya joshi', 'pranav bhat', 'arjun rao', 'varun kumar', 'manjunath reddy',
                         'chetan kumar', 'darshan hegde', 'rohit verma',
+                        'anjanaya', 'biraj rokaja', 'charls', 'darshan.b', 'dhanush', 'hrithik', 'jeevanth', 'manikanta', 'maruthi',
+                        'mohith kumar.m', 'nanda kishore', 'prajwal.g', 'praveen', 'punith', 'roshan', 'sai tharun', 'sanjay gowda',
+                        'sharan', 'sumanth', 'yashvanth.m', 'yogesh',
                         'sameer', 'purvi', 'darshan', 'ath-405901'
                     ]);
                     const filteredC = parsedC.filter(c => {
@@ -329,6 +332,8 @@
                         const n = (c.name || '').trim().toLowerCase();
                         const club = (c.club || '').trim().toLowerCase();
                         if (id.startsWith('ath-demo-') || athId.startsWith('ath-1082') || id === 'ath-405901' || athId === 'ath-405901') return false;
+                        if (id.startsWith('dasara') || id.startsWith('ath-dasara') || id.startsWith('player_') || athId.startsWith('ind-560')) return false;
+                        if (n.startsWith('player ') || n.startsWith('competitor ')) return false;
                         if (demoCompNames.has(n)) return false;
                         if ((club === 'd taekwondo academy' || club === 'darshan a') && (n === 'sameer' || n === 'purvi' || n === 'darshan' || n === 'ath-405901')) return false;
                         return true;
@@ -1982,7 +1987,7 @@
         const s = (a.status || '').toString().trim().toLowerCase();
         const ws = (a.weighInStatus || '').toString().trim().toLowerCase();
         if (s === 'passed' || ws === 'passed' || s === 'active' || s === 'approved') return true;
-        if (a.source === 'draws_manual' || (a.id && String(a.id).startsWith('dasara_')) || (a.athleteId && String(a.athleteId).startsWith('IND-560'))) return true;
+        if (a.source === 'draws_manual') return true;
         return false;
     }
     window.isAthletePassed = isAthletePassed;
@@ -2004,6 +2009,9 @@
         'chetan kumar', 'darshan hegde', 'rohit verma', 'jin park', 'lucas silva',
         'mateo rossi', 'tyler vance', 'kai takahashi', 'dmitri voronov', "liam o'connor",
         'marcus chen', 'sofia al-mansoor', 'camila rodriguez', 'chloe zhang', 'amina diallo', 'yuki tanaka',
+        'anjanaya', 'biraj rokaja', 'charls', 'darshan.b', 'dhanush', 'hrithik', 'jeevanth', 'manikanta', 'maruthi',
+        'mohith kumar.m', 'nanda kishore', 'prajwal.g', 'praveen', 'punith', 'roshan', 'sai tharun', 'sanjay gowda',
+        'sharan', 'sumanth', 'yashvanth.m', 'yogesh',
         'sameer', 'purvi', 'darshan', 'ath-405901'
     ]);
 
@@ -2014,6 +2022,8 @@
         const athId = String(c.athleteId || '').toLowerCase();
         const club = String(c.club || '').trim().toLowerCase();
         if (id.startsWith('ath-demo-') || athId.startsWith('ath-1082') || id === 'ath-405901' || athId === 'ath-405901') return true;
+        if (id.startsWith('dasara') || id.startsWith('ath-dasara') || id.startsWith('player_') || athId.startsWith('ind-560')) return true;
+        if (n.startsWith('player ') || n.startsWith('competitor ')) return true;
         if (MOCK_SAMPLE_NAMES.has(n)) return true;
         if ((club === 'd taekwondo academy' || club === 'darshan a') && (n === 'sameer' || n === 'purvi' || n === 'darshan' || n === 'ath-405901')) return true;
         return false;
@@ -2130,50 +2140,60 @@
             let updatedAny = false;
 
             // 1. Brackets Live Sync (Safe non-destructive merge)
-            if (json.brackets && typeof json.brackets === 'object' && Object.keys(json.brackets).length > 0) {
-                let curBrackets = {};
-                try { curBrackets = JSON.parse(localStorage.getItem('tkd_brackets_v3') || '{}'); } catch(e) {}
-                const mergedBrackets = { ...curBrackets, ...json.brackets };
-                if (curBrackets['Male_Dasara_Under_56kg'] && (!mergedBrackets['Male_Dasara_Under_56kg'] || mergedBrackets['Male_Dasara_Under_56kg'].length === 0)) {
-                    mergedBrackets['Male_Dasara_Under_56kg'] = curBrackets['Male_Dasara_Under_56kg'];
-                }
-                const serverBracketsStr = JSON.stringify(mergedBrackets);
-                const currentBracketsStr = localStorage.getItem('tkd_brackets_v3') || '{}';
-                if (currentBracketsStr !== serverBracketsStr) {
-                    localStorage.setItem('tkd_brackets_v3', serverBracketsStr);
-                    localStorage.setItem('tkd_match_updated', Date.now().toString());
-                    updatedAny = true;
+            if (json.brackets && typeof json.brackets === 'object') {
+                if (Object.keys(json.brackets).length === 0) {
+                    const currentBracketsStr = localStorage.getItem('tkd_brackets_v3') || '{}';
+                    if (currentBracketsStr !== '{}') {
+                        localStorage.setItem('tkd_brackets_v3', '{}');
+                        localStorage.setItem('tkd_match_updated', Date.now().toString());
+                        updatedAny = true;
+                    }
+                } else {
+                    let curBrackets = {};
+                    try { curBrackets = JSON.parse(localStorage.getItem('tkd_brackets_v3') || '{}'); } catch(e) {}
+                    const mergedBrackets = { ...curBrackets, ...json.brackets };
+                    const serverBracketsStr = JSON.stringify(mergedBrackets);
+                    const currentBracketsStr = localStorage.getItem('tkd_brackets_v3') || '{}';
+                    if (currentBracketsStr !== serverBracketsStr) {
+                        localStorage.setItem('tkd_brackets_v3', serverBracketsStr);
+                        localStorage.setItem('tkd_match_updated', Date.now().toString());
+                        updatedAny = true;
+                    }
                 }
             }
 
             // 2. Competitors Live Sync (Safe non-destructive merge)
-            if (json.competitors && Array.isArray(json.competitors) && json.competitors.length > 0) {
-                const purgeNames = new Set(['sameer', 'purvi', 'darshan', 'ath-405901']);
-                const cleanServerComps = json.competitors.filter(c => {
-                    if (!c) return false;
-                    const n = (c.name || '').trim().toLowerCase();
-                    const id = String(c.id || '').toLowerCase();
-                    return !purgeNames.has(n) && !id.includes('405901');
-                });
-                let curComps = [];
-                try { curComps = JSON.parse(localStorage.getItem('tkd_competitors_v3') || '[]'); } catch(e) {}
-                const compMap = new Map();
-                curComps.forEach(c => {
-                    if (c && (c.id || c.name)) compMap.set((c.id || c.name).toLowerCase().trim(), c);
-                });
-                cleanServerComps.forEach(c => {
-                    if (c && (c.id || c.name)) {
-                        const k = (c.id || c.name).toLowerCase().trim();
-                        compMap.set(k, { ...(compMap.get(k) || {}), ...c });
+            if (json.competitors && Array.isArray(json.competitors)) {
+                if (json.competitors.length === 0) {
+                    const currentCompsStr = localStorage.getItem('tkd_competitors_v3') || '[]';
+                    if (currentCompsStr !== '[]') {
+                        localStorage.setItem('tkd_competitors_v3', '[]');
+                        localStorage.setItem('tkd_competitors_v1', '[]');
+                        updatedAny = true;
                     }
-                });
-                const mergedComps = Array.from(compMap.values());
-                const serverCompsStr = JSON.stringify(mergedComps);
-                const currentCompsStr = localStorage.getItem('tkd_competitors_v3') || '[]';
-                if (currentCompsStr !== serverCompsStr) {
-                    localStorage.setItem('tkd_competitors_v3', serverCompsStr);
-                    localStorage.setItem('tkd_competitors_v1', serverCompsStr);
-                    updatedAny = true;
+                } else {
+                    const cleanServerComps = json.competitors.filter(c => !isMockSampleCompetitor(c));
+                    let curComps = [];
+                    try { curComps = JSON.parse(localStorage.getItem('tkd_competitors_v3') || '[]'); } catch(e) {}
+                    const cleanCurComps = curComps.filter(c => !isMockSampleCompetitor(c));
+                    const compMap = new Map();
+                    cleanCurComps.forEach(c => {
+                        if (c && (c.id || c.name)) compMap.set((c.id || c.name).toLowerCase().trim(), c);
+                    });
+                    cleanServerComps.forEach(c => {
+                        if (c && (c.id || c.name)) {
+                            const k = (c.id || c.name).toLowerCase().trim();
+                            compMap.set(k, { ...(compMap.get(k) || {}), ...c });
+                        }
+                    });
+                    const mergedComps = Array.from(compMap.values());
+                    const serverCompsStr = JSON.stringify(mergedComps);
+                    const currentCompsStr = localStorage.getItem('tkd_competitors_v3') || '[]';
+                    if (currentCompsStr !== serverCompsStr) {
+                        localStorage.setItem('tkd_competitors_v3', serverCompsStr);
+                        localStorage.setItem('tkd_competitors_v1', serverCompsStr);
+                        updatedAny = true;
+                    }
                 }
             }
 
@@ -14598,7 +14618,7 @@
 
                 <!-- Full Embedded Draws Engine Iframe -->
                 <div class="relative w-full bg-slate-900 rounded-2xl overflow-hidden shadow-lg border border-slate-200">
-                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=472" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
+                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=473" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
                 </div>
             </div>
         `;
