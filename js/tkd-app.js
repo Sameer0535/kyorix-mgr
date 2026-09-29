@@ -2595,7 +2595,7 @@
                 const iframe = document.getElementById('tkd-draws-iframe');
                 if (iframe) {
                     if (notify) {
-                        iframe.src = 'draws-app/index.html?v=465&t=' + Date.now();
+                        iframe.src = 'draws-app/index.html?v=466&t=' + Date.now();
                     } else if (iframe.contentWindow) {
                         try { iframe.contentWindow.postMessage({ type: 'TKD_RELOAD_BRACKETS' }, '*'); } catch(e) {}
                     }
@@ -14613,7 +14613,7 @@
 
                 <!-- Full Embedded Draws Engine Iframe -->
                 <div class="relative w-full bg-slate-900 rounded-2xl overflow-hidden shadow-lg border border-slate-200">
-                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=465" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
+                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=466" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
                 </div>
             </div>
         `;
