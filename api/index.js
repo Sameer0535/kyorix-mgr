@@ -38,7 +38,7 @@ let _memSettings = {
     bankName: 'Kotak Mahindra Bank'
 };
 
-const SERVER_DATA_VERSION = 'v15_pending_weighin';
+const SERVER_DATA_VERSION = 'v18_clean_real_athletes';
 const VERSION_FILE = path.join(DATA_DIR, 'version.txt');
 
 function initStorage() {
