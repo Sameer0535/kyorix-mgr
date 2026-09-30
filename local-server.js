@@ -46,6 +46,7 @@ if (!fs.existsSync(SETTINGS_FILE)) {
 }
 
 let _localLastSyncTimestamp = Date.now();
+let _localLastClearTimestamp = 0;
 function getBracketsServer() {
     try {
         if (fs.existsSync(BRACKETS_FILE)) return JSON.parse(fs.readFileSync(BRACKETS_FILE, 'utf8'));
@@ -163,6 +164,7 @@ function getAthletesServer() {
 function saveAthletesServer(athletes) {
     try {
         fs.writeFileSync(ATHLETES_FILE, JSON.stringify(athletes, null, 2), 'utf8');
+        _localLastSyncTimestamp = Date.now();
         return true;
     } catch (e) {
         console.error('Error saving athletes:', e);
@@ -716,10 +718,29 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 200, { success: true, count: filtered.length, athletes: filtered });
     }
 
+    // 8B. DELETE /api/athletes (clear all athletes)
+    if (method === 'DELETE' && pathname === '/api/athletes') {
+        _localLastClearTimestamp = Date.now();
+        saveAthletesServer([]);
+        return sendJson(res, 200, { success: true, count: 0, message: 'All athletes cleared successfully.', clearTimestamp: _localLastClearTimestamp });
+    }
+
     // 9. POST /api/athletes
     if (method === 'POST' && pathname === '/api/athletes') {
         try {
             const body = await parseJsonBody(req);
+            if (Array.isArray(body)) {
+                if (body.length === 0) {
+                    _localLastClearTimestamp = Date.now();
+                }
+                saveAthletesServer(body);
+                return sendJson(res, 200, { success: true, count: body.length, athletes: body, clearTimestamp: _localLastClearTimestamp });
+            }
+            if (body && body.clearAll === true) {
+                _localLastClearTimestamp = Date.now();
+                saveAthletesServer([]);
+                return sendJson(res, 200, { success: true, count: 0, message: 'All athletes cleared successfully.', clearTimestamp: _localLastClearTimestamp });
+            }
             if (!body || !body.name) {
                 return sendJson(res, 400, { success: false, error: 'Athlete name is required.' });
             }
@@ -842,7 +863,9 @@ const server = http.createServer(async (req, res) => {
             brackets: getBracketsServer(),
             competitors: getCompetitorsServer(),
             divisionCourts: getCourtsServer(),
-            timestamp: _localLastSyncTimestamp
+            athletes: getAthletesServer(),
+            timestamp: _localLastSyncTimestamp,
+            clearTimestamp: _localLastClearTimestamp
         });
     }
 
@@ -850,15 +873,26 @@ const server = http.createServer(async (req, res) => {
     if (method === 'POST' && pathname === '/api/live-sync') {
         try {
             const body = await parseJsonBody(req);
-            if (body.brackets) saveBracketsServer(body.brackets);
-            if (body.competitors) saveCompetitorsServer(body.competitors);
-            if (body.divisionCourts) saveCourtsServer(body.divisionCourts);
+            if (body && body.clearAll === true) {
+                _localLastClearTimestamp = Date.now();
+                saveBracketsServer({});
+                saveCompetitorsServer([]);
+                saveCourtsServer({});
+                saveAthletesServer([]);
+            } else {
+                if (body.brackets) saveBracketsServer(body.brackets);
+                if (body.competitors) saveCompetitorsServer(body.competitors);
+                if (body.divisionCourts) saveCourtsServer(body.divisionCourts);
+                if (body.athletes) saveAthletesServer(body.athletes);
+            }
             return sendJson(res, 200, {
                 success: true,
                 timestamp: _localLastSyncTimestamp,
+                clearTimestamp: _localLastClearTimestamp,
                 brackets: getBracketsServer(),
                 competitors: getCompetitorsServer(),
-                divisionCourts: getCourtsServer()
+                divisionCourts: getCourtsServer(),
+                athletes: getAthletesServer()
             });
         } catch (err) {
             return sendJson(res, 500, { success: false, error: 'Failed to sync live data.' });

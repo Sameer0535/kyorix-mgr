@@ -204,7 +204,7 @@
         }
 
         init() {
-            const DATA_VERSION = 'v18_clean_real_athletes';
+            const DATA_VERSION = 'v26_zero_athletes_sync';
             const currentVer = localStorage.getItem('tkd_data_version');
             if (currentVer !== DATA_VERSION) {
                 // Safeguard active user session (strictly per-tab in sessionStorage), passwords, payments, templates and settings
@@ -221,11 +221,14 @@
                 let savedView = null;
                 try { savedView = sessionStorage.getItem('tkd_active_view'); } catch(e) {}
 
-                // CRITICAL FIX: NEVER wipe athlete profiles, manual draw competitors, brackets, or court assignments on refresh!
-                // PURGE legacy shared user and active view from localStorage so they never leak across tabs!
+                // Reset data version and clean slate for athletes & draws
                 localStorage.removeItem('tkd_user');
                 localStorage.removeItem('tkd_active_view');
-
+                localStorage.setItem('tkd_athletes', JSON.stringify([]));
+                localStorage.setItem('tkd_competitors_v3', JSON.stringify([]));
+                localStorage.setItem('tkd_competitors_v1', JSON.stringify([]));
+                localStorage.setItem('tkd_brackets_v3', JSON.stringify({}));
+                localStorage.setItem('tkd_division_courts_v1', JSON.stringify({}));
                 localStorage.setItem('tkd_data_version', DATA_VERSION);
 
                 if (savedUser) {
@@ -310,7 +313,19 @@
                         'lee dae-hoon', 'alexei denisenko', 'joel gonzalez', 'servet tazegul', 'ahmad abughaush',
                         'jade jones', 'eva calvo', 'hedaya malak', 'kimia alizadeh', 'marc-andre', 'park tae-joon',
                         "vito dell'aquila", 'cheick sallah cisse', 'lutalo muhammad', 'milad beigi', 'albert gaun',
-                        'oussama oueslati', 'steven lopez', 'aaron cook', 'nikita rafalovich',
+                        'oussama oueslati', 'steven lopez', 'aaron cook', 'nikita rafalovich', 'rahul sharma',
+                        'aarav patel', 'kabir singh', 'vivaan joshi', 'rohan gupta', 'aditya verma', 'arjun mehta',
+                        'reyansh deshmukh', 'atharv kulkarni', 'vihaan saxena', 'ananya roy', 'diya kumar',
+                        'sanya malhotra', 'myra kapoor', 'isha bhatia', 'kavya sharma', 'riya sen', 'avani reddy',
+                        'devansh reddy', 'ishaan nair', 'reyansh rao', 'yash vardhan', 'pari choudhary',
+                        'nisha agarwal', 'simran gill', 'tanvi shah', 'meera iyer',
+                        'aarav sharma', 'karan patel', 'mohammed zaid', 'rahul varma', 'vikram singh',
+                        'ananya deshmukh', 'pooja hegde', 'sneha kulkarni', "rhea d'souza", 'rohan nair',
+                        'aditya joshi', 'pranav bhat', 'arjun rao', 'varun kumar', 'manjunath reddy',
+                        'chetan kumar', 'darshan hegde', 'rohit verma',
+                        'anjanaya', 'biraj rokaja', 'charls', 'darshan.b', 'dhanush', 'hrithik', 'jeevanth', 'manikanta', 'maruthi',
+                        'mohith kumar.m', 'nanda kishore', 'prajwal.g', 'praveen', 'punith', 'roshan', 'sai tharun', 'sanjay gowda',
+                        'sharan', 'sumanth', 'yashvanth.m', 'yogesh',
                         'sameer', 'purvi', 'darshan', 'ath-405901'
                     ]);
                     const filteredC = parsedC.filter(c => {
@@ -320,6 +335,9 @@
                         const n = (c.name || '').trim().toLowerCase();
                         const club = (c.club || '').trim().toLowerCase();
                         if (id.startsWith('ath-demo-') || athId.startsWith('ath-1082') || id === 'ath-405901' || athId === 'ath-405901') return false;
+                        if (id.startsWith('dasara') || id.startsWith('ath-dasara') || id.startsWith('player_') || athId.startsWith('ind-560')) return false;
+                        if (n.startsWith('player ') || n.startsWith('competitor ')) return false;
+                        if (demoCompNames.has(n)) return false;
                         if ((club === 'd taekwondo academy' || club === 'darshan a') && (n === 'sameer' || n === 'purvi' || n === 'darshan' || n === 'ath-405901')) return false;
                         return true;
                     });
@@ -1982,7 +2000,21 @@
         'lee dae-hoon', 'alexei denisenko', 'joel gonzalez', 'servet tazegul', 'ahmad abughaush',
         'jade jones', 'eva calvo', 'hedaya malak', 'kimia alizadeh', 'marc-andre', 'park tae-joon',
         "vito dell'aquila", 'cheick sallah cisse', 'lutalo muhammad', 'milad beigi', 'albert gaun',
-        'oussama oueslati', 'steven lopez', 'aaron cook', 'nikita rafalovich',
+        'oussama oueslati', 'steven lopez', 'aaron cook', 'nikita rafalovich', 'rahul sharma',
+        'aarav patel', 'kabir singh', 'vivaan joshi', 'rohan gupta', 'aditya verma', 'arjun mehta',
+        'reyansh deshmukh', 'atharv kulkarni', 'vihaan saxena', 'ananya roy', 'diya kumar',
+        'sanya malhotra', 'myra kapoor', 'isha bhatia', 'kavya sharma', 'riya sen', 'avani reddy',
+        'devansh reddy', 'ishaan nair', 'reyansh rao', 'yash vardhan', 'pari choudhary',
+        'nisha agarwal', 'simran gill', 'tanvi shah', 'meera iyer',
+        'aarav sharma', 'karan patel', 'mohammed zaid', 'rahul varma', 'vikram singh',
+        'ananya deshmukh', 'pooja hegde', 'sneha kulkarni', "rhea d'souza", 'rohan nair',
+        'aditya joshi', 'pranav bhat', 'arjun rao', 'varun kumar', 'manjunath reddy',
+        'chetan kumar', 'darshan hegde', 'rohit verma', 'jin park', 'lucas silva',
+        'mateo rossi', 'tyler vance', 'kai takahashi', 'dmitri voronov', "liam o'connor",
+        'marcus chen', 'sofia al-mansoor', 'camila rodriguez', 'chloe zhang', 'amina diallo', 'yuki tanaka',
+        'anjanaya', 'biraj rokaja', 'charls', 'darshan.b', 'dhanush', 'hrithik', 'jeevanth', 'manikanta', 'maruthi',
+        'mohith kumar.m', 'nanda kishore', 'prajwal.g', 'praveen', 'punith', 'roshan', 'sai tharun', 'sanjay gowda',
+        'sharan', 'sumanth', 'yashvanth.m', 'yogesh',
         'sameer', 'purvi', 'darshan', 'ath-405901'
     ]);
 
@@ -1992,7 +2024,8 @@
         const id = String(c.id || '').toLowerCase();
         const athId = String(c.athleteId || '').toLowerCase();
         const club = String(c.club || '').trim().toLowerCase();
-        if (id.startsWith('ath-demo-') || athId.startsWith('ath-demo-') || id === 'ath-405901' || athId === 'ath-405901') return true;
+        if (id.startsWith('ath-demo-') || athId.startsWith('ath-1082') || id === 'ath-405901' || athId === 'ath-405901') return true;
+        if (id.startsWith('dasara') || id.startsWith('ath-dasara') || id.startsWith('player_') || athId.startsWith('ind-560')) return true;
         if (MOCK_SAMPLE_NAMES.has(n)) return true;
         if ((club === 'd taekwondo academy' || club === 'darshan a') && (n === 'sameer' || n === 'purvi' || n === 'darshan' || n === 'ath-405901')) return true;
         return false;
@@ -2108,7 +2141,38 @@
 
             let updatedAny = false;
 
-            // 1. Brackets Live Sync (Safe non-destructive merge)
+            // 0. Simultaneous Global Clear Event across devices
+            if (json.clearTimestamp && json.clearTimestamp > (window._localLastClearTimestamp || 0)) {
+                window._localLastClearTimestamp = json.clearTimestamp;
+                localStorage.setItem('tkd_athletes', '[]');
+                localStorage.setItem('tkd_competitors_v3', '[]');
+                localStorage.setItem('tkd_competitors_v1', '[]');
+                localStorage.setItem('tkd_brackets_v3', '{}');
+                localStorage.setItem('tkd_division_courts_v1', '{}');
+                if (typeof store !== 'undefined') {
+                    store.athletes = [];
+                    if (typeof store.notify === 'function') store.notify();
+                }
+                updatedAny = true;
+            }
+
+            // 1. Athletes Live Sync across devices
+            if (json.athletes && Array.isArray(json.athletes)) {
+                if (json.athletes.length > 0) {
+                    const serverAthletesStr = JSON.stringify(json.athletes);
+                    const currentAthletesStr = localStorage.getItem('tkd_athletes') || '[]';
+                    if (currentAthletesStr !== serverAthletesStr) {
+                        localStorage.setItem('tkd_athletes', serverAthletesStr);
+                        if (typeof store !== 'undefined') {
+                            store.athletes = json.athletes;
+                            if (typeof store.notify === 'function') store.notify();
+                        }
+                        updatedAny = true;
+                    }
+                }
+            }
+
+            // 2. Brackets Live Sync (Safe non-destructive merge)
             if (json.brackets && typeof json.brackets === 'object') {
                 if (Object.keys(json.brackets).length === 0) {
                     const currentBracketsStr = localStorage.getItem('tkd_brackets_v3') || '{}';
@@ -2131,8 +2195,9 @@
                 }
             }
 
-            // 2. Competitors Live Sync (Safe non-destructive merge)
-            if (json.competitors && Array.isArray(json.competitors) && json.competitors.length > 0) {
+            // 3. Competitors Live Sync (Safe non-destructive merge)
+            if (json.competitors && Array.isArray(json.competitors)) {
+                if (json.competitors.length > 0) {
                     const cleanServerComps = json.competitors.filter(c => !isMockSampleCompetitor(c));
                     let curComps = [];
                     try { curComps = JSON.parse(localStorage.getItem('tkd_competitors_v3') || '[]'); } catch(e) {}
@@ -2156,8 +2221,9 @@
                         updatedAny = true;
                     }
                 }
+            }
 
-            // 3. Division Courts Live Sync
+            // 4. Division Courts Live Sync
             if (json.divisionCourts && typeof json.divisionCourts === 'object' && Object.keys(json.divisionCourts).length > 0) {
                 const serverCourtsStr = JSON.stringify(json.divisionCourts);
                 const currentCourtsStr = localStorage.getItem('tkd_division_courts_v1') || '{}';
@@ -2171,7 +2237,13 @@
                 // Reactive update for Draws iframe
                 const drawsIframe = document.getElementById('tkd-draws-iframe');
                 if (drawsIframe && drawsIframe.contentWindow) {
-                    try { drawsIframe.contentWindow.postMessage({ type: 'TKD_RELOAD_BRACKETS', competitors: json.competitors, brackets: json.brackets, courts: json.divisionCourts }, '*'); } catch(e) {}
+                    try { drawsIframe.contentWindow.postMessage({ type: 'TKD_RELOAD_BRACKETS', competitors: json.competitors, brackets: json.brackets, courts: json.divisionCourts, clearAll: !!(json.clearTimestamp && json.clearTimestamp >= (window._localLastClearTimestamp || 0)) }, '*'); } catch(e) {}
+                }
+                // Reactive update for Organizer Athletes view if currently active
+                const mainContainer = document.getElementById('main-content');
+                const currentUser = (typeof store !== 'undefined') ? store.getCurrentUser() : null;
+                if (currentUser && currentUser.role === 'organizer' && window._currentOrgSubTab === 'athletes' && typeof renderOrganizerDashboard === 'function') {
+                    renderOrganizerDashboard(mainContainer, 'athletes', currentUser);
                 }
                 // Reactive update for Jury section ONLY if currently active on screen
                 const isJuryVisible = window.location.hash === '#jury' || document.getElementById('tkd-jury-main-container');
@@ -9479,6 +9551,123 @@
             document.getElementById('btn-print-all-ath-roster')?.addEventListener('click', () => {
                 printAllAthleteCards(null);
             });
+
+            // Clear All Athletes button handler
+            document.getElementById('btn-clear-all-athletes-roster')?.addEventListener('click', () => {
+                if (!confirm('Are you sure you want to completely CLEAR ALL athletes from the roster and tournament draws? This will remove all competitors on ALL devices.')) return;
+                
+                // 1. Reset local storage
+                localStorage.setItem('tkd_athletes', JSON.stringify([]));
+                localStorage.setItem('tkd_competitors_v3', JSON.stringify([]));
+                localStorage.setItem('tkd_competitors_v1', JSON.stringify([]));
+                localStorage.setItem('tkd_brackets_v3', JSON.stringify({}));
+                localStorage.setItem('tkd_division_courts_v1', JSON.stringify({}));
+                
+                // 2. Reset in-memory store
+                store.athletes = [];
+                store.notify();
+
+                // 3. Delete on server (both /api/athletes and /api/live-sync)
+                fetch('/api/athletes', { method: 'DELETE' }).catch(() => {});
+                fetch('/api/live-sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ athletes: [], competitors: [], brackets: {}, divisionCourts: {}, clearAll: true })
+                }).catch(() => {});
+
+                // 4. Notify draws iframe
+                const drawsIframe = document.getElementById('tkd-draws-iframe');
+                if (drawsIframe && drawsIframe.contentWindow) {
+                    try { drawsIframe.contentWindow.postMessage({ type: 'TKD_CLEAR_ALL_DATA' }, '*'); } catch(e) {}
+                }
+
+                if (typeof showToast === 'function') showToast('All athletes and tournament draws have been cleared successfully across all devices.', 'success');
+
+                // 5. Re-render UI
+                const mainContainer = document.getElementById('main-content');
+                const currentUser = store.getCurrentUser();
+                if (currentUser && currentUser.role === 'organizer') {
+                    renderOrganizerDashboard(mainContainer, 'athletes', currentUser);
+                } else if (currentUser && currentUser.role === 'admin') {
+                    renderAdminDashboard(mainContainer, 'athletes', currentUser);
+                }
+            });
+
+            // Import Athletes JSON handler
+            document.getElementById('input-import-ath-roster-json')?.addEventListener('change', (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (re) => {
+                    try {
+                        const parsed = JSON.parse(re.target.result);
+                        const rawList = Array.isArray(parsed) ? parsed : (parsed.athletes || parsed.competitors || []);
+                        if (!Array.isArray(rawList) || rawList.length === 0) {
+                            alert('No athletes found in the selected JSON file. File must contain an array or an "athletes"/"competitors" property.');
+                            return;
+                        }
+                        const activeTourn = store.getActiveTournament ? (store.getActiveTournament() || {}) : {};
+                        const tournId = activeTourn.id || 'tourn-state-2026';
+                        const cleanAthletes = rawList.map((a, idx) => {
+                            const isFem = (a.gender === 'Female' || a.gender === 'F');
+                            return {
+                                id: a.id || ('ath-' + Date.now().toString(36) + '-' + idx),
+                                athleteId: a.athleteId || ('ATH-' + Math.floor(100000 + Math.random() * 900000)),
+                                name: a.name || `Competitor ${idx + 1}`,
+                                gender: isFem ? 'Female' : 'Male',
+                                category: a.category || a.ageCategory || 'Senior',
+                                ageCategory: a.ageCategory || a.category || 'Senior',
+                                weightClass: a.weightClass || (isFem ? 'Under 49kg' : 'Under 68kg'),
+                                weight: parseFloat(a.weight) || (isFem ? 48.5 : 67.2),
+                                measuredWeight: a.measuredWeight || null,
+                                dojangName: a.dojangName || a.club || 'Individual Competitor',
+                                dojangId: a.dojangId || 'ind-competitor',
+                                dojangCode: a.dojangCode || 'IND',
+                                belt: a.belt || a.rank || '1st Dan',
+                                beltId: a.beltId || 'dan-1',
+                                country: a.country || 'IND',
+                                status: a.status || 'Pending',
+                                weighInStatus: a.weighInStatus || a.status || 'Pending',
+                                paymentStatus: a.paymentStatus || 'Pending',
+                                feeStatus: a.feeStatus || 'Pending',
+                                docStatus: a.docStatus || 'Pending',
+                                tournId: tournId,
+                                registeredTournaments: [tournId]
+                            };
+                        });
+
+                        // Save locally
+                        localStorage.setItem('tkd_athletes', JSON.stringify(cleanAthletes));
+                        store.athletes = cleanAthletes;
+                        store.notify();
+
+                        // Push to server
+                        fetch('/api/athletes', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(cleanAthletes)
+                        }).catch(() => {});
+
+                        // Also map to draws and push live-sync
+                        if (typeof syncTournamentAthletesToDraws === 'function') {
+                            syncTournamentAthletesToDraws(false);
+                        }
+
+                        if (typeof showToast === 'function') showToast(`Successfully imported ${cleanAthletes.length} athletes!`, 'success');
+
+                        const mainContainer = document.getElementById('main-content');
+                        const currentUser = store.getCurrentUser();
+                        if (currentUser && currentUser.role === 'organizer') {
+                            renderOrganizerDashboard(mainContainer, 'athletes', currentUser);
+                        } else if (currentUser && currentUser.role === 'admin') {
+                            renderAdminDashboard(mainContainer, 'athletes', currentUser);
+                        }
+                    } catch(err) {
+                        alert('Error parsing JSON file: ' + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            });
         }, 50);
 
         return `
@@ -9492,6 +9681,13 @@
                         <p class="text-xs text-slate-600 font-medium">Athletes registered for <strong class="text-slate-800">${tournTitle}</strong> with Belt ranks, weigh-in scale checks, and printable ID accreditation cards.</p>
                     </div>
                     <div class="flex flex-wrap gap-2">
+                        <label class="tkd-btn tkd-btn-xs tkd-btn-outline font-bold cursor-pointer" title="Import athletes from JSON file">
+                            <i class="fa-solid fa-file-import me-1.5 text-blue-600"></i>Import Roster
+                            <input type="file" id="input-import-ath-roster-json" accept=".json" style="display: none;">
+                        </label>
+                        <button class="tkd-btn tkd-btn-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 shadow-2xs" id="btn-clear-all-athletes-roster" title="Wipe entire athlete roster and draws across all devices">
+                            <i class="fa-solid fa-trash-can me-1.5"></i>Clear All Athletes
+                        </button>
                         <button class="tkd-btn tkd-btn-xs tkd-btn-blue font-bold shadow-xs" id="btn-print-all-ath-roster">
                             <i class="fa-solid fa-id-card-clip me-1.5"></i>Print All Passes
                         </button>
@@ -16026,6 +16222,29 @@
             } else {
                 document.querySelectorAll('.jury-conduct-modal-overlay, #tkd-jury-conduct-modal').forEach(m => m.remove());
             }
+        }
+        if (e.data.type === 'TKD_CLEAR_ALL_DATA') {
+            localStorage.setItem('tkd_athletes', JSON.stringify([]));
+            localStorage.setItem('tkd_competitors_v3', JSON.stringify([]));
+            localStorage.setItem('tkd_competitors_v1', JSON.stringify([]));
+            localStorage.setItem('tkd_brackets_v3', JSON.stringify({}));
+            localStorage.setItem('tkd_division_courts_v1', JSON.stringify({}));
+            if (typeof store !== 'undefined') {
+                store.athletes = [];
+                if (typeof store.notify === 'function') store.notify();
+            }
+            fetch('/api/athletes', { method: 'DELETE' }).catch(() => {});
+            fetch('/api/live-sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ athletes: [], competitors: [], brackets: {}, divisionCourts: {}, clearAll: true })
+            }).catch(() => {});
+            const mainContainer = document.getElementById('main-content');
+            const currentUser = (typeof store !== 'undefined') ? store.getCurrentUser() : null;
+            if (currentUser && currentUser.role === 'organizer' && typeof renderOrganizerDashboard === 'function') {
+                renderOrganizerDashboard(mainContainer, 'athletes', currentUser);
+            }
+            return;
         }
         if (e.data.type === 'TKD_DRAWS_UPDATED' || e.data.type === 'TKD_COMPETITORS_UPDATED' || e.data.type === 'TKD_COURTS_UPDATED') {
             if (e.data.competitors && Array.isArray(e.data.competitors)) {
