@@ -53,9 +53,10 @@ function getBracketsServer() {
     } catch(e) {}
     return {};
 }
-function saveBracketsServer(incoming) {
+function saveBracketsServer(incoming, isClearAll = false) {
     if (!incoming || typeof incoming !== 'object') return false;
     if (Object.keys(incoming).length === 0) {
+        if (!isClearAll) return false;
         _localLastSyncTimestamp = Date.now();
         try { fs.writeFileSync(BRACKETS_FILE, '{}', 'utf8'); } catch(e) {}
         return true;
@@ -70,9 +71,10 @@ function getCompetitorsServer() {
     } catch(e) {}
     return [];
 }
-function saveCompetitorsServer(incoming) {
+function saveCompetitorsServer(incoming, isClearAll = false) {
     if (!incoming || !Array.isArray(incoming)) return false;
     if (incoming.length === 0) {
+        if (!isClearAll) return false;
         _localLastSyncTimestamp = Date.now();
         try { fs.writeFileSync(COMPETITORS_FILE, '[]', 'utf8'); } catch(e) {}
         return true;
@@ -873,15 +875,16 @@ const server = http.createServer(async (req, res) => {
     if (method === 'POST' && pathname === '/api/live-sync') {
         try {
             const body = await parseJsonBody(req);
-            if (body && body.clearAll === true) {
+            const isClearAll = !!(body && body.clearAll === true);
+            if (isClearAll) {
                 _localLastClearTimestamp = Date.now();
-                saveBracketsServer({});
-                saveCompetitorsServer([]);
+                saveBracketsServer({}, true);
+                saveCompetitorsServer([], true);
                 saveCourtsServer({});
                 saveAthletesServer([]);
             } else {
-                if (body.brackets) saveBracketsServer(body.brackets);
-                if (body.competitors) saveCompetitorsServer(body.competitors);
+                if (body.brackets) saveBracketsServer(body.brackets, false);
+                if (body.competitors) saveCompetitorsServer(body.competitors, false);
                 if (body.divisionCourts) saveCourtsServer(body.divisionCourts);
                 if (body.athletes) saveAthletesServer(body.athletes);
             }

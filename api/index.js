@@ -124,9 +124,10 @@ function getBracketsServer() {
     return _memBrackets || {};
 }
 
-function saveBracketsServer(incoming) {
+function saveBracketsServer(incoming, isClearAll = false) {
     if (!incoming || typeof incoming !== 'object') return false;
     if (Object.keys(incoming).length === 0) {
+        if (!isClearAll) return false;
         _memBrackets = {};
         _lastSyncTimestamp = Date.now();
         try {
@@ -151,9 +152,10 @@ function getCompetitorsServer() {
     return _memCompetitors || [];
 }
 
-function saveCompetitorsServer(incoming) {
+function saveCompetitorsServer(incoming, isClearAll = false) {
     if (!incoming || !Array.isArray(incoming)) return false;
     if (incoming.length === 0) {
+        if (!isClearAll) return false;
         _memCompetitors = [];
         _lastSyncTimestamp = Date.now();
         try {
@@ -940,15 +942,16 @@ module.exports = async function handler(req, res) {
     if (method === 'POST' && pathname === '/api/live-sync') {
         try {
             const body = await parseJsonBody(req);
-            if (body && body.clearAll === true) {
+            const isClearAll = !!(body && body.clearAll === true);
+            if (isClearAll) {
                 _lastClearTimestamp = Date.now();
-                saveBracketsServer({});
-                saveCompetitorsServer([]);
+                saveBracketsServer({}, true);
+                saveCompetitorsServer([], true);
                 saveCourtsServer({});
                 saveAthletesServer([]);
             } else {
-                if (body.brackets) saveBracketsServer(body.brackets);
-                if (body.competitors) saveCompetitorsServer(body.competitors);
+                if (body.brackets) saveBracketsServer(body.brackets, false);
+                if (body.competitors) saveCompetitorsServer(body.competitors, false);
                 if (body.divisionCourts) saveCourtsServer(body.divisionCourts);
                 if (body.athletes) saveAthletesServer(body.athletes);
             }

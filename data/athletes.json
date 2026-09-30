@@ -1,1 +1,86 @@
-[]
+[
+  {
+    "id": "ath-dasara-1",
+    "athleteId": "ATH-5601",
+    "name": "Anjanaya",
+    "dojangName": "Kta",
+    "dojangId": "dojang-kta",
+    "dojangCode": "KTA",
+    "gender": "Male",
+    "category": "Dasara",
+    "weightClass": "Under 56kg",
+    "weight": 55.2,
+    "beltName": "Black Belt",
+    "status": "Approved",
+    "weighInStatus": "Passed",
+    "paymentStatus": "Paid",
+    "feeStatus": "Paid",
+    "tournId": "tourn-state-2026",
+    "registeredTournaments": [
+      "tourn-state-2026"
+    ]
+  },
+  {
+    "id": "ath-dasara-2",
+    "athleteId": "ATH-5602",
+    "name": "Biraj Rokaja",
+    "dojangName": "Dominant",
+    "dojangId": "dojang-dominant",
+    "dojangCode": "DOM",
+    "gender": "Male",
+    "category": "Dasara",
+    "weightClass": "Under 56kg",
+    "weight": 54.8,
+    "beltName": "Black Belt",
+    "status": "Approved",
+    "weighInStatus": "Passed",
+    "paymentStatus": "Paid",
+    "feeStatus": "Paid",
+    "tournId": "tourn-state-2026",
+    "registeredTournaments": [
+      "tourn-state-2026"
+    ]
+  },
+  {
+    "id": "ath-dasara-3",
+    "athleteId": "ATH-5603",
+    "name": "Umar Sharieff",
+    "dojangName": "Kta",
+    "dojangId": "dojang-kta",
+    "dojangCode": "KTA",
+    "gender": "Male",
+    "category": "Dasara",
+    "weightClass": "Under 56kg",
+    "weight": 55.5,
+    "beltName": "Black Belt",
+    "status": "Approved",
+    "weighInStatus": "Passed",
+    "paymentStatus": "Paid",
+    "feeStatus": "Paid",
+    "tournId": "tourn-state-2026",
+    "registeredTournaments": [
+      "tourn-state-2026"
+    ]
+  },
+  {
+    "id": "ath-dasara-4",
+    "athleteId": "ATH-5604",
+    "name": "Charls",
+    "dojangName": "Ksta",
+    "dojangId": "dojang-ksta",
+    "dojangCode": "KSTA",
+    "gender": "Male",
+    "category": "Dasara",
+    "weightClass": "Under 56kg",
+    "weight": 54.5,
+    "beltName": "Black Belt",
+    "status": "Approved",
+    "weighInStatus": "Passed",
+    "paymentStatus": "Paid",
+    "feeStatus": "Paid",
+    "tournId": "tourn-state-2026",
+    "registeredTournaments": [
+      "tourn-state-2026"
+    ]
+  }
+]
