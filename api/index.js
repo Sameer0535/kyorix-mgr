@@ -39,7 +39,7 @@ let _memSettings = {
     bankName: 'Kotak Mahindra Bank'
 };
 
-const SERVER_DATA_VERSION = 'v20_clean_no_demo';
+const SERVER_DATA_VERSION = 'v28_zero_athletes_academies';
 const VERSION_FILE = path.join(DATA_DIR, 'version.txt');
 
 function initStorage() {
@@ -48,11 +48,7 @@ function initStorage() {
             fs.mkdirSync(DATA_DIR, { recursive: true });
         }
         if (!fs.existsSync(PAYMENTS_FILE)) {
-            if (fs.existsSync(SEED_PAYMENTS_FILE)) {
-                fs.copyFileSync(SEED_PAYMENTS_FILE, PAYMENTS_FILE);
-            } else {
-                fs.writeFileSync(PAYMENTS_FILE, '[]', 'utf8');
-            }
+            fs.writeFileSync(PAYMENTS_FILE, '[]', 'utf8');
         }
         let currentVer = '';
         try {

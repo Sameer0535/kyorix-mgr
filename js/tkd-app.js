@@ -38,86 +38,7 @@
         }
     ];
 
-    const SEED_DOJANGS = [
-        {
-            id: 'dojang-tiger',
-            name: 'Tiger Martial Arts Academy',
-            shortCode: 'TMA',
-            uid: 'TMA-01',
-            city: 'Bengaluru',
-            state: 'Karnataka',
-            masterName: 'Master Rajesh Kumar',
-            coachName: 'Coach Rajesh Kumar',
-            phone: '+91 9845012345',
-            email: 'tiger@tkd.in',
-            registeredTournaments: ['tourn-state-2026']
-        },
-        {
-            id: 'dojang-dragon',
-            name: 'Dragon Fist Taekwondo Club',
-            shortCode: 'DFC',
-            uid: 'DFC-02',
-            city: 'Mysuru',
-            state: 'Karnataka',
-            masterName: 'Master Suresh Gowda',
-            coachName: 'Coach Suresh Gowda',
-            phone: '+91 9845023456',
-            email: 'dragon@tkd.in',
-            registeredTournaments: ['tourn-state-2026']
-        },
-        {
-            id: 'dojang-garuda',
-            name: 'Garuda Warriors Taekwondo Club',
-            shortCode: 'GWC',
-            uid: 'GWC-03',
-            city: 'Hubballi',
-            state: 'Karnataka',
-            masterName: 'Master Vinay Patil',
-            coachName: 'Coach Vinay Patil',
-            phone: '+91 9845034567',
-            email: 'garuda@tkd.in',
-            registeredTournaments: ['tourn-state-2026']
-        },
-        {
-            id: 'dojang-shivamogga',
-            name: 'Shivamogga Taekwondo Club',
-            shortCode: 'STC',
-            uid: 'STC-04',
-            city: 'Shivamogga',
-            state: 'Karnataka',
-            masterName: 'Master Nagendra Hegde',
-            coachName: 'Coach Nagendra Hegde',
-            phone: '+91 9845045678',
-            email: 'shivamogga@tkd.in',
-            registeredTournaments: ['tourn-state-2026']
-        },
-        {
-            id: 'dojang-ballari',
-            name: 'Ballari Taekwondo Club',
-            shortCode: 'BTC',
-            uid: 'BTC-05',
-            city: 'Ballari',
-            state: 'Karnataka',
-            masterName: 'Master Santosh Verma',
-            coachName: 'Coach Santosh Verma',
-            phone: '+91 9845056789',
-            email: 'ballari@tkd.in',
-            registeredTournaments: ['tourn-state-2026']
-        },
-        {
-            id: 'dojang-mangalore',
-            name: 'Mangalore Taekwondo Academy',
-            shortCode: 'MTA',
-            uid: 'MTA-06',
-            city: 'Mangaluru',
-            state: 'Karnataka',
-            masterName: 'Master Anand Rao',
-            coachName: 'Coach Anand Rao',
-            phone: '+91 9845067890',
-            email: 'mangalore@tkd.in',
-            registeredTournaments: ['tourn-state-2026']
-        }
-    ];
+    const SEED_DOJANGS = [];
     const SEED_COACHES = [];
 
     
@@ -204,7 +125,7 @@
         }
 
         init() {
-            const DATA_VERSION = 'v26_zero_athletes_sync';
+            const DATA_VERSION = 'v28_zero_athletes_academies';
             const currentVer = localStorage.getItem('tkd_data_version');
             if (currentVer !== DATA_VERSION) {
                 // Safeguard active user session (strictly per-tab in sessionStorage), passwords, payments, templates and settings
@@ -221,7 +142,7 @@
                 let savedView = null;
                 try { savedView = sessionStorage.getItem('tkd_active_view'); } catch(e) {}
 
-                // Reset data version and clean slate for athletes & draws
+                // Reset data version and clean slate for athletes, academies & draws
                 localStorage.removeItem('tkd_user');
                 localStorage.removeItem('tkd_active_view');
                 localStorage.setItem('tkd_athletes', JSON.stringify([]));
@@ -229,6 +150,11 @@
                 localStorage.setItem('tkd_competitors_v1', JSON.stringify([]));
                 localStorage.setItem('tkd_brackets_v3', JSON.stringify({}));
                 localStorage.setItem('tkd_division_courts_v1', JSON.stringify({}));
+                localStorage.setItem('tkd_dojangs', JSON.stringify([]));
+                localStorage.setItem('tkd_coaches', JSON.stringify([]));
+                localStorage.setItem('tkd_upi_payments', JSON.stringify([]));
+                localStorage.setItem('tkd_fee_notifs', JSON.stringify([]));
+                localStorage.setItem('tkd_results', JSON.stringify([]));
                 localStorage.setItem('tkd_data_version', DATA_VERSION);
 
                 if (savedUser) {
@@ -236,7 +162,6 @@
                 }
                 if (savedAdminPass) localStorage.setItem('tkd_admin_pass', savedAdminPass);
                 if (savedOrgPass) localStorage.setItem('tkd_organizer_pass', savedOrgPass);
-                if (savedUpi) localStorage.setItem('tkd_upi_payments', savedUpi);
                 if (savedSettings) localStorage.setItem('tkd_payment_settings', savedSettings);
                 if (savedCertSettings) localStorage.setItem('tkd_certificate_settings', savedCertSettings);
                 if (savedCertBg) localStorage.setItem('tkd_certificate_template_bg', savedCertBg);
@@ -247,9 +172,9 @@
                 }
             }
             if (!localStorage.getItem('tkd_tournaments')) localStorage.setItem('tkd_tournaments', JSON.stringify(SEED_TOURNAMENTS));
-            if (!localStorage.getItem('tkd_dojangs'))     localStorage.setItem('tkd_dojangs',     JSON.stringify(SEED_DOJANGS));
+            if (!localStorage.getItem('tkd_dojangs'))     localStorage.setItem('tkd_dojangs',     JSON.stringify([]));
             if (!localStorage.getItem('tkd_athletes'))    localStorage.setItem('tkd_athletes',    JSON.stringify([]));
-            if (!localStorage.getItem('tkd_coaches'))     localStorage.setItem('tkd_coaches',     JSON.stringify(SEED_COACHES));
+            if (!localStorage.getItem('tkd_coaches'))     localStorage.setItem('tkd_coaches',     JSON.stringify([]));
             if (!localStorage.getItem('tkd_draws'))       localStorage.setItem('tkd_draws',       JSON.stringify(SEED_DRAWS));
             if (!localStorage.getItem('tkd_results'))     localStorage.setItem('tkd_results',     JSON.stringify(SEED_RESULTS));
             if (!localStorage.getItem('tkd_fee_notifs'))  localStorage.setItem('tkd_fee_notifs',  JSON.stringify(SEED_FEE_NOTIFICATIONS));
@@ -1202,62 +1127,6 @@
                     this.syncAthletesWithServer(),
                     this.syncWithServerPayments()
                 ]);
-
-                // Ensure any athlete mentioned in payments is present in athlete roster
-                const payments = this.getUpiPayments();
-                const athletes = this.getAthletes();
-                let addedAny = false;
-                payments.forEach(p => {
-                    if (!p || p.status === 'Rejected') return;
-                    const pName = (p.userName || '').trim().toLowerCase();
-                    const pMob = (p.mobile || '').trim();
-                    const pId = p.entityId || p.athleteId;
-                    const exists = athletes.find(a => 
-                        (pId && (a.id === pId || a.athleteId === pId)) ||
-                        (pName && (a.name || '').trim().toLowerCase() === pName) ||
-                        (pMob && a.phone && a.phone.includes(pMob.slice(-8)))
-                    );
-                    if (!exists && (p.entityType === 'athlete' || (!p.dojangId && p.amount <= 3000))) {
-                        const selTournId = this.getSelectedTournamentId();
-                        const tournId = p.tournamentId || selTournId || 'tourn-state-2026';
-                        const athData = p.athleteData || {};
-                        const newAth = {
-                            id: pId || athData.id || ('ath-' + Date.now().toString(36)),
-                            athleteId: p.athleteId || athData.athleteId || ('ATH-' + Math.floor(100000 + Math.random() * 900000)),
-                            name: p.userName || athData.name || 'Competitor',
-                            phone: p.mobile || athData.phone || '',
-                            email: p.email || athData.email || '',
-                            dojangName: athData.dojangName || 'Individual Competitor',
-                            dojangId: athData.dojangId || 'ind-competitor',
-                            dojangCode: 'IND',
-                            category: athData.category || 'Junior (15–17 yrs)',
-                            weightClass: athData.weightClass || 'Junior Male U-55 kg',
-                            weight: athData.weight || 54.0,
-                            beltId: athData.beltId || 'white',
-                            beltName: athData.beltName || 'White Belt',
-                            gender: athData.gender || 'Male',
-                            photo: athData.photo || '',
-                            aadharDoc: athData.aadharDoc || '',
-                            birthCertDoc: athData.birthCertDoc || '',
-                            docStatus: athData.docStatus || 'Pending',
-                            status: 'Pending',
-                            weighInStatus: 'Pending',
-                            measuredWeight: null,
-                            paymentStatus: p.status === 'Approved' ? 'Paid' : 'Pending',
-                            feeStatus: p.status === 'Approved' ? 'Paid' : 'Pending',
-                            txnId: p.status === 'Approved' ? (p.id || `TXN-${p.utr}`) : null,
-                            utr: p.utr,
-                            tournId: tournId,
-                            registeredTournaments: Array.from(new Set([tournId, selTournId, 'tourn-state-2026'].filter(Boolean)))
-                        };
-                        athletes.push(newAth);
-                        addedAny = true;
-                    }
-                });
-                if (addedAny) {
-                    localStorage.setItem('tkd_athletes', JSON.stringify(athletes));
-                    this.notify();
-                }
             } catch (e) {}
         }
 
@@ -10283,14 +10152,33 @@
                     openAcademyDetailsModal(dId, tourn ? tourn.id : null);
                 });
             });
+            document.getElementById('btn-clear-all-academies')?.addEventListener('click', () => {
+                if (!confirm('Are you sure you want to completely CLEAR ALL affiliated academies and dojangs?')) return;
+                localStorage.setItem('tkd_dojangs', JSON.stringify([]));
+                store.dojangs = [];
+                store.notify();
+                if (typeof showToast === 'function') showToast('All academies have been cleared successfully.', 'success');
+                const mainContainer = document.getElementById('main-content');
+                const currentUser = store.getCurrentUser();
+                if (currentUser && currentUser.role === 'organizer') {
+                    renderOrganizerDashboard(mainContainer, 'academies', currentUser);
+                } else if (currentUser && currentUser.role === 'admin') {
+                    renderAdminDashboard(mainContainer, 'academies', currentUser);
+                }
+            });
         }, 50);
 
         return `
             <div class="space-y-4">
-                <div class="flex justify-between items-center">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
-                        <h3 class="text-base font-black text-slate-900">Affiliated Academies &amp; Dojangs</h3>
+                        <h3 class="text-base font-black text-slate-900">Affiliated Academies &amp; Dojangs (${dojangs.length})</h3>
                         <p class="text-xs text-slate-600 font-medium">Click any academy to inspect full roster, coaches, registered athletes &amp; payment status.</p>
+                    </div>
+                    <div>
+                        <button class="tkd-btn tkd-btn-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 shadow-2xs" id="btn-clear-all-academies" title="Wipe all academies and dojang registrations">
+                            <i class="fa-solid fa-trash-can me-1.5"></i>Clear All Academies
+                        </button>
                     </div>
                 </div>
 
@@ -14774,7 +14662,7 @@
 
                 <!-- Full Embedded Draws Engine Iframe -->
                 <div class="relative w-full bg-slate-900 rounded-2xl overflow-hidden shadow-lg border border-slate-200">
-                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=475" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
+                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=476" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
                 </div>
             </div>
         `;
