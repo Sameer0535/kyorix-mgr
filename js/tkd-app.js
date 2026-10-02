@@ -125,7 +125,7 @@
         }
 
         init() {
-            const DATA_VERSION = 'v28_zero_athletes_academies';
+            const DATA_VERSION = 'v35_complete_clean_slate_zero_data';
             const currentVer = localStorage.getItem('tkd_data_version');
             if (currentVer !== DATA_VERSION) {
                 // Safeguard active user session (strictly per-tab in sessionStorage), passwords, payments, templates and settings
@@ -191,7 +191,6 @@
                             a.dojangId = 'ind-competitor';
                             changed = true;
                         }
-                        // "dont passs anyones weigh-in": Reset any unverified auto-passed weigh-ins back to Pending
                         if ((a.status === 'Passed' || a.weighInStatus === 'Passed') && !a.weighInBy) {
                             a.status = 'Pending';
                             a.weighInStatus = 'Pending';
@@ -201,26 +200,16 @@
                         }
                     });
 
-                    // Active purge of demo/mock athletes and the 4 permanent test athletes (Sameer, purvi, Darshan, ATH-405901)
-                    const demoNames = new Set([
-                        'aarav sharma', 'karan patel', 'mohammed zaid', 'rahul varma', 'vikram singh',
-                        'ananya deshmukh', 'pooja hegde', 'sneha kulkarni', "rhea d'souza", 'rohan nair',
-                        'aditya joshi', 'pranav bhat', 'arjun rao', 'varun kumar', 'manjunath reddy',
-                        'chetan kumar', 'darshan hegde', 'rohit verma', 'jin park', 'lucas silva',
-                        'mateo rossi', 'tyler vance', 'kai takahashi', 'dmitri voronov', "liam o'connor",
-                        'marcus chen', 'sofia al-mansoor', 'camila rodriguez', 'chloe zhang', 'amina diallo', 'yuki tanaka',
-                        'sameer', 'purvi', 'darshan', 'ath-405901'
-                    ]);
+                    // Active purge of dummy test IDs only
+                    const demoNames = new Set(['ath-405901']);
                     const beforeLenA = parsed.length;
                     parsed = parsed.filter(a => {
                         if (!a) return false;
                         const id = String(a.id || '').toLowerCase();
                         const athId = String(a.athleteId || '').toLowerCase();
                         const n = (a.name || '').trim().toLowerCase();
-                        const club = (a.dojangName || a.club || '').trim().toLowerCase();
                         if (id.startsWith('ath-demo-') || athId.startsWith('ath-1082') || id === 'ath-405901' || athId === 'ath-405901') return false;
                         if (demoNames.has(n)) return false;
-                        if ((club === 'd taekwondo academy' || club === 'darshan a') && (n === 'sameer' || n === 'purvi' || n === 'darshan' || n === 'ath-405901')) return false;
                         return true;
                     });
                     if (parsed.length !== beforeLenA) changed = true;
@@ -228,7 +217,7 @@
                 }
             } catch (e) {}
 
-            // Purge demo and 4 permanent test competitors from tkd_competitors_v3 so Draws section is 100% clean
+            // Purge demo and mock competitors from tkd_competitors_v3 so Draws section is clean
             try {
                 const rawC = localStorage.getItem('tkd_competitors_v3');
                 if (rawC) {
@@ -238,32 +227,21 @@
                         'lee dae-hoon', 'alexei denisenko', 'joel gonzalez', 'servet tazegul', 'ahmad abughaush',
                         'jade jones', 'eva calvo', 'hedaya malak', 'kimia alizadeh', 'marc-andre', 'park tae-joon',
                         "vito dell'aquila", 'cheick sallah cisse', 'lutalo muhammad', 'milad beigi', 'albert gaun',
-                        'oussama oueslati', 'steven lopez', 'aaron cook', 'nikita rafalovich', 'rahul sharma',
-                        'aarav patel', 'kabir singh', 'vivaan joshi', 'rohan gupta', 'aditya verma', 'arjun mehta',
-                        'reyansh deshmukh', 'atharv kulkarni', 'vihaan saxena', 'ananya roy', 'diya kumar',
-                        'sanya malhotra', 'myra kapoor', 'isha bhatia', 'kavya sharma', 'riya sen', 'avani reddy',
-                        'devansh reddy', 'ishaan nair', 'reyansh rao', 'yash vardhan', 'pari choudhary',
-                        'nisha agarwal', 'simran gill', 'tanvi shah', 'meera iyer',
-                        'aarav sharma', 'karan patel', 'mohammed zaid', 'rahul varma', 'vikram singh',
-                        'ananya deshmukh', 'pooja hegde', 'sneha kulkarni', "rhea d'souza", 'rohan nair',
-                        'aditya joshi', 'pranav bhat', 'arjun rao', 'varun kumar', 'manjunath reddy',
-                        'chetan kumar', 'darshan hegde', 'rohit verma',
-                        'anjanaya', 'biraj rokaja', 'charls', 'darshan.b', 'dhanush', 'hrithik', 'jeevanth', 'manikanta', 'maruthi',
-                        'mohith kumar.m', 'nanda kishore', 'prajwal.g', 'praveen', 'punith', 'roshan', 'sai tharun', 'sanjay gowda',
-                        'sharan', 'sumanth', 'yashvanth.m', 'yogesh',
-                        'sameer', 'purvi', 'darshan', 'ath-405901'
+                        'oussama oueslati', 'steven lopez', 'aaron cook', 'nikita rafalovich'
                     ]);
                     const filteredC = parsedC.filter(c => {
                         if (!c) return false;
                         const id = String(c.id || '').toLowerCase();
                         const athId = String(c.athleteId || '').toLowerCase();
                         const n = (c.name || '').trim().toLowerCase();
-                        const club = (c.club || '').trim().toLowerCase();
+                        const wt = String(c.weightClass || '').toLowerCase();
+                        const age = String(c.ageCategory || '').toLowerCase();
+
+                        if (wt.includes('58') || wt.includes('u-58') || (age.includes('senior') && wt.includes('58'))) return false;
+                        if (/^player\s+\d+/i.test(n) || id.startsWith('c_large_')) return false;
                         if (id.startsWith('ath-demo-') || athId.startsWith('ath-1082') || id === 'ath-405901' || athId === 'ath-405901') return false;
-                        if (id.startsWith('dasara') || id.startsWith('ath-dasara') || id.startsWith('player_') || athId.startsWith('ind-560')) return false;
-                        if (n.startsWith('player ') || n.startsWith('competitor ')) return false;
+                        if (/^c\d+$/.test(id)) return false;
                         if (demoCompNames.has(n)) return false;
-                        if ((club === 'd taekwondo academy' || club === 'darshan a') && (n === 'sameer' || n === 'purvi' || n === 'darshan' || n === 'ath-405901')) return false;
                         return true;
                     });
                     if (filteredC.length !== beforeLenC) {
@@ -271,7 +249,7 @@
                         localStorage.setItem('tkd_competitors_v1', JSON.stringify(filteredC));
                     }
                 }
-            } catch(e) {}
+            } catch (e) {}
 
             // Clean demo and permanent test athletes from tkd_brackets_v3 so no orphaned matches exist
             try {
@@ -279,22 +257,21 @@
                 if (rawB) {
                     const brackets = JSON.parse(rawB);
                     let cleanedB = false;
-                    const purgeNames = new Set(['sameer', 'purvi', 'darshan', 'ath-405901']);
                     for (const divKey of Object.keys(brackets)) {
                         const br = brackets[divKey];
                         if (Array.isArray(br)) {
                             for (const round of br) {
                                 if (Array.isArray(round)) {
                                     for (const m of round) {
-                                        if (m.p1 && (purgeNames.has((m.p1.name || '').trim().toLowerCase()) || String(m.p1.id || '').includes('405901'))) {
+                                        if (m.p1 && (String(m.p1.id || '').includes('405901') || String(m.p1.id || '').startsWith('ath-demo-'))) {
                                             m.p1 = null;
                                             cleanedB = true;
                                         }
-                                        if (m.p2 && (purgeNames.has((m.p2.name || '').trim().toLowerCase()) || String(m.p2.id || '').includes('405901'))) {
+                                        if (m.p2 && (String(m.p2.id || '').includes('405901') || String(m.p2.id || '').startsWith('ath-demo-'))) {
                                             m.p2 = null;
                                             cleanedB = true;
                                         }
-                                        if (m.winnerId && (String(m.winnerId).includes('405901') || purgeNames.has(String(m.winnerId).toLowerCase()))) {
+                                        if (m.winnerId && (String(m.winnerId).includes('405901') || String(m.winnerId).startsWith('ath-demo-'))) {
                                             m.winnerId = null;
                                             m.status = 'pending';
                                             m.score1 = null;
@@ -1869,22 +1846,7 @@
         'lee dae-hoon', 'alexei denisenko', 'joel gonzalez', 'servet tazegul', 'ahmad abughaush',
         'jade jones', 'eva calvo', 'hedaya malak', 'kimia alizadeh', 'marc-andre', 'park tae-joon',
         "vito dell'aquila", 'cheick sallah cisse', 'lutalo muhammad', 'milad beigi', 'albert gaun',
-        'oussama oueslati', 'steven lopez', 'aaron cook', 'nikita rafalovich', 'rahul sharma',
-        'aarav patel', 'kabir singh', 'vivaan joshi', 'rohan gupta', 'aditya verma', 'arjun mehta',
-        'reyansh deshmukh', 'atharv kulkarni', 'vihaan saxena', 'ananya roy', 'diya kumar',
-        'sanya malhotra', 'myra kapoor', 'isha bhatia', 'kavya sharma', 'riya sen', 'avani reddy',
-        'devansh reddy', 'ishaan nair', 'reyansh rao', 'yash vardhan', 'pari choudhary',
-        'nisha agarwal', 'simran gill', 'tanvi shah', 'meera iyer',
-        'aarav sharma', 'karan patel', 'mohammed zaid', 'rahul varma', 'vikram singh',
-        'ananya deshmukh', 'pooja hegde', 'sneha kulkarni', "rhea d'souza", 'rohan nair',
-        'aditya joshi', 'pranav bhat', 'arjun rao', 'varun kumar', 'manjunath reddy',
-        'chetan kumar', 'darshan hegde', 'rohit verma', 'jin park', 'lucas silva',
-        'mateo rossi', 'tyler vance', 'kai takahashi', 'dmitri voronov', "liam o'connor",
-        'marcus chen', 'sofia al-mansoor', 'camila rodriguez', 'chloe zhang', 'amina diallo', 'yuki tanaka',
-        'anjanaya', 'biraj rokaja', 'charls', 'darshan.b', 'dhanush', 'hrithik', 'jeevanth', 'manikanta', 'maruthi',
-        'mohith kumar.m', 'nanda kishore', 'prajwal.g', 'praveen', 'punith', 'roshan', 'sai tharun', 'sanjay gowda',
-        'sharan', 'sumanth', 'yashvanth.m', 'yogesh',
-        'sameer', 'purvi', 'darshan', 'ath-405901'
+        'oussama oueslati', 'steven lopez', 'aaron cook', 'nikita rafalovich'
     ]);
 
     function isMockSampleCompetitor(c) {
@@ -1892,11 +1854,15 @@
         const n = (c.name || '').trim().toLowerCase();
         const id = String(c.id || '').toLowerCase();
         const athId = String(c.athleteId || '').toLowerCase();
-        const club = String(c.club || '').trim().toLowerCase();
+        const wt = String(c.weightClass || '').toLowerCase();
+        const age = String(c.ageCategory || '').toLowerCase();
+
+        // Strip Senior U-58 or dummy players
+        if (wt.includes('58') || wt.includes('u-58') || (age.includes('senior') && wt.includes('58'))) return true;
+        if (/^player\s+\d+/i.test(n) || id.startsWith('c_large_')) return true;
         if (id.startsWith('ath-demo-') || athId.startsWith('ath-1082') || id === 'ath-405901' || athId === 'ath-405901') return true;
-        if (id.startsWith('dasara') || id.startsWith('ath-dasara') || id.startsWith('player_') || athId.startsWith('ind-560')) return true;
+        if (/^c\d+$/.test(id)) return true;
         if (MOCK_SAMPLE_NAMES.has(n)) return true;
-        if ((club === 'd taekwondo academy' || club === 'darshan a') && (n === 'sameer' || n === 'purvi' || n === 'darshan' || n === 'ath-405901')) return true;
         return false;
     }
     window.isMockSampleCompetitor = isMockSampleCompetitor;
@@ -2438,7 +2404,7 @@
                 let defaultWt = isFem ? 'Under 49kg' : 'Under 55kg';
                 if (ageCategory === 'Cadet') defaultWt = isFem ? 'Under 41kg' : 'Under 45kg';
                 else if (ageCategory === 'Sub-Junior') defaultWt = isFem ? 'Under 37kg' : 'Under 32kg';
-                else if (ageCategory === 'Senior') defaultWt = isFem ? 'Under 49kg' : 'Under 58kg';
+                else if (ageCategory === 'Senior') defaultWt = isFem ? 'Under 49kg' : 'Under 68kg';
 
                 let weightClass = '';
                 if (a.weightClass) {

@@ -47,14 +47,71 @@ if (!fs.existsSync(SETTINGS_FILE)) {
 
 let _localLastSyncTimestamp = Date.now();
 let _localLastClearTimestamp = 0;
+function sanitizeCompetitors(list) {
+    if (!Array.isArray(list)) return [];
+    return list.filter(item => {
+        if (!item) return false;
+        const name = (item.name || '').trim();
+        const lowerName = name.toLowerCase();
+        const id = String(item.id || '');
+        const wt = String(item.weightClass || '').toLowerCase();
+        const age = String(item.ageCategory || '').toLowerCase();
+
+        // 1. Completely eliminate Senior U-58 or any weight class containing 58
+        if (wt.includes('58') || wt.includes('u-58') || (age.includes('senior') && wt.includes('58'))) return false;
+
+        // 2. Remove dummy Player 1..52
+        if (/^Player\s+\d+/i.test(name) || id.startsWith('c_large_')) return false;
+
+        // 3. Remove old demo Olympic athletes
+        const demoOlympicNames = new Set([
+            'lee dae-hoon', 'alexei denisenko', 'joel gonzalez', 'servet tazegul',
+            'ahmad abughaush', 'jade jones', 'eva calvo', 'hedaya malak',
+            'kimia alizadeh', 'marc-andre', 'park tae-joon', "vito dell'aquila",
+            'cheick sallah cisse', 'lutalo muhammad', 'milad beigi', 'albert gaun',
+            'oussama oueslati', 'steven lopez', 'aaron cook', 'nikita rafalovich'
+        ]);
+        if (demoOlympicNames.has(lowerName)) return false;
+        if (/^c\d+$/.test(id)) return false;
+        return true;
+    });
+}
+
+function sanitizeBrackets(brackets) {
+    if (!brackets || typeof brackets !== 'object') return {};
+    const clean = {};
+    for (const k of Object.keys(brackets)) {
+        if (k.toLowerCase().includes('58')) continue;
+        const str = JSON.stringify(brackets[k]);
+        if (str.includes('Player ') || str.includes('Lee Dae-hoon')) continue;
+        clean[k] = brackets[k];
+    }
+    return clean;
+}
+
+function sanitizeCourts(courts) {
+    if (!courts || typeof courts !== 'object') return {};
+    const clean = {};
+    for (const k of Object.keys(courts)) {
+        if (k.toLowerCase().includes('58')) continue;
+        clean[k] = courts[k];
+    }
+    return clean;
+}
+
 function getBracketsServer() {
     try {
-        if (fs.existsSync(BRACKETS_FILE)) return JSON.parse(fs.readFileSync(BRACKETS_FILE, 'utf8'));
+        if (fs.existsSync(BRACKETS_FILE)) return sanitizeBrackets(JSON.parse(fs.readFileSync(BRACKETS_FILE, 'utf8')));
     } catch(e) {}
     return {};
 }
 function saveBracketsServer(incoming, isClearAll = false) {
     if (!incoming || typeof incoming !== 'object') return false;
+    incoming = sanitizeBrackets(incoming);
+    const existing = getBracketsServer();
+    if (JSON.stringify(existing) === JSON.stringify(incoming)) {
+        return false; // Prevent ping-pong loop when data hasn't changed
+    }
     if (Object.keys(incoming).length === 0) {
         if (!isClearAll) return false;
         _localLastSyncTimestamp = Date.now();
@@ -67,12 +124,17 @@ function saveBracketsServer(incoming, isClearAll = false) {
 }
 function getCompetitorsServer() {
     try {
-        if (fs.existsSync(COMPETITORS_FILE)) return JSON.parse(fs.readFileSync(COMPETITORS_FILE, 'utf8'));
+        if (fs.existsSync(COMPETITORS_FILE)) return sanitizeCompetitors(JSON.parse(fs.readFileSync(COMPETITORS_FILE, 'utf8')));
     } catch(e) {}
     return [];
 }
 function saveCompetitorsServer(incoming, isClearAll = false) {
     if (!incoming || !Array.isArray(incoming)) return false;
+    incoming = sanitizeCompetitors(incoming);
+    const existing = getCompetitorsServer();
+    if (JSON.stringify(existing) === JSON.stringify(incoming)) {
+        return false; // Prevent ping-pong loop when data hasn't changed
+    }
     if (incoming.length === 0) {
         if (!isClearAll) return false;
         _localLastSyncTimestamp = Date.now();
@@ -85,11 +147,16 @@ function saveCompetitorsServer(incoming, isClearAll = false) {
 }
 function getCourtsServer() {
     try {
-        if (fs.existsSync(COURTS_FILE)) return JSON.parse(fs.readFileSync(COURTS_FILE, 'utf8'));
+        if (fs.existsSync(COURTS_FILE)) return sanitizeCourts(JSON.parse(fs.readFileSync(COURTS_FILE, 'utf8')));
     } catch(e) {}
     return {};
 }
 function saveCourtsServer(c) {
+    c = sanitizeCourts(c);
+    const existing = getCourtsServer();
+    if (JSON.stringify(existing) === JSON.stringify(c)) {
+        return false; // Prevent ping-pong loop when data hasn't changed
+    }
     _localLastSyncTimestamp = Date.now();
     try { fs.writeFileSync(COURTS_FILE, JSON.stringify(c, null, 2), 'utf8'); } catch(e) {}
     return true;

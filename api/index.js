@@ -39,7 +39,7 @@ let _memSettings = {
     bankName: 'Kotak Mahindra Bank'
 };
 
-const SERVER_DATA_VERSION = 'v28_zero_athletes_academies';
+const SERVER_DATA_VERSION = 'v35_complete_clean_slate_zero_data';
 const VERSION_FILE = path.join(DATA_DIR, 'version.txt');
 
 function initStorage() {
@@ -115,10 +115,55 @@ function initStorage() {
 
 initStorage();
 
+function sanitizeCompetitors(list) {
+    if (!Array.isArray(list)) return [];
+    return list.filter(item => {
+        if (!item) return false;
+        const name = (item.name || '').trim().toLowerCase();
+        const id = String(item.id || '');
+        const wt = String(item.weightClass || '').toLowerCase();
+        const age = String(item.ageCategory || '').toLowerCase();
+        if (wt.includes('58') || (age.includes('senior') && wt.includes('58'))) return false;
+        if (/^Player\s+\d+/i.test(item.name || '') || id.startsWith('c_large_')) return false;
+        const demoNames = new Set([
+            'lee dae-hoon','alexei denisenko','joel gonzalez','servet tazegul',
+            'ahmad abughaush','jade jones','eva calvo','hedaya malak',
+            'kimia alizadeh','marc-andre','park tae-joon',"vito dell'aquila",
+            'cheick sallah cisse','lutalo muhammad','milad beigi','albert gaun',
+            'oussama oueslati','steven lopez','aaron cook','nikita rafalovich'
+        ]);
+        if (demoNames.has(name)) return false;
+        if (/^c\d+$/.test(id)) return false;
+        return true;
+    });
+}
+
+function sanitizeBrackets(brackets) {
+    if (!brackets || typeof brackets !== 'object') return {};
+    const clean = {};
+    for (const k of Object.keys(brackets)) {
+        if (k.toLowerCase().includes('58')) continue;
+        const str = JSON.stringify(brackets[k]);
+        if (str.includes('Player ') || str.includes('Lee Dae-hoon')) continue;
+        clean[k] = brackets[k];
+    }
+    return clean;
+}
+
+function sanitizeCourts(courts) {
+    if (!courts || typeof courts !== 'object') return {};
+    const clean = {};
+    for (const k of Object.keys(courts)) {
+        if (k.toLowerCase().includes('58')) continue;
+        clean[k] = courts[k];
+    }
+    return clean;
+}
+
 function getBracketsServer() {
     try {
         if (fs.existsSync(BRACKETS_FILE)) {
-            _memBrackets = JSON.parse(fs.readFileSync(BRACKETS_FILE, 'utf8'));
+            _memBrackets = sanitizeBrackets(JSON.parse(fs.readFileSync(BRACKETS_FILE, 'utf8')));
         }
     } catch (e) {}
     return _memBrackets || {};
@@ -126,13 +171,14 @@ function getBracketsServer() {
 
 function saveBracketsServer(incoming, isClearAll = false) {
     if (!incoming || typeof incoming !== 'object') return false;
+    incoming = sanitizeBrackets(incoming);
+    const existing = getBracketsServer();
+    if (JSON.stringify(existing) === JSON.stringify(incoming)) return false; // anti-echo
     if (Object.keys(incoming).length === 0) {
         if (!isClearAll) return false;
         _memBrackets = {};
         _lastSyncTimestamp = Date.now();
-        try {
-            fs.writeFileSync(BRACKETS_FILE, '{}', 'utf8');
-        } catch (e) {}
+        try { fs.writeFileSync(BRACKETS_FILE, '{}', 'utf8'); } catch (e) {}
         return true;
     }
     _memBrackets = incoming;
@@ -146,7 +192,7 @@ function saveBracketsServer(incoming, isClearAll = false) {
 function getCompetitorsServer() {
     try {
         if (fs.existsSync(COMPETITORS_FILE)) {
-            _memCompetitors = JSON.parse(fs.readFileSync(COMPETITORS_FILE, 'utf8'));
+            _memCompetitors = sanitizeCompetitors(JSON.parse(fs.readFileSync(COMPETITORS_FILE, 'utf8')));
         }
     } catch (e) {}
     return _memCompetitors || [];
@@ -154,13 +200,14 @@ function getCompetitorsServer() {
 
 function saveCompetitorsServer(incoming, isClearAll = false) {
     if (!incoming || !Array.isArray(incoming)) return false;
+    incoming = sanitizeCompetitors(incoming);
+    const existing = getCompetitorsServer();
+    if (JSON.stringify(existing) === JSON.stringify(incoming)) return false; // anti-echo
     if (incoming.length === 0) {
         if (!isClearAll) return false;
         _memCompetitors = [];
         _lastSyncTimestamp = Date.now();
-        try {
-            fs.writeFileSync(COMPETITORS_FILE, '[]', 'utf8');
-        } catch (e) {}
+        try { fs.writeFileSync(COMPETITORS_FILE, '[]', 'utf8'); } catch (e) {}
         return true;
     }
     _memCompetitors = incoming;
@@ -174,14 +221,17 @@ function saveCompetitorsServer(incoming, isClearAll = false) {
 function getCourtsServer() {
     try {
         if (fs.existsSync(COURTS_FILE)) {
-            _memCourts = JSON.parse(fs.readFileSync(COURTS_FILE, 'utf8'));
+            _memCourts = sanitizeCourts(JSON.parse(fs.readFileSync(COURTS_FILE, 'utf8')));
         }
     } catch (e) {}
     return _memCourts || {};
 }
 
 function saveCourtsServer(courts) {
-    _memCourts = courts || {};
+    courts = sanitizeCourts(courts || {});
+    const existing = getCourtsServer();
+    if (JSON.stringify(existing) === JSON.stringify(courts)) return false; // anti-echo
+    _memCourts = courts;
     _lastSyncTimestamp = Date.now();
     try {
         fs.writeFileSync(COURTS_FILE, JSON.stringify(_memCourts, null, 2), 'utf8');
