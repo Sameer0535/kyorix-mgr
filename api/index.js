@@ -343,12 +343,226 @@ function parseJsonBody(req) {
     });
 }
 
+function loadEnvVariables() {
+    try {
+        const candidatePaths = [
+            path.join(__dirname, '.env'),
+            path.join(__dirname, '../.env')
+        ];
+        for (const p of candidatePaths) {
+            if (fs.existsSync(p)) {
+                const lines = fs.readFileSync(p, 'utf8').split('\n');
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (trimmed && !trimmed.startsWith('#')) {
+                        const idx = trimmed.indexOf('=');
+                        if (idx > 0) {
+                            const key = trimmed.slice(0, idx).trim();
+                            const val = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, '');
+                            if (!process.env[key]) process.env[key] = val;
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    } catch (e) {}
+}
+loadEnvVariables();
+
+function authenticateApiKey(req) {
+    const configuredKey = process.env.KYORIX_API_KEY;
+    if (!configuredKey) {
+        console.warn('[AUTH] KYORIX_API_KEY environment variable is not configured.');
+        return false;
+    }
+    const headerKey = req.headers['x-kyorix-api-key'] || req.headers['X-Kyorix-API-Key'];
+    return !!headerKey && headerKey.trim() === configuredKey.trim();
+}
+
+function deduceCategoryFromDob(dobStr, gender) {
+    let division = 'Senior';
+    if (dobStr) {
+        try {
+            const dob = new Date(dobStr);
+            if (!isNaN(dob.getTime())) {
+                const now = new Date();
+                let age = now.getFullYear() - dob.getFullYear();
+                const m = now.getMonth() - dob.getMonth();
+                if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) {
+                    age--;
+                }
+                if (age < 10) division = 'Sub-Junior';
+                else if (age <= 14) division = 'Cadet';
+                else if (age <= 17) division = 'Junior';
+                else division = 'Senior';
+            }
+        } catch (e) {}
+    }
+    const gen = (gender || 'Male').toLowerCase().startsWith('f') ? 'Female' : 'Male';
+    return `${division} ${gen}`;
+}
+
+function formatBeltRank(beltRank) {
+    if (!beltRank) return 'Black Belt';
+    const clean = beltRank.replace(/_/g, ' ').toLowerCase();
+    return clean.replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function normalizePodiumForKukkiwon(pod, athletes = null) {
+    if (!athletes) athletes = getAthletesServer();
+
+    if (pod.discipline && pod.category_name && pod.gold && pod.gold.athlete_name) {
+        return pod;
+    }
+
+    const catName = pod.category_name || pod.division || pod.category || 'Senior Male Kyorugi';
+    const lowerCat = catName.toLowerCase();
+
+    let discipline = 'KYORUGI';
+    if (lowerCat.includes('poomsae')) discipline = 'POOMSAE';
+    else if (lowerCat.includes('kyukpa') || lowerCat.includes('breaking')) discipline = 'KYUKPA';
+
+    let division = 'SENIOR';
+    if (lowerCat.includes('junior') && !lowerCat.includes('sub-junior')) division = 'JUNIOR';
+    else if (lowerCat.includes('cadet') || lowerCat.includes('sub-junior')) division = 'CADET';
+    else if (lowerCat.includes('master')) division = 'MASTERS';
+    else if (lowerCat.includes('peewee')) division = 'PEEWEE';
+
+    let gender = 'MALE';
+    if (lowerCat.includes('female') || lowerCat.includes('women') || lowerCat.includes('girl')) {
+        gender = 'FEMALE';
+    }
+
+    const findAthleteKukkiwonId = (name, compId) => {
+        if (!name && !compId) return '';
+        const norm = (name || '').trim().toLowerCase();
+        const found = athletes.find(a => 
+            (compId && (a.id === compId || a.athleteId === compId)) ||
+            (norm && (a.name || '').trim().toLowerCase() === norm)
+        );
+        return found ? (found.kukkiwonDanNumber || found.kukkiwonId || '') : '';
+    };
+
+    const formatWinnerObj = (winner) => {
+        if (!winner) return null;
+        const athName = winner.athlete_name || winner.athlete || winner.name || '';
+        const acadName = winner.academy_name || winner.academy || winner.dojang || winner.club || 'Independent';
+        const kId = winner.kukkiwon_id || winner.kukkiwonDanNumber || findAthleteKukkiwonId(athName, winner.id);
+        const res = {
+            athlete_name: athName,
+            academy_name: acadName
+        };
+        if (kId) res.kukkiwon_id = kId;
+        return res;
+    };
+
+    const gold = formatWinnerObj(pod.gold);
+    const silver = formatWinnerObj(pod.silver);
+
+    let bronze1 = null;
+    let bronze2 = null;
+
+    if (pod.bronze_1) {
+        bronze1 = formatWinnerObj(pod.bronze_1);
+    } else if (Array.isArray(pod.bronze) && pod.bronze.length > 0) {
+        bronze1 = formatWinnerObj(pod.bronze[0]);
+        if (pod.bronze.length > 1) {
+            bronze2 = formatWinnerObj(pod.bronze[1]);
+        }
+    } else if (pod.bronze && typeof pod.bronze === 'object') {
+        bronze1 = formatWinnerObj(pod.bronze);
+    }
+
+    const result = {
+        discipline,
+        division,
+        category_name: catName,
+        gender,
+        gold,
+        silver
+    };
+
+    if (bronze1) result.bronze_1 = bronze1;
+    if (bronze2) result.bronze_2 = bronze2;
+
+    return result;
+}
+
+function compileCompletedPodiumsFromBrackets() {
+    const brackets = getBracketsServer();
+    const athletes = getAthletesServer();
+    const podiums = [];
+
+    const resolveWinner = (match) => {
+        if (!match || (match.status !== 'completed' && match.status !== 'COMPLETED')) return null;
+        let wId = String(match.winnerId || '').trim().toLowerCase();
+        if (match.p1 && (String(match.p1.id).toLowerCase() === wId || (match.p1.name && match.p1.name.toLowerCase() === wId))) return match.p1;
+        if (match.p2 && (String(match.p2.id).toLowerCase() === wId || (match.p2.name && match.p2.name.toLowerCase() === wId))) return match.p2;
+        if (wId === 'chung' || wId === 'blue' || wId === 'p1') return match.p1 || match.chung;
+        if (wId === 'hong' || wId === 'red' || wId === 'p2') return match.p2 || match.hong;
+        if (match.winner && match.winner.name) return match.winner;
+        return match.p1 || match.chung || null;
+    };
+
+    const resolveLoser = (match) => {
+        if (!match || (match.status !== 'completed' && match.status !== 'COMPLETED')) return null;
+        const w = resolveWinner(match);
+        if (!w) return null;
+        const wName = (w.name || '').trim().toLowerCase();
+        if (match.p1 && (match.p1.name || '').trim().toLowerCase() !== wName) return match.p1;
+        if (match.p2 && (match.p2.name || '').trim().toLowerCase() !== wName) return match.p2;
+        if (match.chung && (match.chung.name || '').trim().toLowerCase() !== wName) return match.chung;
+        if (match.hong && (match.hong.name || '').trim().toLowerCase() !== wName) return match.hong;
+        return null;
+    };
+
+    for (const divKey of Object.keys(brackets)) {
+        const rounds = brackets[divKey];
+        if (!Array.isArray(rounds) || rounds.length === 0) continue;
+
+        const finalRound = rounds[rounds.length - 1];
+        if (!Array.isArray(finalRound) || finalRound.length === 0) continue;
+
+        const finalMatch = finalRound[0];
+        if (!finalMatch || (finalMatch.status !== 'completed' && finalMatch.status !== 'COMPLETED')) continue;
+
+        const goldComp = resolveWinner(finalMatch);
+        const silverComp = resolveLoser(finalMatch);
+        if (!goldComp) continue;
+
+        const bronzes = [];
+        if (rounds.length >= 2) {
+            const semiRound = rounds[rounds.length - 2];
+            if (Array.isArray(semiRound)) {
+                semiRound.forEach(sm => {
+                    const semiLoser = resolveLoser(sm);
+                    if (semiLoser && semiLoser.name) {
+                        bronzes.push(semiLoser);
+                    }
+                });
+            }
+        }
+
+        const rawPodium = {
+            category_name: divKey,
+            gold: goldComp,
+            silver: silverComp,
+            bronze: bronzes
+        };
+
+        podiums.push(normalizePodiumForKukkiwon(rawPodium, athletes));
+    }
+
+    return podiums;
+}
+
 function sendJson(res, statusCode, data) {
     res.writeHead(statusCode, {
         'Content-Type': 'application/json; charset=utf-8',
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Kyorix-API-Key, x-kyorix-api-key'
     });
     res.end(JSON.stringify(data));
 }
@@ -359,7 +573,7 @@ module.exports = async function handler(req, res) {
         res.writeHead(204, {
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Kyorix-API-Key, x-kyorix-api-key'
         });
         res.end();
         return;
@@ -368,6 +582,205 @@ module.exports = async function handler(req, res) {
     const parsedUrl = url.parse(req.url, true);
     const pathname = parsedUrl.pathname;
     const method = req.method;
+
+    // =========================================================================
+    // KUKKIWON CUP INTEGRATION ENDPOINTS
+    // =========================================================================
+
+    // 0A. GET /api/v1/health (Public health check)
+    if (method === 'GET' && pathname === '/api/v1/health') {
+        return sendJson(res, 200, {
+            status: 'ok',
+            version: '1.0',
+            serverTime: new Date().toISOString()
+        });
+    }
+
+    // 0B. POST /api/v1/athletes/sync (Protected: ingest registered athletes)
+    if (method === 'POST' && pathname === '/api/v1/athletes/sync') {
+        if (!authenticateApiKey(req)) {
+            return sendJson(res, 401, {
+                success: false,
+                error: 'Unauthorized: Invalid or missing X-Kyorix-API-Key header.'
+            });
+        }
+
+        try {
+            const body = await parseJsonBody(req);
+            const rawList = Array.isArray(body) 
+                ? body 
+                : (Array.isArray(body.athletes) ? body.athletes : (body && typeof body === 'object' && Object.keys(body).length > 0 ? [body] : []));
+
+            if (rawList.length === 0) {
+                return sendJson(res, 400, {
+                    success: false,
+                    error: 'Empty athlete payload received.'
+                });
+            }
+
+            const currentAthletes = getAthletesServer();
+            const ingestedAthletes = [];
+
+            for (const item of rawList) {
+                if (!item) continue;
+                const localId = item.localAthleteId || item.athleteId || item.id;
+                const firstName = (item.firstName || '').trim();
+                const lastName = (item.lastName || '').trim();
+                let fullName = (item.name || `${firstName} ${lastName}`).trim();
+                if (!fullName && localId) fullName = `Athlete ${localId}`;
+
+                const academy = item.academyName || item.dojangName || item.club || 'Independent Competitor';
+                const gender = (item.gender || 'Male').toUpperCase().startsWith('F') ? 'Female' : 'Male';
+                const dob = item.dateOfBirth || item.dob || '';
+                const kukkiwonDan = item.kukkiwonDanNumber || item.kukkiwonId || '';
+                const beltRank = item.beltRank || item.rank || '1ST_DAN_BLACK';
+                const beltName = formatBeltRank(beltRank);
+
+                // Deduplicate / update existing athlete by localAthleteId or name + academy
+                const existingIdx = currentAthletes.findIndex(a => 
+                    (localId && (a.athleteId === localId || a.id === localId || a.id === `ath-${localId}`)) ||
+                    ((a.name || '').trim().toLowerCase() === fullName.toLowerCase() && 
+                     (a.dojangName || '').trim().toLowerCase() === academy.toLowerCase())
+                );
+
+                const athleteRecord = {
+                    ...(existingIdx >= 0 ? currentAthletes[existingIdx] : {}),
+                    id: (existingIdx >= 0 ? currentAthletes[existingIdx].id : null) || (localId ? `ath-${localId}` : ('ath-' + Date.now().toString(36))),
+                    athleteId: localId || (existingIdx >= 0 ? currentAthletes[existingIdx].athleteId : ('ATH-' + Math.floor(100000 + Math.random() * 900000))),
+                    localAthleteId: localId || '',
+                    name: fullName,
+                    firstName: firstName || (fullName.split(' ')[0] || ''),
+                    lastName: lastName || (fullName.split(' ').slice(1).join(' ') || ''),
+                    gender: gender,
+                    dateOfBirth: dob,
+                    dob: dob,
+                    beltRank: beltRank,
+                    beltName: beltName,
+                    belt: beltName,
+                    rank: beltRank,
+                    kukkiwonDanNumber: kukkiwonDan,
+                    kukkiwonId: kukkiwonDan,
+                    academyName: academy,
+                    dojangName: academy,
+                    club: academy,
+                    dojangId: (existingIdx >= 0 ? currentAthletes[existingIdx].dojangId : null) || 'ind-competitor',
+                    category: (existingIdx >= 0 && currentAthletes[existingIdx].category) ? currentAthletes[existingIdx].category : deduceCategoryFromDob(dob, gender),
+                    weightClass: (existingIdx >= 0 ? currentAthletes[existingIdx].weightClass : '') || '',
+                    status: 'Confirmed',
+                    weighInStatus: (existingIdx >= 0 && currentAthletes[existingIdx].weighInStatus === 'Passed') ? 'Passed' : 'Pending',
+                    measuredWeight: (existingIdx >= 0 ? currentAthletes[existingIdx].measuredWeight : null) || null,
+                    paymentStatus: 'Paid',
+                    feeStatus: 'Paid',
+                    tournId: item.tournId || 'tourn-state-2026',
+                    registeredTournaments: Array.from(new Set([
+                        ...(existingIdx >= 0 && Array.isArray(currentAthletes[existingIdx].registeredTournaments) ? currentAthletes[existingIdx].registeredTournaments : []),
+                        item.tournId || 'tourn-state-2026'
+                    ])),
+                    syncedFrom: 'kukkiwon-cup-championship',
+                    syncedAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+
+                if (!athleteRecord.createdAt) athleteRecord.createdAt = new Date().toISOString();
+
+                if (existingIdx >= 0) {
+                    currentAthletes[existingIdx] = athleteRecord;
+                } else {
+                    currentAthletes.unshift(athleteRecord);
+                }
+                ingestedAthletes.push(athleteRecord);
+            }
+
+            saveAthletesServer(currentAthletes);
+
+            return sendJson(res, 201, {
+                success: true,
+                message: `Successfully synced ${ingestedAthletes.length} athlete(s) ready for weigh-in and ring assignment.`,
+                count: ingestedAthletes.length,
+                athletes: ingestedAthletes,
+                timestamp: _lastSyncTimestamp
+            });
+        } catch (err) {
+            console.error('Athlete sync error:', err);
+            return sendJson(res, 500, {
+                success: false,
+                error: 'Failed to process athlete sync ingestion: ' + err.message
+            });
+        }
+    }
+
+    // 0C. POST /api/v1/results/publish (Export results & medalists webhook to main site)
+    if (method === 'POST' && pathname === '/api/v1/results/publish') {
+        try {
+            const body = await parseJsonBody(req);
+            let podiumsToPublish = [];
+
+            if (body && body.gold && body.category_name) {
+                podiumsToPublish.push(body);
+            } else if (Array.isArray(body?.podiums)) {
+                podiumsToPublish = body.podiums;
+            } else if (body && body.podium) {
+                podiumsToPublish.push(body.podium);
+            } else if (body && body.publishAll === true) {
+                podiumsToPublish = compileCompletedPodiumsFromBrackets();
+            }
+
+            if (podiumsToPublish.length === 0) {
+                return sendJson(res, 400, {
+                    success: false,
+                    error: 'No valid category podium data provided to publish.'
+                });
+            }
+
+            const targetUrl = (process.env.KUKKIWON_API_URL || 'https://kukkiwon-cup-championship.vercel.app').replace(/\/$/, '') + '/api/admin/results';
+            const apiKey = process.env.KYORIX_API_KEY || '';
+            const publishResults = [];
+
+            for (const pod of podiumsToPublish) {
+                const formatted = normalizePodiumForKukkiwon(pod);
+                try {
+                    const fetchRes = await fetch(targetUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Kyorix-API-Key': apiKey
+                        },
+                        body: JSON.stringify(formatted)
+                    });
+                    const resText = await fetchRes.text();
+                    let resData = null;
+                    try { resData = JSON.parse(resText); } catch(e) { resData = resText; }
+
+                    publishResults.push({
+                        category_name: formatted.category_name,
+                        status: fetchRes.status,
+                        ok: fetchRes.ok,
+                        response: resData
+                    });
+                } catch (fetchErr) {
+                    publishResults.push({
+                        category_name: formatted.category_name,
+                        status: 500,
+                        ok: false,
+                        error: fetchErr.message
+                    });
+                }
+            }
+
+            const allOk = publishResults.every(r => r.ok);
+            return sendJson(res, allOk ? 200 : 207, {
+                success: allOk,
+                message: allOk 
+                    ? `Successfully published ${publishResults.length} category podium(s) to Kukkiwon Cup site.`
+                    : `Published with partial status: ${publishResults.filter(r => r.ok).length}/${publishResults.length} succeeded.`,
+                targetUrl,
+                results: publishResults
+            });
+        } catch (err) {
+            console.error('Publish results error:', err);
+            return sendJson(res, 500, { success: false, error: 'Failed to publish results: ' + err.message });
+        }
+    }
 
     // 1. POST /api/payments/submit-utr
     if (method === 'POST' && pathname === '/api/payments/submit-utr') {

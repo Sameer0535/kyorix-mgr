@@ -14862,11 +14862,12 @@
             } catch(e) {}
         }
 
-        // Final match podium compile
+        // Final match podium compile & Automated Webhook to Kukkiwon Cup
         const isFinalMatch = (targetRoundIdx === rounds.length - 1);
         if (isFinalMatch && store && typeof store.publishResults === 'function') {
             try {
                 store.publishResults();
+                dispatchKukkiwonPodiumWebhook(actualDivId, curBrackets);
             } catch(e) {}
         }
 
@@ -14899,6 +14900,62 @@
 
         return { targetMatch, winner, curBrackets };
     }
+
+    // Helper: Automated Webhook Dispatch to Kukkiwon Cup Tournament Site
+    async function dispatchKukkiwonPodiumWebhook(divId, brackets) {
+        try {
+            if (!brackets) {
+                try { brackets = JSON.parse(localStorage.getItem('tkd_brackets_v3') || '{}'); } catch(e) {}
+            }
+            const rounds = brackets[divId];
+            if (!Array.isArray(rounds) || rounds.length === 0) return;
+
+            const finalRound = rounds[rounds.length - 1];
+            if (!Array.isArray(finalRound) || finalRound.length === 0) return;
+            const finalMatch = finalRound[0];
+            if (!finalMatch || (finalMatch.status !== 'completed' && finalMatch.status !== 'COMPLETED')) return;
+
+            const winner = (typeof store !== 'undefined' && store.resolveMatchWinner)
+                ? store.resolveMatchWinner(finalMatch)
+                : (finalMatch.winnerId === finalMatch.p1?.id ? finalMatch.p1 : finalMatch.p2);
+            const loser = (typeof store !== 'undefined' && store.resolveMatchLoser)
+                ? store.resolveMatchLoser(finalMatch)
+                : (finalMatch.winnerId === finalMatch.p1?.id ? finalMatch.p2 : finalMatch.p1);
+
+            let bronzes = [];
+            if (rounds.length >= 2) {
+                const semiRound = rounds[rounds.length - 2];
+                if (Array.isArray(semiRound)) {
+                    semiRound.forEach(sm => {
+                        const semiLoser = (typeof store !== 'undefined' && store.resolveMatchLoser)
+                            ? store.resolveMatchLoser(sm)
+                            : (sm.winnerId === sm.p1?.id ? sm.p2 : sm.p1);
+                        if (semiLoser && semiLoser.name) bronzes.push(semiLoser);
+                    });
+                }
+            }
+
+            const rawPodium = {
+                category_name: divId,
+                gold: winner,
+                silver: loser,
+                bronze: bronzes
+            };
+
+            const res = await fetch('/api/v1/results/publish', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ podium: rawPodium })
+            });
+
+            if (res.ok) {
+                console.log(`[Kukkiwon Webhook] Dispatched podium for ${divId} successfully.`);
+            }
+        } catch (err) {
+            console.warn('[Kukkiwon Webhook] Error dispatching podium webhook:', err);
+        }
+    }
+    window.dispatchKukkiwonPodiumWebhook = dispatchKukkiwonPodiumWebhook;
 
 // 5.5. OFFICIAL JURY SECTION: COURT MATCH SCHEDULING & BOUT SCORING DESK
     // ========================================================================
@@ -16223,6 +16280,9 @@
                             </p>
                         </div>
                         <div class="flex flex-wrap items-center gap-2 shrink-0">
+                            <button class="tkd-btn tkd-btn-sm bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition-all" id="btn-sync-kukkiwon-results" title="Export completed medalists to Kukkiwon Cup tournament registration website">
+                                <i class="fa-solid fa-cloud-arrow-up"></i>Publish Results to Kukkiwon Cup Site
+                            </button>
                             <button class="tkd-btn tkd-btn-sm tkd-btn-blue font-bold text-xs" id="btn-publish-results-studio">
                                 <i class="fa-solid fa-bullhorn me-1.5"></i>${isPublished ? 'Re-Publish Results &amp; Certificates' : 'Publish Official Results'}
                             </button>
@@ -16374,6 +16434,40 @@
         document.getElementById('btn-goto-certs-studio')?.addEventListener('click', () => {
             if (window.app && typeof window.app.navigate === 'function') {
                 window.app.navigate('certificates');
+            }
+        });
+
+        // Bind Kukkiwon Cup Results Publish All Button
+        document.getElementById('btn-sync-kukkiwon-results')?.addEventListener('click', async () => {
+            const btn = document.getElementById('btn-sync-kukkiwon-results');
+            if (!btn) return;
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin me-1.5"></i>Publishing to Kukkiwon Cup...`;
+
+            try {
+                // Ensure local results are computed first
+                if (store && typeof store.publishResults === 'function') store.publishResults();
+
+                const res = await fetch('/api/v1/results/publish', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ publishAll: true })
+                });
+
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    showToast(`🏆 Successfully published ${data.results?.length || 0} category podium(s) to Kukkiwon Cup live site!`, 'success');
+                    localStorage.setItem('tkd_kukkiwon_last_synced', new Date().toISOString());
+                } else {
+                    showToast(data.message || data.error || 'Failed to publish results to Kukkiwon Cup site.', 'error');
+                }
+            } catch (err) {
+                showToast('Network error publishing to Kukkiwon Cup: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+                renderResultsViewer(container, activeSubTab);
             }
         });
     }
