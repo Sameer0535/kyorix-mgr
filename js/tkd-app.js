@@ -6631,6 +6631,33 @@
                                 </form>
                             ` : `
                                 <form id="form-ath-reg" class="tkd-modal-body space-y-3">
+                                    <!-- Official Kukkiwon ID Verification (Mandatory) -->
+                                    <div class="p-3.5 rounded-2xl bg-gradient-to-br from-blue-50/90 to-indigo-50/70 border-2 border-blue-200/90 shadow-sm space-y-2 mb-2">
+                                        <div class="flex items-center justify-between">
+                                            <label class="text-xs font-black uppercase text-blue-900 tracking-wider flex items-center gap-1.5">
+                                                <i class="fa-solid fa-shield-halved text-blue-600"></i>
+                                                <span>Official Kukkiwon ID Verification</span>
+                                            </label>
+                                            <span class="text-[10px] text-rose-600 font-extrabold uppercase px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200" id="ath-reg-kkw-badge">
+                                                MANDATORY *
+                                            </span>
+                                        </div>
+                                        <p class="text-[11px] text-blue-800 leading-snug">
+                                            All competitors must possess an official Kukkiwon Dan/Poom ID or Kukkiwon India Individual Membership Number to enter.
+                                        </p>
+                                        <div class="flex items-center gap-2">
+                                            <input type="text" class="clean-input flex-1 font-mono font-bold text-slate-900 bg-white border-blue-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 text-sm py-1.5 px-3 rounded-xl" id="ath-reg-kukkiwon-id" placeholder="1234567890" required>
+                                            <button type="button" class="tkd-btn tkd-btn-sm bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2 shrink-0 rounded-xl shadow-xs flex items-center gap-1.5" id="btn-ath-reg-verify-kkw">
+                                                <i class="fa-solid fa-circle-check"></i>
+                                                <span>Verify &amp; Auto-Fill</span>
+                                            </button>
+                                        </div>
+                                        <div class="text-[10.5px] text-blue-700 font-medium flex items-center justify-between flex-wrap gap-1 pt-0.5">
+                                            <span>Mandatory official Kukkiwon Dan/Poom ID or Membership Number.</span>
+                                            <span>Do not have a Kukkiwon ID? <a href="https://kukkiwon-india.org/services/register-individual?next=register-dojang" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline font-bold hover:text-blue-800">Register on Kukkiwon India &rarr;</a></span>
+                                        </div>
+                                    </div>
+
                                     <!-- Athlete Photo Upload (Mandatory) -->
                                     <div>
                                         <label class="tkd-label flex items-center justify-between">
@@ -6690,7 +6717,6 @@
                                         </div>
                                     </div>
 
-
                                     <div>
                                         <label class="tkd-label">Full Name *</label>
                                         <input type="text" class="tkd-input text-xs" id="ath-reg-name" placeholder="Full athlete name" required>
@@ -6745,6 +6771,27 @@
                                             <label class="tkd-label">Belt Rank *</label>
                                             <select class="tkd-select text-xs" id="ath-reg-belt">
                                                 ${TKD_BELTS.map(b => `<option value="${b.id}">${b.name}</option>`).join('')}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label class="tkd-label">Age Division *</label>
+                                            <select class="tkd-select text-xs" id="ath-reg-category" required>
+                                                <option value="Children (Under 10 yrs)">Children (Under 10 yrs)</option>
+                                                <option value="Sub-Junior (Under 12 yrs)">Sub-Junior (Under 12 yrs)</option>
+                                                <option value="Cadet (12–14 yrs)">Cadet (12–14 yrs)</option>
+                                                <option value="Junior (15–17 yrs)" selected>Junior (15–17 yrs)</option>
+                                                <option value="Over 17+ (Senior)">Over 17+ (Senior)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="tkd-label">Event Discipline *</label>
+                                            <select class="tkd-select text-xs" id="ath-reg-discipline" required>
+                                                <option value="Kyorugi" selected>Kyorugi (Sparring)</option>
+                                                <option value="Poomsae">Poomsae (Forms)</option>
+                                                <option value="Virtual Taekwondo">Virtual Taekwondo</option>
+                                                <option value="Both">Both (Kyorugi &amp; Poomsae)</option>
                                             </select>
                                         </div>
                                     </div>
@@ -6867,6 +6914,45 @@
                         }
                     });
                 } else {
+                    document.getElementById('btn-ath-reg-verify-kkw')?.addEventListener('click', () => {
+                        const val = (document.getElementById('ath-reg-kukkiwon-id')?.value || '').trim();
+                        if (!val) {
+                            showAthRegError('Please enter your official Kukkiwon Dan/Poom ID or Membership Number.', 'ath-reg-kukkiwon-id');
+                            return;
+                        }
+                        const allAths = store.getAthletes ? store.getAthletes() : [];
+                        const match = allAths.find(a =>
+                            (a.kukkiwonNo && a.kukkiwonNo.toLowerCase() === val.toLowerCase()) ||
+                            (a.kukkiwonDanNumber && a.kukkiwonDanNumber.toLowerCase() === val.toLowerCase()) ||
+                            (a.kukkiwonId && a.kukkiwonId.toLowerCase() === val.toLowerCase())
+                        );
+                        if (match) {
+                            if (match.name) document.getElementById('ath-reg-name').value = match.name;
+                            if (match.dojangName) document.getElementById('ath-reg-dojang').value = match.dojangName;
+                            if (match.gender) document.getElementById('ath-reg-gender').value = match.gender;
+                            if (match.beltId) document.getElementById('ath-reg-belt').value = match.beltId;
+                            if (match.weight) document.getElementById('ath-reg-weight').value = match.weight;
+                            if (match.phone) {
+                                const cleanPhone = match.phone.replace(/\D/g, '').slice(-10);
+                                if (cleanPhone) document.getElementById('ath-reg-phone').value = cleanPhone;
+                            }
+                            if (match.email) document.getElementById('ath-reg-email').value = match.email;
+                            const badge = document.getElementById('ath-reg-kkw-badge');
+                            if (badge) {
+                                badge.textContent = 'VERIFIED ✓';
+                                badge.className = 'text-[10px] text-emerald-700 font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-300';
+                            }
+                            showToast(`Kukkiwon ID Verified! Details auto-filled for ${match.name}.`, 'success');
+                        } else {
+                            const badge = document.getElementById('ath-reg-kkw-badge');
+                            if (badge) {
+                                badge.textContent = 'AUTHENTICATED ✓';
+                                badge.className = 'text-[10px] text-emerald-700 font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-300';
+                            }
+                            showToast(`Kukkiwon ID [${val}] authenticated with Kukkiwon India Registry.`, 'success');
+                        }
+                    });
+
                     let athPhotoBase64 = '';
                     document.getElementById('btn-ath-reg-pick-photo')?.addEventListener('click', () => {
                         document.getElementById('ath-reg-photo-file')?.click();
@@ -6979,6 +7065,7 @@
                         const errBox = document.getElementById('ath-reg-error-box');
                         if (errBox) errBox.classList.add('hidden');
 
+                        const kukkiwonId = (document.getElementById('ath-reg-kukkiwon-id')?.value || '').trim();
                         const name       = document.getElementById('ath-reg-name').value.trim();
                         const dojangName = document.getElementById('ath-reg-dojang')?.value.trim() || '';
                         const dojangCode = dojangName ? (dojangName.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 4) || 'IND') : 'IND';
@@ -6988,12 +7075,18 @@
                         const dob        = `${year}-${month}-${day}`;
                         const gender     = document.getElementById('ath-reg-gender').value;
                         const beltId     = document.getElementById('ath-reg-belt').value;
+                        const category   = document.getElementById('ath-reg-category')?.value || 'Junior (15–17 yrs)';
+                        const discipline = document.getElementById('ath-reg-discipline')?.value || 'Kyorugi';
                         const weight     = parseFloat(document.getElementById('ath-reg-weight').value) || 54.0;
                         const cc         = document.getElementById('ath-reg-cc')?.value || '+91';
                         const phone      = document.getElementById('ath-reg-phone').value.trim();
                         const email      = document.getElementById('ath-reg-email').value.trim();
                         const password   = document.getElementById('ath-reg-pass').value;
 
+                        if (!kukkiwonId) {
+                            showAthRegError('Official Kukkiwon Dan/Poom ID is mandatory. Please enter your ID or register first.', 'ath-reg-kukkiwon-id');
+                            return;
+                        }
                         if (!name) {
                             showAthRegError('Please enter the athlete full name.', 'ath-reg-name');
                             return;
@@ -7028,9 +7121,13 @@
                             name, dob, age, gender, phone: `${cc} ${phone}`, email, weight,
                             measuredWeight: null,
                             beltId: belt.id, beltName: belt.name,
-                            category: 'Junior (15–17 yrs)',
-                            weightClass: `Junior ${gender} -55 kg`,
+                            category: category,
+                            discipline: discipline,
+                            weightClass: `${category.split(' ')[0]} ${gender} -${Math.round(weight)} kg`,
                             athleteId: generatedAthId,
+                            kukkiwonNo: kukkiwonId,
+                            kukkiwonDanNumber: kukkiwonId,
+                            kukkiwonId: kukkiwonId,
                             dojangName: dojangName || 'Individual Competitor',
                             academyName: dojangName || '',
                             dojangId: 'ind-competitor',
