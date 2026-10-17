@@ -4295,18 +4295,12 @@
             renderPublicEventsList(container);
         });
 
-        // Register Button Click -> Check login, then open modal
+        // Register Button Click -> Open 2-step registration wizard
         container.querySelectorAll('.btn-open-reg-modal').forEach(btn => {
             btn.addEventListener('click', () => {
-                const tId    = btn.getAttribute('data-tourn-id');
-                const title  = btn.getAttribute('data-tourn-title');
-                const user   = store.getCurrentUser();
-                if (user) {
-                    openParticipantRegistrationModal(tId, title);
-                } else {
-                    window.app.pendingRegistration = { tId, tTitle: title };
-                    openRoleAuthModal('_picker');
-                }
+                const tId    = btn.getAttribute('data-tourn-id') || 'tourn-kukkiwon-2026';
+                const title  = btn.getAttribute('data-tourn-title') || 'Kukkiwon Cup India Taekwondo Championship 2026';
+                openParticipantRegistrationModal(tId, title);
             });
         });
     }
@@ -4455,11 +4449,12 @@
         const athPhoto = loggedAth ? (loggedAth.photo || '') : '';
         const athAadhar = loggedAth ? (loggedAth.aadharDoc || '') : '';
         const athBirthCert = loggedAth ? (loggedAth.birthCertDoc || '') : '';
+        const currentDojang = (currentUser && currentUser.role === 'dojang') ? store.getDojang(currentUser.dojangId) : null;
         const defaultAcademy = (currentUser && currentUser.role === 'dojang' && currentDojang) 
             ? currentDojang.name 
             : (loggedAth ? (loggedAth.dojangName !== 'Individual Competitor' ? (loggedAth.dojangName || '') : '') : '');
 
-        let birthYear = '', birthMonth = '', birthDay = '';
+        let birthYear = '2009', birthMonth = '06', birthDay = '15';
         if (loggedAth && loggedAth.dob) {
             const parts = loggedAth.dob.split('-');
             if (parts.length === 3) {
@@ -4469,840 +4464,990 @@
             }
         }
 
-        mc.innerHTML = `
-            <div class="tkd-modal-backdrop animate-fade-in" id="participant-reg-backdrop">
-                <div class="clean-modal-card">
-                    <!-- Close Button -->
-                    <button class="btn-modal-close-round" id="btn-close-reg-modal">&times;</button>
+        // Active Wizard State
+        let currentStep = 1;
+        let regData = {
+            kukkiwonId: defaultKukkiwonId,
+            name: defaultName,
+            parentName: defaultParent,
+            phone: defaultPhone,
+            email: defaultEmail,
+            address: defaultAddress,
+            academy: defaultAcademy,
+            coachName: '',
+            dobDay: birthDay,
+            dobMonth: birthMonth,
+            dobYear: birthYear,
+            gender: defaultGender,
+            beltId: defaultBelt,
+            discipline: 'Kyorugi',
+            tier: 'REGULAR',
+            category: 'junior',
+            weightClass: 'U 55 KG',
+            scaleWeight: 54.0,
+            poomsaeClass: 'Junior II·III: Ages 13-18 [Taekeuk 4~8, Koryo, Keumkang]',
+            virtualType: 'Individual Regular (Male/Female)',
+            competitionFormat: 'Official',
+            group4Cat: 'U-10',
+            group4Weight: 30.0,
+            photo: athPhoto,
+            aadharDoc: athAadhar,
+            birthCertDoc: athBirthCert,
+            utrNumber: '',
+            isKkwVerified: !!defaultKukkiwonId
+        };
 
-                    <!-- Top Pink Badge -->
-                    <div class="mb-2">
-                        <span class="badge-modal-top">
-                            REGISTER FOR ${tournTitle.toUpperCase()}
-                        </span>
-                    </div>
-
-                    <!-- Title & Subtitle -->
-                    <h3 class="text-xl md:text-2xl font-black text-slate-900 tracking-tight">${tournTitle}</h3>
-                    <p class="text-xs text-slate-600 mt-1 mb-5">${currentUser && currentUser.role === 'athlete' ? 'Review & submit your tournament entry details.' : 'Fill in competitor registration details for official accreditation.'}</p>
-
-                    <!-- Clean Registration Form -->
-                    <form id="form-participant-reg" class="space-y-3.5 text-left">
-
-                        <!-- Official Kukkiwon ID Verification (Mandatory) -->
-                        <div class="bg-blue-50/80 border-2 border-blue-200 rounded-2xl p-4 space-y-2.5">
-                            <div class="flex items-center justify-between">
-                                <label class="text-xs font-black uppercase text-slate-900 tracking-wider flex items-center gap-1">
-                                    <span>Official Kukkiwon ID Verification</span>
-                                    <span class="text-rose-600 font-bold">*</span>
-                                </label>
-                                <span class="text-[10px] text-blue-700 bg-blue-100 font-bold px-2 py-0.5 rounded-full" id="reg-p-kkw-status">
-                                    ${defaultKukkiwonId ? 'VERIFIED ✓' : 'MANDATORY *'}
-                                </span>
-                            </div>
-                            <p class="text-xs text-slate-600 leading-relaxed">
-                                All competitors must possess an official Kukkiwon Dan/Poom ID or Kukkiwon India Individual Membership Number. Enter your ID below and click <strong>Verify &amp; Auto-Fill</strong> to automatically load your verified personal details.
-                            </p>
-                            <div class="flex items-center gap-2">
-                                <input type="text" class="clean-input flex-1 font-mono font-bold text-slate-900 bg-white border-blue-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 text-sm py-2 px-3 rounded-xl" id="reg-p-kukkiwon-id" placeholder="1234567890" value="${defaultKukkiwonId}" required>
-                                <button type="button" class="clean-input bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-2 px-4 rounded-xl cursor-pointer flex items-center justify-center gap-1.5 shrink-0 transition shadow-xs" id="btn-reg-p-verify-kkw">
-                                    <i class="fa-regular fa-circle-check text-sm"></i>
-                                    <span>Verify &amp; Auto-Fill</span>
-                                </button>
-                            </div>
-                            <div class="text-[11px] text-slate-600 leading-normal pt-1 border-t border-blue-100/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                                <span>Mandatory official Kukkiwon Dan/Poom ID. Strict format: <strong>KKWID-260929-0245-1952</strong>.</span>
-                                <span>Do not have a Kukkiwon ID? <a href="https://kukkiwon-india.org/services/register-individual?next=register-dojang" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 font-bold underline inline-flex items-center gap-1">Register for individual membership first <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i></a></span>
-                            </div>
-                        </div>
-
-                        <!-- Athlete Photo Upload -->
-                        <!-- Athlete Photo Upload (Mandatory) -->
-                        <div>
-                            <label class="clean-input-label flex items-center justify-between">
-                                <span>Athlete Photo * <span class="text-[10px] text-slate-500 font-normal">(For Official Tournament ID Card)</span></span>
-                                <span class="text-[10px] ${athPhoto ? 'text-emerald-600' : 'text-rose-600'} font-bold" id="reg-p-photo-badge">${athPhoto ? 'Uploaded ✓' : 'REQUIRED *'}</span>
-                            </label>
-                            <div class="flex items-center gap-3 p-2.5 bg-slate-100 rounded-xl border border-slate-200">
-                                <div class="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden" id="reg-p-photo-preview-wrap">
-                                    <i class="fa-solid fa-camera text-blue-600 text-lg ${athPhoto ? 'hidden' : ''}" id="reg-p-photo-placeholder"></i>
-                                    <img id="reg-p-photo-img" src="${athPhoto || ''}" alt="Athlete Photo" class="w-full h-full object-cover ${athPhoto ? '' : 'hidden'}">
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <input type="file" class="hidden" id="reg-p-photo-file" accept="image/*">
-                                    <button type="button" class="clean-input text-xs py-1.5 px-3 hover:bg-slate-100 cursor-pointer flex items-center justify-center gap-1.5 font-semibold text-slate-900" id="btn-reg-p-pick-photo">
-                                        <i class="fa-solid fa-upload text-blue-600"></i>
-                                        <span id="btn-reg-p-photo-text">${athPhoto ? 'Change Photo' : 'Upload Photo'}</span>
-                                    </button>
-                                    <p class="text-[10px] text-slate-600 mt-0.5">PNG or JPG passport style photo (Mandatory)</p>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Aadhaar Card Document Upload (Mandatory) -->
-                        <div>
-                            <label class="clean-input-label flex items-center justify-between">
-                                <span>Aadhaar Card Document * <span class="text-[10px] text-slate-500 font-normal">(Government Identity Proof)</span></span>
-                                <span class="text-[10px] ${athAadhar ? 'text-emerald-600' : 'text-rose-600'} font-bold" id="reg-p-aadhar-badge">${athAadhar ? 'Uploaded ✓' : 'REQUIRED *'}</span>
-                            </label>
-                            <div class="flex items-center gap-3 p-2.5 bg-slate-100 rounded-xl border border-slate-200">
-                                <div class="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden" id="reg-p-aadhar-preview-wrap">
-                                    <i class="fa-solid fa-id-card text-emerald-600 text-lg ${athAadhar ? 'hidden' : ''}" id="reg-p-aadhar-placeholder"></i>
-                                    <img id="reg-p-aadhar-img" src="${athAadhar || ''}" alt="Aadhaar Card" class="w-full h-full object-cover ${athAadhar ? '' : 'hidden'}">
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <input type="file" class="hidden" id="reg-p-aadhar-file" accept="image/*,application/pdf">
-                                    <button type="button" class="clean-input text-xs py-1.5 px-3 hover:bg-slate-100 cursor-pointer flex items-center justify-center gap-1.5 font-semibold text-slate-900" id="btn-reg-p-pick-aadhar">
-                                        <i class="fa-solid fa-file-arrow-up text-emerald-600"></i>
-                                        <span id="btn-reg-p-aadhar-text">${athAadhar ? 'Change Aadhaar' : 'Upload Aadhaar Card'}</span>
-                                    </button>
-                                    <p class="text-[10px] text-slate-600 mt-0.5">JPG, PNG or PDF of front / e-Aadhaar (Mandatory)</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Birth Certificate Document Upload (Mandatory) -->
-                        <div>
-                            <label class="clean-input-label flex items-center justify-between">
-                                <span>Birth Certificate Document * <span class="text-[10px] text-slate-500 font-normal">(Municipal / State Authority)</span></span>
-                                <span class="text-[10px] ${athBirthCert ? 'text-emerald-600' : 'text-rose-600'} font-bold" id="reg-p-birthcert-badge">${athBirthCert ? 'Uploaded ✓' : 'REQUIRED *'}</span>
-                            </label>
-                            <div class="flex items-center gap-3 p-2.5 bg-slate-100 rounded-xl border border-slate-200">
-                                <div class="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden" id="reg-p-birthcert-preview-wrap">
-                                    <i class="fa-solid fa-id-card text-amber-600 text-lg ${athBirthCert ? 'hidden' : ''}" id="reg-p-birthcert-placeholder"></i>
-                                    <img id="reg-p-birthcert-img" src="${athBirthCert || ''}" alt="Birth Certificate" class="w-full h-full object-cover ${athBirthCert ? '' : 'hidden'}">
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <input type="file" class="hidden" id="reg-p-birthcert-file" accept="image/*,application/pdf">
-                                    <button type="button" class="clean-input text-xs py-1.5 px-3 hover:bg-slate-100 cursor-pointer flex items-center justify-center gap-1.5 font-semibold text-slate-900" id="btn-reg-p-pick-birthcert">
-                                        <i class="fa-solid fa-file-arrow-up text-amber-600"></i>
-                                        <span id="btn-reg-p-birthcert-text">${athBirthCert ? 'Change Birth Cert' : 'Upload Birth Certificate'}</span>
-                                    </button>
-                                    <p class="text-[10px] text-slate-600 mt-0.5">JPG, PNG or PDF of official birth record (Mandatory)</p>
-                                </div>
-                            </div>
-                        </div>
-
-
-                        <!-- Student / Participant Name * -->
-                        <div>
-                            <label class="clean-input-label">Student / Participant Name *</label>
-                            <input type="text" class="clean-input" id="reg-p-name" placeholder="Enter full athlete name (e.g. Darshan)" value="${defaultName}" required>
-                        </div>
-
-                        <!-- Academy / School / Club Name -->
-                        <div>
-                            <label class="clean-input-label">Academy / Club / School Name <span class="text-[10px] text-slate-400 font-normal">(Leave blank if Individual Unattached)</span></label>
-                            <input type="text" class="clean-input" id="reg-p-academy" placeholder="e.g. D Taekwondo Academy or Unattached" value="${defaultAcademy}">
-                        </div>
-
-                        <!-- 2-Col: Date of Birth * (Day / Month / Year) & Parent/Guardian Name -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label class="clean-input-label">Date of Birth * <span class="text-[10px] text-slate-400 font-normal">(Day / Month / Year)</span></label>
-                                <div class="grid grid-cols-3 gap-1.5">
-                                    <select class="clean-input font-mono text-xs px-2" id="reg-p-dob-day" required>
-                                        <option value="">Day</option>
-                                        ${Array.from({length: 31}, (_, i) => {
-                                            const d = (i + 1).toString().padStart(2, '0');
-                                            return `<option value="${d}" ${d === (birthDay || '15') ? 'selected' : ''}>${d}</option>`;
-                                        }).join('')}
-                                    </select>
-                                    <select class="clean-input text-xs px-1.5" id="reg-p-dob-month" required>
-                                        <option value="">Month</option>
-                                        <option value="01" ${birthMonth === '01' ? 'selected' : ''}>Jan</option>
-                                        <option value="02" ${birthMonth === '02' ? 'selected' : ''}>Feb</option>
-                                        <option value="03" ${(!birthMonth || birthMonth === '03') ? 'selected' : ''}>Mar</option>
-                                        <option value="04" ${birthMonth === '04' ? 'selected' : ''}>Apr</option>
-                                        <option value="05" ${birthMonth === '05' ? 'selected' : ''}>May</option>
-                                        <option value="06" ${birthMonth === '06' ? 'selected' : ''}>Jun</option>
-                                        <option value="07" ${birthMonth === '07' ? 'selected' : ''}>Jul</option>
-                                        <option value="08" ${birthMonth === '08' ? 'selected' : ''}>Aug</option>
-                                        <option value="09" ${birthMonth === '09' ? 'selected' : ''}>Sep</option>
-                                        <option value="10" ${birthMonth === '10' ? 'selected' : ''}>Oct</option>
-                                        <option value="11" ${birthMonth === '11' ? 'selected' : ''}>Nov</option>
-                                        <option value="12" ${birthMonth === '12' ? 'selected' : ''}>Dec</option>
-                                    </select>
-                                    <select class="clean-input font-mono text-xs px-2" id="reg-p-dob-year" required>
-                                        <option value="">Year</option>
-                                        ${Array.from({length: 60}, (_, i) => {
-                                            const yr = 2024 - i;
-                                            const targetYr = birthYear ? parseInt(birthYear) : 2009;
-                                            return `<option value="${yr}" ${yr === targetYr ? 'selected' : ''}>${yr}</option>`;
-                                        }).join('')}
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="clean-input-label">Parent / Guardian Name</label>
-                                <input type="text" class="clean-input" id="reg-p-parent" placeholder="If student is minor" value="${defaultParent}">
-                            </div>
-                        </div>
-
-                        <!-- 2-Col: Phone Number * & Email Address -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label class="clean-input-label">Mobile Number * <span class="text-[10px] text-slate-400 font-normal">(10 digits)</span></label>
-                                <div class="clean-phone-group">
-                                    <select class="clean-country-select" id="reg-p-cc">
-                                        <option value="+91" selected>+91</option>
-                                        <option value="+1">+1</option>
-                                        <option value="+44">+44</option>
-                                        <option value="+971">+971</option>
-                                        <option value="+65">+65</option>
-                                        <option value="+61">+61</option>
-                                        <option value="+82">+82</option>
-                                        <option value="+66">+66</option>
-                                        <option value="+60">+60</option>
-                                        <option value="+977">+977</option>
-                                    </select>
-                                    <input type="tel" class="clean-input clean-phone-input" id="reg-p-phone" placeholder="9876543210" maxlength="10" inputmode="numeric" value="${defaultPhone}" required>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="clean-input-label">Email Address</label>
-                                <input type="email" class="clean-input" id="reg-p-email" placeholder="athlete@example.com" value="${defaultEmail}">
-                            </div>
-                        </div>
-
-                        <!-- Address * -->
-                        <div>
-                            <label class="clean-input-label">Address *</label>
-                            <input type="text" class="clean-input" id="reg-p-address" placeholder="Residential address / city" value="${defaultAddress}" required>
-                        </div>
-
-                        <!-- Belt Rank -->
-                        <div>
-                            <label class="clean-input-label">Belt Rank *</label>
-                            <select class="clean-input" id="reg-p-belt">
-                                ${TKD_BELTS.map(b => `<option value="${b.id}" ${b.id === defaultBelt ? 'selected' : ''}>${b.name}</option>`).join('')}
-                            </select>
-                        </div>
-
-                        <!-- 1. Event Discipline Selection (Kyorugi / Poomsae / Virtual Taekwondo / Both) -->
-                        <div>
-                            <label class="clean-input-label font-bold text-slate-800 flex items-center justify-between">
-                                <span>Event Discipline *</span>
-                                <span class="text-[10px] text-blue-600 font-bold" id="reg-p-discipline-badge">Kyorugi</span>
-                            </label>
-                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
-                                <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border-2 border-blue-600 bg-blue-50 text-blue-900 cursor-pointer font-bold text-xs transition-all disc-toggle-pill" id="label-disc-kyorugi">
-                                    <input type="radio" name="reg-p-discipline" value="Kyorugi" checked class="text-blue-600 focus:ring-blue-500">
-                                    <span>Kyorugi</span>
-                                </label>
-                                <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border-2 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer font-bold text-xs transition-all disc-toggle-pill" id="label-disc-poomsae">
-                                    <input type="radio" name="reg-p-discipline" value="Poomsae" class="text-blue-600 focus:ring-blue-500">
-                                    <span>Poomsae</span>
-                                </label>
-                                <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border-2 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer font-bold text-xs transition-all disc-toggle-pill" id="label-disc-virtual">
-                                    <input type="radio" name="reg-p-discipline" value="Virtual Taekwondo" class="text-blue-600 focus:ring-blue-500">
-                                    <span>Virtual TKD</span>
-                                </label>
-                                <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border-2 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer font-bold text-xs transition-all disc-toggle-pill" id="label-disc-both">
-                                    <input type="radio" name="reg-p-discipline" value="Both" class="text-blue-600 focus:ring-blue-500">
-                                    <span>Both</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- 2. Competition Format (Option Above Category: Official vs Group-4) -->
-                        <div>
-                            <label class="clean-input-label font-bold text-slate-800 flex items-center justify-between">
-                                <span>Competition Format *</span>
-                                <span class="text-[10px] text-blue-600 font-bold" id="reg-p-format-badge">Official Championship</span>
-                            </label>
-                            <div class="grid grid-cols-2 gap-2 mt-1">
-                                <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border-2 border-blue-600 bg-blue-50 text-blue-900 cursor-pointer font-bold text-xs transition-all format-toggle-pill" id="label-format-official">
-                                    <input type="radio" name="reg-p-format" value="Official" id="reg-radio-official" checked class="text-blue-600 focus:ring-blue-500">
-                                    <span>Official</span>
-                                </label>
-                                <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border-2 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer font-bold text-xs transition-all format-toggle-pill" id="label-format-group4">
-                                    <input type="radio" name="reg-p-format" value="Group-4" id="reg-radio-group4" class="text-blue-600 focus:ring-blue-500">
-                                    <span>Group-4</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- Section A: Official Category & Weight Class -->
-                        <div id="reg-section-official" class="space-y-3.5">
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="clean-input-label">Category *</label>
-                                    <select class="clean-input" id="reg-p-category">
-                                        <option value="">— Select Category —</option>
-                                        <option value="children">Children (Under 10)</option>
-                                        <option value="sub-junior">Sub-Junior (Under 12)</option>
-                                        <option value="cadet">Cadet (12–14 yrs)</option>
-                                        <option value="junior" selected>Junior (15–17 yrs)</option>
-                                        <option value="senior">Over 17+ (Senior)</option>
-                                        <option value="dasara">Dasara (Open/District)</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="clean-input-label">Gender *</label>
-                                    <select class="clean-input" id="reg-p-gender">
-                                        <option value="">— Select Gender —</option>
-                                        <option value="Male" selected>Male</option>
-                                        <option value="Female">Female</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <!-- Kyorugi Weight Category Dropdown -->
-                            <div id="reg-p-weightclass-wrapper">
-                                <label class="clean-input-label">Kyorugi Weight Category *</label>
-                                <select class="clean-input font-bold text-slate-900" id="reg-p-weightclass">
-                                    <option value="U 45 KG">U 45 KG</option>
-                                    <option value="U 48 KG">U 48 KG</option>
-                                    <option value="U 51 KG">U 51 KG</option>
-                                    <option value="U 55 KG">U 55 KG</option>
-                                    <option value="U 59 KG">U 59 KG</option>
-                                    <option value="U 63 KG">U 63 KG</option>
-                                    <option value="U 68 KG">U 68 KG</option>
-                                    <option value="U 73 KG">U 73 KG</option>
-                                    <option value="U 78 KG">U 78 KG</option>
-                                    <option value="O 78 KG">O 78 KG</option>
-                                </select>
-                            </div>
-
-                            <!-- Poomsae Classification Dropdown -->
-                            <div id="reg-p-poomsae-wrapper" class="hidden">
-                                <label class="clean-input-label">Designated Poomsae Classification *</label>
-                                <select class="clean-input font-bold text-slate-900" id="reg-p-poomsae-class">
-                                    <optgroup label="Individual Poomsae">
-                                        <option value="Junior I: Under 12 [Taekeuk 3~8, Koryo]">Junior I (Under 12 Years) — Taekeuk 3~8, Koryo</option>
-                                        <option value="Junior II·III: Ages 13-18 [Taekeuk 4~8, Koryo, Keumkang]" selected>Junior II·III (Ages 13 to 18) — Taekeuk 4~8, Koryo, Keumkang</option>
-                                        <option value="Senior I: 18-29 [Taekeuk 8, Koryo, Keumkang, Taebaek, Pyongwon]">Senior I (Under 29 / 18–29) — Taekeuk 8, Koryo, Keumkang, Taebaek, Pyongwon</option>
-                                        <option value="Senior II: 30-39 [Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae]">Senior II (Under 39 / 30–39) — Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae</option>
-                                        <option value="Senior III: 40-49 [Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon]">Senior III (Under 49 / 40–49 Years) — Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon</option>
-                                        <option value="Senior IV: 50-59 [Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon]">Senior IV (Under 59 / 50–59 Years) — Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon</option>
-                                        <option value="Master I·II: 60+ [Taebaek, Pyongwon, Sipjin, Jitae, Hansu]">Master I·II (60 Years and Over) — Taebaek, Pyongwon, Sipjin, Jitae, Hansu</option>
-                                    </optgroup>
-                                    <optgroup label="Group Poomsae">
-                                        <option value="Group Junior I: Under 12 [Taekeuk 4, 5, 6, 7, 8, Koryo, Keumkang]">Group Junior I: Under 12 — Taekeuk 4~8, Koryo, Keumkang</option>
-                                        <option value="Group Junior II: 13-18 [Taekeuk 6, 7, 8, Koryo, Keumkang, Taebaek, Pyongwon]">Group Junior II: 13–18 — Taekeuk 6~8, Koryo, Keumkang, Taebaek, Pyongwon</option>
-                                        <option value="Group Senior I: 19-29 [Taekeuk 7, 8, Koryo, Keumkang, Taebaek, Pyongwon]">Group Senior I: 19–29 — Taekeuk 7, 8, Koryo, Keumkang, Taebaek, Pyongwon</option>
-                                        <option value="Group Senior II, III: 30+ [Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon]">Group Senior II, III: 30+ — Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon</option>
-                                    </optgroup>
-                                </select>
-                            </div>
-
-                            <!-- Virtual Taekwondo Competition Dropdown -->
-                            <div id="reg-p-virtual-wrapper" class="hidden">
-                                <label class="clean-input-label">Virtual Taekwondo Competition Type *</label>
-                                <select class="clean-input font-bold text-slate-900" id="reg-p-virtual-type">
-                                    <option value="Individual Freshers (Male/Female)">Male/Female – Individual Freshers</option>
-                                    <option value="Individual Regular (Male/Female)" selected>Male/Female – Individual Regular</option>
-                                    <option value="Mix Gender Individual Freshers">Male/Female – Mix Gender Individual Freshers</option>
-                                    <option value="Mix Gender Individual Regular">Male/Female – Mix Gender Individual Regular</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Section B: Group-4 (U-4, U-6, U-8, U-10, U-12, U-15, U-18, A-18) -->
-                        <div id="reg-section-group4" class="space-y-3.5 hidden">
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="clean-input-label">Group-4 Category *</label>
-                                    <select class="clean-input font-bold text-slate-900" id="reg-p-group4-cat">
-                                        <option value="U-4">U-4</option>
-                                        <option value="U-6">U-6</option>
-                                        <option value="U-8">U-8</option>
-                                        <option value="U-10" selected>U-10</option>
-                                        <option value="U-12">U-12</option>
-                                        <option value="U-15">U-15</option>
-                                        <option value="U-18">U-18</option>
-                                        <option value="A-18">A-18</option>
-                                    </select>
-                                    <span class="text-[10px] text-slate-500 mt-0.5 block">Pool of 4 competitors</span>
-                                </div>
-                                <div>
-                                    <label class="clean-input-label">Gender *</label>
-                                    <select class="clean-input" id="reg-p-group4-gender">
-                                        <option value="Male" selected>Male</option>
-                                        <option value="Female">Female</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div id="reg-p-group4-weight-wrapper">
-                                <label class="clean-input-label">Scale Weight (kg) <span class="text-[10px] text-slate-500 font-normal">(For pool matching)</span></label>
-                                <input type="number" step="0.1" class="clean-input font-mono font-bold" id="reg-p-group4-weight" placeholder="e.g. 28.5" value="30.0">
-                            </div>
-                        </div>
-
-                        <!-- Program / Event Name * -->
-                        <div>
-                            <label class="clean-input-label">Program / Event Name *</label>
-                            <input type="text" class="clean-input font-semibold" id="reg-p-event" value="${tournTitle}" readonly style="background:#f8fafc;cursor:default;">
-                        </div>
-
-                        <!-- Submit Button -->
-                        <button type="submit" class="btn-register-proceed" id="btn-submit-reg">
-                            <span>REGISTER &amp; GENERATE ID PASS</span>
-                            <i class="fa-solid fa-id-card text-xs"></i>
-                        </button>
-                    </form>
-                </div>
-            </div>
-        `;
-
-        document.getElementById('btn-close-reg-modal').addEventListener('click', () => { mc.innerHTML = ''; });
-        document.getElementById('participant-reg-backdrop').addEventListener('click', (e) => {
-            if (e.target.id === 'participant-reg-backdrop') mc.innerHTML = '';
-        });
-
-        // Photo Upload Handling
-        let athletePhotoBase64 = athPhoto || '';
-        document.getElementById('btn-reg-p-pick-photo')?.addEventListener('click', () => {
-            document.getElementById('reg-p-photo-file')?.click();
-        });
-        document.getElementById('reg-p-photo-file')?.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                athletePhotoBase64 = ev.target.result;
-                const previewImg = document.getElementById('reg-p-photo-img');
-                const placeholder = document.getElementById('reg-p-photo-placeholder');
-                const btnText = document.getElementById('btn-reg-p-photo-text');
-                if (previewImg) {
-                    previewImg.src = athletePhotoBase64;
-                    previewImg.classList.remove('hidden');
-                    if (placeholder) placeholder.classList.add('hidden');
-                }
-                if (btnText) btnText.textContent = 'Change Photo';
-                const photoBadge = document.getElementById('reg-p-photo-badge');
-                if (photoBadge) {
-                    photoBadge.textContent = 'Uploaded ✓';
-                    photoBadge.className = 'text-[10px] text-emerald-600 font-bold';
-                }
-            };
-            reader.readAsDataURL(file);
-        });
-
-        // Aadhaar Upload Handling
-        let athleteAadharBase64 = athAadhar || '';
-        document.getElementById('btn-reg-p-pick-aadhar')?.addEventListener('click', () => {
-            document.getElementById('reg-p-aadhar-file')?.click();
-        });
-        document.getElementById('reg-p-aadhar-file')?.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                athleteAadharBase64 = ev.target.result;
-                const previewImg = document.getElementById('reg-p-aadhar-img');
-                const placeholder = document.getElementById('reg-p-aadhar-placeholder');
-                const btnText = document.getElementById('btn-reg-p-aadhar-text');
-                const badge = document.getElementById('reg-p-aadhar-badge');
-                if (previewImg) {
-                    previewImg.src = athleteAadharBase64;
-                    previewImg.classList.remove('hidden');
-                    if (placeholder) placeholder.classList.add('hidden');
-                }
-                if (btnText) btnText.textContent = 'Change Aadhaar';
-                if (badge) {
-                    badge.textContent = 'Uploaded ✓';
-                    badge.className = 'text-[10px] text-emerald-600 font-bold';
-                }
-            };
-            reader.readAsDataURL(file);
-        });
-
-        // Birth Certificate Upload Handling
-        let athleteBirthCertBase64 = athBirthCert || '';
-        document.getElementById('btn-reg-p-pick-birthcert')?.addEventListener('click', () => {
-            document.getElementById('reg-p-birthcert-file')?.click();
-        });
-        document.getElementById('reg-p-birthcert-file')?.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                athleteBirthCertBase64 = ev.target.result;
-                const previewImg = document.getElementById('reg-p-birthcert-img');
-                const placeholder = document.getElementById('reg-p-birthcert-placeholder');
-                const btnText = document.getElementById('btn-reg-p-birthcert-text');
-                const badge = document.getElementById('reg-p-birthcert-badge');
-                if (previewImg) {
-                    previewImg.src = athleteBirthCertBase64;
-                    previewImg.classList.remove('hidden');
-                    if (placeholder) placeholder.classList.add('hidden');
-                }
-                if (btnText) btnText.textContent = 'Change Birth Cert';
-                if (badge) {
-                    badge.textContent = 'Uploaded ✓';
-                    badge.className = 'text-[10px] text-amber-600 font-bold';
-                }
-            };
-            reader.readAsDataURL(file);
-        });
-
-
-        // Strict numeric phone input
-        bindStrictPhoneInput(document.getElementById('reg-p-phone'));
-
-        // Kukkiwon ID Verification & Auto-Fill Handler
-        document.getElementById('btn-reg-p-verify-kkw')?.addEventListener('click', () => {
-            const val = (document.getElementById('reg-p-kukkiwon-id')?.value || '').trim();
-            if (!val) {
-                showToast('Please enter your official Kukkiwon Dan/Poom ID or Membership Number.', 'warning');
-                document.getElementById('reg-p-kukkiwon-id')?.focus();
-                return;
-            }
-            const allAthletes = (typeof store !== 'undefined' && store.getAthletes) ? store.getAthletes() : [];
-            const match = allAthletes.find(a => 
-                (a.kukkiwonNo && a.kukkiwonNo.toLowerCase() === val.toLowerCase()) || 
-                (a.kukkiwonDanNumber && a.kukkiwonDanNumber.toLowerCase() === val.toLowerCase()) || 
-                (a.kukkiwonId && a.kukkiwonId.toLowerCase() === val.toLowerCase()) ||
-                (a.athleteId && a.athleteId.toLowerCase() === val.toLowerCase())
-            );
-
-            const badge = document.getElementById('reg-p-kkw-status');
-            if (badge) {
-                badge.textContent = 'VERIFIED ✓';
-                badge.className = 'text-[10px] text-emerald-700 bg-emerald-100 font-bold px-2 py-0.5 rounded-full';
-            }
-
-            if (match) {
-                if (match.name) document.getElementById('reg-p-name').value = match.name;
-                if (match.gender) document.getElementById('reg-p-gender').value = match.gender;
-                if (match.beltId) document.getElementById('reg-p-belt').value = match.beltId;
-                if (match.phone) {
-                    const raw = match.phone.replace(/\D/g, '').slice(-10);
-                    if (raw) document.getElementById('reg-p-phone').value = raw;
-                }
-                if (match.email) document.getElementById('reg-p-email').value = match.email;
-                if (match.address) document.getElementById('reg-p-address').value = match.address;
-                if (match.dojangName && match.dojangName !== 'Individual Competitor') {
-                    document.getElementById('reg-p-academy').value = match.dojangName;
-                }
-                if (match.dob) {
-                    const p = match.dob.split('-');
-                    if (p.length === 3) {
-                        if (document.getElementById('reg-p-dob-year')) document.getElementById('reg-p-dob-year').value = p[0];
-                        if (document.getElementById('reg-p-dob-month')) document.getElementById('reg-p-dob-month').value = p[1];
-                        if (document.getElementById('reg-p-dob-day')) document.getElementById('reg-p-dob-day').value = p[2];
-                        handleDobChange();
-                    }
-                }
-                showToast(`Kukkiwon ID Verified! Details auto-filled for ${match.name}.`, 'success');
-            } else {
-                showToast(`Kukkiwon ID [${val}] authenticated with Kukkiwon India Registry.`, 'success');
-            }
-        });
-
-        // Toggle Discipline (Kyorugi / Poomsae / Virtual Taekwondo / Both)
-        const discRadios = mc.querySelectorAll('input[name="reg-p-discipline"]');
-        discRadios.forEach(radio => {
-            radio.addEventListener('change', () => {
-                const val = radio.value;
-                mc.querySelectorAll('.disc-toggle-pill').forEach(p => {
-                    p.classList.remove('border-blue-600', 'bg-blue-50', 'text-blue-900');
-                    p.classList.add('border-slate-200', 'bg-white', 'text-slate-700');
-                });
-                const selectedLabel = radio.closest('label');
-                if (selectedLabel) {
-                    selectedLabel.classList.add('border-blue-600', 'bg-blue-50', 'text-blue-900');
-                    selectedLabel.classList.remove('border-slate-200', 'bg-white', 'text-slate-700');
-                }
-                const badge = document.getElementById('reg-p-discipline-badge');
-                if (badge) {
-                    badge.textContent = val === 'Poomsae' ? 'Poomsae' : (val === 'Virtual Taekwondo' ? 'Virtual TKD' : (val === 'Both' ? 'Kyorugi & Poomsae' : 'Kyorugi'));
-                }
-                const wtWrapper = document.getElementById('reg-p-weightclass-wrapper');
-                const g4WtWrapper = document.getElementById('reg-p-group4-weight-wrapper');
-                const poomsaeWrapper = document.getElementById('reg-p-poomsae-wrapper');
-                const virtualWrapper = document.getElementById('reg-p-virtual-wrapper');
-
-                if (val === 'Poomsae') {
-                    if (wtWrapper) wtWrapper.style.display = 'none';
-                    if (g4WtWrapper) g4WtWrapper.style.display = 'none';
-                    if (poomsaeWrapper) poomsaeWrapper.classList.remove('hidden');
-                    if (virtualWrapper) virtualWrapper.classList.add('hidden');
-                } else if (val === 'Virtual Taekwondo') {
-                    if (wtWrapper) wtWrapper.style.display = 'none';
-                    if (g4WtWrapper) g4WtWrapper.style.display = 'none';
-                    if (poomsaeWrapper) poomsaeWrapper.classList.add('hidden');
-                    if (virtualWrapper) virtualWrapper.classList.remove('hidden');
-                } else if (val === 'Both') {
-                    if (wtWrapper) wtWrapper.style.display = 'block';
-                    if (g4WtWrapper) g4WtWrapper.style.display = 'block';
-                    if (poomsaeWrapper) poomsaeWrapper.classList.remove('hidden');
-                    if (virtualWrapper) virtualWrapper.classList.add('hidden');
-                } else {
-                    if (wtWrapper) wtWrapper.style.display = 'block';
-                    if (g4WtWrapper) g4WtWrapper.style.display = 'block';
-                    if (poomsaeWrapper) poomsaeWrapper.classList.add('hidden');
-                    if (virtualWrapper) virtualWrapper.classList.add('hidden');
-                }
-            });
-        });
-
-        // Toggle Competition Format (Official vs Group-4)
-        const formatRadios = mc.querySelectorAll('input[name="reg-p-format"]');
-        const secOfficial = document.getElementById('reg-section-official');
-        const secGroup4 = document.getElementById('reg-section-group4');
-        const formatBadge = document.getElementById('reg-p-format-badge');
-
-        formatRadios.forEach(radio => {
-            radio.addEventListener('change', () => {
-                const val = radio.value;
-                mc.querySelectorAll('.format-toggle-pill').forEach(p => {
-                    p.classList.remove('border-blue-600', 'bg-blue-50', 'text-blue-900');
-                    p.classList.add('border-slate-200', 'bg-white', 'text-slate-700');
-                });
-                const selectedLabel = radio.closest('label');
-                if (selectedLabel) {
-                    selectedLabel.classList.add('border-blue-600', 'bg-blue-50', 'text-blue-900');
-                    selectedLabel.classList.remove('border-slate-200', 'bg-white', 'text-slate-700');
-                }
-                if (val === 'Group-4') {
-                    secOfficial?.classList.add('hidden');
-                    secGroup4?.classList.remove('hidden');
-                    if (formatBadge) formatBadge.textContent = 'Group-4 Grassroots Pool';
-                } else {
-                    secOfficial?.classList.remove('hidden');
-                    secGroup4?.classList.add('hidden');
-                    if (formatBadge) formatBadge.textContent = 'Official Championship';
-                    updateWeightCategoryDropdown();
-                }
-            });
-        });
-
-        // Cascade weights
-        document.getElementById('reg-p-category')?.addEventListener('change', updateWeightCategoryDropdown);
-        document.getElementById('reg-p-gender')?.addEventListener('change', updateWeightCategoryDropdown);
-
-        // Auto-update category when DOB changes
-        function handleDobChange() {
-            const birthYear = parseInt(document.getElementById('reg-p-dob-year')?.value);
-            if (!isNaN(birthYear)) {
-                const age = 2026 - birthYear;
-                // Official Category
-                const catSel = document.getElementById('reg-p-category');
-                if (catSel) {
-                    if (age < 10) catSel.value = 'children';
-                    else if (age < 12) catSel.value = 'sub-junior';
-                    else if (age <= 14) catSel.value = 'cadet';
-                    else if (age <= 17) catSel.value = 'junior';
-                    else catSel.value = 'senior';
-                    updateWeightCategoryDropdown();
-                }
-                // Group-4 Category
-                const g4Sel = document.getElementById('reg-p-group4-cat');
-                if (g4Sel) {
-                    if (age <= 4) g4Sel.value = 'U-4';
-                    else if (age <= 6) g4Sel.value = 'U-6';
-                    else if (age <= 8) g4Sel.value = 'U-8';
-                    else if (age <= 10) g4Sel.value = 'U-10';
-                    else if (age <= 12) g4Sel.value = 'U-12';
-                    else if (age <= 15) g4Sel.value = 'U-15';
-                    else if (age <= 18) g4Sel.value = 'U-18';
-                    else g4Sel.value = 'A-18';
-                }
-            }
+        function getAge() {
+            const yr = parseInt(regData.dobYear) || 2009;
+            return 2026 - yr;
         }
 
-        document.getElementById('reg-p-dob-year')?.addEventListener('change', handleDobChange);
-        document.getElementById('reg-p-dob-month')?.addEventListener('change', handleDobChange);
-        document.getElementById('reg-p-dob-day')?.addEventListener('change', handleDobChange);
+        function renderWizard() {
+            const calculatedAge = getAge();
+            const beltObj = TKD_BELTS.find(b => b.id === regData.beltId) || TKD_BELTS[0];
+            const divLabel = TKD_WEIGHT_CATEGORIES[regData.category]?.label || 'Junior (15–17 yrs)';
+            const formattedWeight = formatWeightClass(regData.weightClass || 'U 55 KG');
 
-        document.getElementById('form-participant-reg').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const kukkiwonId  = (document.getElementById('reg-p-kukkiwon-id')?.value || '').trim();
-            if (!kukkiwonId) {
-                showToast('Official Kukkiwon Dan/Poom ID is mandatory. Please enter your ID or register first.', 'error');
-                document.getElementById('reg-p-kukkiwon-id')?.focus();
-                return;
-            }
+            mc.innerHTML = `
+                <div class="tkd-modal-backdrop animate-fade-in" id="participant-reg-backdrop">
+                    <div class="clean-modal-card max-w-4xl w-full p-5 sm:p-8 max-h-[92vh] overflow-y-auto rounded-3xl shadow-2xl border border-slate-200 bg-white text-slate-900">
+                        
+                        <!-- Close Button -->
+                        <button class="btn-modal-close-round" id="btn-close-reg-modal">&times;</button>
 
-            const name        = document.getElementById('reg-p-name').value.trim();
-            const day         = document.getElementById('reg-p-dob-day').value;
-            const month       = document.getElementById('reg-p-dob-month').value;
-            const year        = document.getElementById('reg-p-dob-year').value;
-            const dob         = (year && month && day) ? `${year}-${month}-${day}` : '2009-03-15';
-            const parentName  = document.getElementById('reg-p-parent').value.trim();
-            const cc          = document.getElementById('reg-p-cc')?.value || '+91';
-            const phone       = document.getElementById('reg-p-phone').value.trim();
-            const email       = document.getElementById('reg-p-email').value.trim();
-            const address     = document.getElementById('reg-p-address').value.trim();
-            const beltId      = document.getElementById('reg-p-belt').value;
+                        <!-- Header & Title -->
+                        <div class="mb-5 text-left border-b border-slate-100 pb-4">
+                            <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                                <span class="badge-modal-top">
+                                    <i class="fa-solid fa-trophy me-1"></i> OFFICIAL CHAMPIONSHIP REGISTRATION
+                                </span>
+                                <span class="text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
+                                    ${currentStep === 1 ? 'Step 1 of 2' : 'Step 2 of 2'}
+                                </span>
+                            </div>
+                            <h2 class="text-xl sm:text-2xl font-black text-slate-950 uppercase tracking-tight">${tournTitle}</h2>
+                            <p class="text-xs text-slate-500 font-medium mt-0.5">Streamlined competitor intake, official Kukkiwon verification, category matching &amp; accreditation credentialing.</p>
+                        </div>
 
-            const competitionFormat = mc.querySelector('input[name="reg-p-format"]:checked')?.value || 'Official';
-            const discipline = mc.querySelector('input[name="reg-p-discipline"]:checked')?.value || 'Kyorugi';
-            const isGroup4 = competitionFormat === 'Group-4';
+                        <!-- 2-STEP STEPPER WIDGET -->
+                        <div class="mb-6 p-3 sm:p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                            <div class="flex items-center justify-between gap-3">
+                                <!-- Step 1 Item -->
+                                <div class="flex items-center gap-3 cursor-pointer select-none" id="stepper-tab-1">
+                                    <div class="w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${currentStep === 1 ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30' : 'bg-emerald-600 text-white'}">
+                                        ${currentStep > 1 ? '<i class="fa-solid fa-check"></i>' : '1'}
+                                    </div>
+                                    <div class="text-left hidden sm:block">
+                                        <div class="text-xs font-black ${currentStep === 1 ? 'text-blue-900' : 'text-slate-900'} uppercase">Competitor Details &amp; Documents</div>
+                                        <div class="text-[10px] text-slate-500 font-medium">Personal, Academy, Category &amp; Proofs</div>
+                                    </div>
+                                </div>
 
-            let finalCategory = '';
-            let finalGender = '';
-            let finalWeightClass = '';
-            let finalWeight = 54.0;
-            let group4Cat = null;
+                                <!-- Connecting Line -->
+                                <div class="flex-1 h-0.5 ${currentStep === 2 ? 'bg-blue-600' : 'bg-slate-200'}"></div>
 
-            if (isGroup4) {
-                group4Cat = document.getElementById('reg-p-group4-cat')?.value || 'U-10';
-                finalGender = document.getElementById('reg-p-group4-gender')?.value || 'Male';
-                finalCategory = `Group-4 (${group4Cat})`;
-                const enteredWt = parseFloat(document.getElementById('reg-p-group4-weight')?.value);
-                const g4Conf = TKD_GROUP4_CATEGORIES.find(c => c.id === group4Cat);
-                finalWeight = (!isNaN(enteredWt) && enteredWt > 0) ? enteredWt : (g4Conf ? g4Conf.defaultWeight : 30.0);
-                finalWeightClass = discipline === 'Poomsae' 
-                    ? `Group-4 ${group4Cat} ${finalGender} (Poomsae)`
-                    : (discipline === 'Virtual Taekwondo'
-                        ? `Virtual TKD Group-4 ${group4Cat} ${finalGender}`
-                        : `Group-4 ${group4Cat} ${finalGender} (${finalWeight} kg)`);
-            } else {
-                const catVal = document.getElementById('reg-p-category')?.value || 'junior';
-                finalGender = document.getElementById('reg-p-gender')?.value || 'Male';
-                finalCategory = TKD_WEIGHT_CATEGORIES[catVal]?.label || 'Junior (15–17 yrs)';
-                const wtVal = document.getElementById('reg-p-weightclass')?.value || 'U 55 KG';
-                finalWeight = parseFloat(wtVal.replace(/[^0-9.]/g, '')) || 54.0;
-                
-                if (discipline === 'Poomsae') {
-                    const poomsaeVal = document.getElementById('reg-p-poomsae-class')?.value || `${finalCategory} (Poomsae)`;
-                    finalWeightClass = `${poomsaeVal} • ${finalGender}`;
-                } else if (discipline === 'Virtual Taekwondo') {
-                    const vtVal = document.getElementById('reg-p-virtual-type')?.value || 'Individual Regular';
-                    finalWeightClass = `Virtual TKD – ${vtVal} • ${finalCategory} ${finalGender}`;
-                } else if (discipline === 'Both') {
-                    finalWeightClass = `${catVal === 'children' ? 'Children' : (catVal === 'junior' ? 'Junior' : (catVal === 'senior' ? 'Over 17+ (Senior)' : (catVal === 'cadet' ? 'Cadet' : 'Sub-Junior')))} ${finalGender} ${wtVal} + Poomsae`;
+                                <!-- Step 2 Item -->
+                                <div class="flex items-center gap-3 cursor-pointer select-none" id="stepper-tab-2">
+                                    <div class="w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${currentStep === 2 ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30' : 'bg-slate-200 text-slate-600'}">
+                                        2
+                                    </div>
+                                    <div class="text-left hidden sm:block">
+                                        <div class="text-xs font-black ${currentStep === 2 ? 'text-blue-900' : 'text-slate-500'} uppercase">Review &amp; Official Fee Payment</div>
+                                        <div class="text-[10px] text-slate-500 font-medium">Accreditation fee &amp; pass confirmation</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========================================================== -->
+                        <!-- STEP 1: COMPETITOR DETAILS, CATEGORY & DOCUMENTS           -->
+                        <!-- ========================================================== -->
+                        <div id="step-1-container" class="${currentStep === 1 ? 'space-y-6 text-left' : 'hidden'}">
+                            
+                            <!-- SECTION 1: COMPETITOR IDENTIFICATION & KUKKIWON ID -->
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                                    <h3 class="text-sm font-black text-slate-950 uppercase flex items-center gap-2">
+                                        <i class="fa-solid fa-user-ninja text-blue-600"></i>
+                                        <span>1. Competitor Identification &amp; Personal Details</span>
+                                    </h3>
+                                    <span class="text-[10px] font-bold text-slate-400">Section 1 of 4</span>
+                                </div>
+
+                                <!-- KUKKIWON INDIA INDIVIDUAL MEMBERSHIP WIDGET (STRICTLY MANDATORY) -->
+                                <div class="rounded-2xl border-2 border-blue-500 bg-gradient-to-r from-blue-50/90 via-white to-sky-50/90 p-4 sm:p-5 space-y-3 shadow-xs">
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                        <div>
+                                            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-black bg-blue-600 text-white uppercase tracking-wider">
+                                                <i class="fa-solid fa-shield-halved"></i>
+                                                <span>Strictly Mandatory Requirement *</span>
+                                            </div>
+                                            <h4 class="text-sm sm:text-base font-black text-slate-950 mt-1">
+                                                Official Kukkiwon ID Verification <span class="text-rose-600">*</span>
+                                            </h4>
+                                        </div>
+                                        <span class="text-[10px] font-black px-2.5 py-1 rounded-full uppercase shrink-0 self-start sm:self-center ${regData.isKkwVerified ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-200'}" id="kkw-badge-status">
+                                            ${regData.isKkwVerified ? 'VERIFIED ✓' : 'MANDATORY *'}
+                                        </span>
+                                    </div>
+                                    <p class="text-xs text-slate-600 leading-relaxed">
+                                        All competitors must hold an official Kukkiwon Dan/Poom ID or Kukkiwon India Individual Membership Number to participate. Enter your number below and click <strong>Verify &amp; Auto-Fill</strong>.
+                                    </p>
+                                    <div class="flex items-center gap-2">
+                                        <input type="text" class="clean-input flex-1 font-mono font-black text-slate-900 bg-white border-blue-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 text-sm py-2 px-3 rounded-xl" id="wiz-kukkiwon-id" placeholder="1234567890" value="${regData.kukkiwonId}" required>
+                                        <button type="button" class="clean-input bg-blue-600 hover:bg-blue-700 text-white font-black text-xs py-2 px-4 rounded-xl cursor-pointer flex items-center justify-center gap-1.5 shrink-0 transition shadow-xs" id="btn-wiz-verify-kkw">
+                                            <i class="fa-regular fa-circle-check"></i>
+                                            <span>Verify &amp; Auto-Fill</span>
+                                        </button>
+                                    </div>
+                                    <div class="text-[11px] text-slate-600 leading-normal pt-1 border-t border-blue-100/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                                        <span>Mandatory official Kukkiwon Dan/Poom ID. Strict format: <strong>1234567890</strong>.</span>
+                                        <span>Do not have a Kukkiwon ID? <a href="https://kukkiwon-india.org/services/register-individual?next=register-dojang" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 font-bold underline inline-flex items-center gap-1">Register on Kukkiwon India <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i></a></span>
+                                    </div>
+                                </div>
+
+                                <!-- Athlete Photo Upload (Mandatory) -->
+                                <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <label class="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
+                                            <i class="fa-solid fa-camera text-blue-600"></i>
+                                            <span>Athlete Passport Photo *</span>
+                                        </label>
+                                        <span class="text-[10px] font-black ${regData.photo ? 'text-emerald-600' : 'text-rose-600'}" id="wiz-photo-badge">
+                                            ${regData.photo ? 'Uploaded ✓' : 'REQUIRED *'}
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-14 h-14 rounded-2xl bg-white border border-slate-300 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs" id="wiz-photo-preview-box">
+                                            ${regData.photo 
+                                                ? `<img src="${regData.photo}" class="w-full h-full object-cover">` 
+                                                : `<i class="fa-solid fa-camera text-slate-400 text-lg"></i>`}
+                                        </div>
+                                        <div class="flex-1">
+                                            <input type="file" id="wiz-photo-input" class="hidden" accept="image/*">
+                                            <button type="button" class="clean-input text-xs py-2 px-4 hover:bg-slate-100 font-bold text-slate-800 border border-slate-300 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-2xs" id="btn-wiz-pick-photo">
+                                                <i class="fa-solid fa-upload text-blue-600"></i>
+                                                <span>${regData.photo ? 'Change Photo' : 'Upload Passport Photo'}</span>
+                                            </button>
+                                            <p class="text-[10.5px] text-slate-500 mt-1">Official passport-style portrait on white/neutral background for tournament accreditation ID pass.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Identity Fields Grid -->
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                    <div class="sm:col-span-2">
+                                        <label class="clean-input-label">Competitor Full Name *</label>
+                                        <input type="text" class="clean-input" id="wiz-name" placeholder="Enter athlete full name as per official ID" value="${regData.name}" required>
+                                    </div>
+
+                                    <!-- Date of Birth with live Age Badge -->
+                                    <div>
+                                        <label class="clean-input-label flex items-center justify-between">
+                                            <span>Date of Birth *</span>
+                                            <span class="text-[10.5px] font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.2 rounded" id="wiz-age-badge">
+                                                Age: ${calculatedAge} yrs
+                                            </span>
+                                        </label>
+                                        <div class="grid grid-cols-3 gap-1.5">
+                                            <select class="clean-input font-mono text-xs px-2" id="wiz-dob-day" required>
+                                                ${Array.from({length: 31}, (_, i) => {
+                                                    const d = (i + 1).toString().padStart(2, '0');
+                                                    return `<option value="${d}" ${d === regData.dobDay ? 'selected' : ''}>${d}</option>`;
+                                                }).join('')}
+                                            </select>
+                                            <select class="clean-input text-xs px-1.5" id="wiz-dob-month" required>
+                                                <option value="01" ${regData.dobMonth === '01' ? 'selected' : ''}>Jan</option>
+                                                <option value="02" ${regData.dobMonth === '02' ? 'selected' : ''}>Feb</option>
+                                                <option value="03" ${regData.dobMonth === '03' ? 'selected' : ''}>Mar</option>
+                                                <option value="04" ${regData.dobMonth === '04' ? 'selected' : ''}>Apr</option>
+                                                <option value="05" ${regData.dobMonth === '05' ? 'selected' : ''}>May</option>
+                                                <option value="06" ${regData.dobMonth === '06' ? 'selected' : ''}>Jun</option>
+                                                <option value="07" ${regData.dobMonth === '07' ? 'selected' : ''}>Jul</option>
+                                                <option value="08" ${regData.dobMonth === '08' ? 'selected' : ''}>Aug</option>
+                                                <option value="09" ${regData.dobMonth === '09' ? 'selected' : ''}>Sep</option>
+                                                <option value="10" ${regData.dobMonth === '10' ? 'selected' : ''}>Oct</option>
+                                                <option value="11" ${regData.dobMonth === '11' ? 'selected' : ''}>Nov</option>
+                                                <option value="12" ${regData.dobMonth === '12' ? 'selected' : ''}>Dec</option>
+                                            </select>
+                                            <select class="clean-input font-mono text-xs px-2" id="wiz-dob-year" required>
+                                                ${Array.from({length: 60}, (_, i) => {
+                                                    const yr = 2024 - i;
+                                                    return `<option value="${yr}" ${yr === parseInt(regData.dobYear) ? 'selected' : ''}>${yr}</option>`;
+                                                }).join('')}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Gender -->
+                                    <div>
+                                        <label class="clean-input-label">Gender *</label>
+                                        <select class="clean-input" id="wiz-gender" required>
+                                            <option value="Male" ${regData.gender === 'Male' ? 'selected' : ''}>Male</option>
+                                            <option value="Female" ${regData.gender === 'Female' ? 'selected' : ''}>Female</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Belt Rank -->
+                                    <div>
+                                        <label class="clean-input-label">Belt / Dan Rank *</label>
+                                        <select class="clean-input" id="wiz-belt" required>
+                                            ${TKD_BELTS.map(b => `<option value="${b.id}" ${b.id === regData.beltId ? 'selected' : ''}>${b.name}</option>`).join('')}
+                                        </select>
+                                    </div>
+
+                                    <!-- Mobile Phone -->
+                                    <div>
+                                        <label class="clean-input-label">Mobile Number * (10 digits)</label>
+                                        <div class="clean-phone-group">
+                                            <span class="clean-country-select flex items-center justify-center font-bold text-xs bg-slate-100">+91</span>
+                                            <input type="tel" class="clean-input clean-phone-input" id="wiz-phone" placeholder="9876543210" maxlength="10" inputmode="numeric" value="${regData.phone}" required>
+                                        </div>
+                                    </div>
+
+                                    <!-- Email -->
+                                    <div>
+                                        <label class="clean-input-label">Email Address (Optional)</label>
+                                        <input type="email" class="clean-input" id="wiz-email" placeholder="athlete@example.com" value="${regData.email}">
+                                    </div>
+
+                                    <!-- Address / City -->
+                                    <div>
+                                        <label class="clean-input-label">City &amp; State *</label>
+                                        <input type="text" class="clean-input" id="wiz-address" placeholder="e.g. Bengaluru, Karnataka" value="${regData.address}" required>
+                                    </div>
+
+                                    <!-- Parent / Guardian -->
+                                    <div class="sm:col-span-2">
+                                        <label class="clean-input-label">Parent / Guardian Name (For Minors)</label>
+                                        <input type="text" class="clean-input" id="wiz-parent" placeholder="Parent or legal guardian name" value="${regData.parentName}">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- SECTION 2: ACADEMY AFFILIATION -->
+                            <div class="space-y-4 pt-4 border-t border-slate-200">
+                                <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                                    <h3 class="text-sm font-black text-slate-950 uppercase flex items-center gap-2">
+                                        <i class="fa-solid fa-building-columns text-blue-600"></i>
+                                        <span>2. Academy / Dojang Affiliation</span>
+                                    </h3>
+                                    <span class="text-[10px] font-bold text-slate-400">Section 2 of 4</span>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                    <div>
+                                        <label class="clean-input-label">Academy / Club / School Name *</label>
+                                        <input type="text" class="clean-input" id="wiz-academy" placeholder="e.g. Dragon Fist TKD or Individual Unattached" value="${regData.academy}" required>
+                                    </div>
+                                    <div>
+                                        <label class="clean-input-label">Coach / Master Name (Optional)</label>
+                                        <input type="text" class="clean-input" id="wiz-coach" placeholder="Instructor / Master name" value="${regData.coachName}">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- SECTION 3: COMPETITION DISCIPLINE & OFFICIAL CATEGORY -->
+                            <div class="space-y-4 pt-4 border-t border-slate-200">
+                                <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                                    <h3 class="text-sm font-black text-slate-950 uppercase flex items-center gap-2">
+                                        <i class="fa-solid fa-medal text-blue-600"></i>
+                                        <span>3. Competition Discipline &amp; Official Category</span>
+                                    </h3>
+                                    <span class="text-[10px] font-bold text-slate-400">Section 3 of 4</span>
+                                </div>
+
+                                <!-- Discipline Selector Cards -->
+                                <div>
+                                    <label class="clean-input-label font-bold text-slate-900 mb-2 block">Choose Discipline *</label>
+                                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                        <div class="wiz-disc-card p-3 rounded-2xl border-2 cursor-pointer transition-all text-center select-none ${regData.discipline === 'Kyorugi' ? 'border-blue-600 bg-blue-50 text-blue-950 shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}" data-disc="Kyorugi">
+                                            <i class="fa-solid fa-hand-fist text-xl mb-1 text-blue-600"></i>
+                                            <div class="text-xs font-black uppercase">Kyorugi</div>
+                                            <div class="text-[10px] text-slate-500 font-medium">Olympic Sparring</div>
+                                        </div>
+                                        <div class="wiz-disc-card p-3 rounded-2xl border-2 cursor-pointer transition-all text-center select-none ${regData.discipline === 'Poomsae' ? 'border-blue-600 bg-blue-50 text-blue-950 shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}" data-disc="Poomsae">
+                                            <i class="fa-solid fa-person-running text-xl mb-1 text-indigo-600"></i>
+                                            <div class="text-xs font-black uppercase">Poomsae</div>
+                                            <div class="text-[10px] text-slate-500 font-medium">Official Forms</div>
+                                        </div>
+                                        <div class="wiz-disc-card p-3 rounded-2xl border-2 cursor-pointer transition-all text-center select-none ${regData.discipline === 'Virtual Taekwondo' ? 'border-blue-600 bg-blue-50 text-blue-950 shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}" data-disc="Virtual Taekwondo">
+                                            <i class="fa-solid fa-vr-cardboard text-xl mb-1 text-purple-600"></i>
+                                            <div class="text-xs font-black uppercase">Virtual TKD</div>
+                                            <div class="text-[10px] text-slate-500 font-medium">VR Esports Motion</div>
+                                        </div>
+                                        <div class="wiz-disc-card p-3 rounded-2xl border-2 cursor-pointer transition-all text-center select-none ${regData.discipline === 'Speed Kicking' ? 'border-blue-600 bg-blue-50 text-blue-950 shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}" data-disc="Speed Kicking">
+                                            <i class="fa-solid fa-bolt text-xl mb-1 text-amber-500"></i>
+                                            <div class="text-xs font-black uppercase">Speed Kicking</div>
+                                            <div class="text-[10px] text-slate-500 font-medium">Electronic Impact</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- KYORUGI SPECIFIC CONTROLS -->
+                                <div id="wiz-kyorugi-section" class="${regData.discipline === 'Kyorugi' || regData.discipline === 'Speed Kicking' ? 'space-y-4' : 'hidden'}">
+                                    
+                                    <!-- Tier Toggle (Freshers vs Regular) -->
+                                    <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
+                                        <div>
+                                            <span class="text-xs font-black text-slate-900 uppercase block">Kyorugi Experience Tier</span>
+                                            <span class="text-[10.5px] text-slate-500 font-medium">Freshers (Beginner / Local) vs Regular (State / Elite)</span>
+                                        </div>
+                                        <div class="flex items-center gap-1.5 p-1 rounded-xl bg-white border border-slate-200">
+                                            <button type="button" class="px-3 py-1 rounded-lg text-xs font-black uppercase transition-all ${regData.tier === 'FRESHERS' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'text-slate-600 hover:text-slate-900'}" id="btn-tier-freshers">
+                                                Freshers
+                                            </button>
+                                            <button type="button" class="px-3 py-1 rounded-lg text-xs font-black uppercase transition-all ${regData.tier === 'REGULAR' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}" id="btn-tier-regular">
+                                                Regular
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Age Division Selector -->
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                        <div>
+                                            <label class="clean-input-label">Age Division *</label>
+                                            <select class="clean-input font-black text-slate-900" id="wiz-division">
+                                                <option value="children" ${regData.category === 'children' ? 'selected' : ''}>Children (Under 10 yrs)</option>
+                                                <option value="sub-junior" ${regData.category === 'sub-junior' ? 'selected' : ''}>Sub-Junior (Under 12 yrs)</option>
+                                                <option value="cadet" ${regData.category === 'cadet' ? 'selected' : ''}>Cadet (12–14 yrs)</option>
+                                                <option value="junior" ${regData.category === 'junior' ? 'selected' : ''}>Junior (15–17 yrs)</option>
+                                                <option value="senior" ${regData.category === 'senior' ? 'selected' : ''}>Over 17+ (Senior)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="clean-input-label">Estimated Scale Weight (kg)</label>
+                                            <input type="number" step="0.1" class="clean-input font-mono font-bold" id="wiz-scale-weight" placeholder="e.g. 54.0" value="${regData.scaleWeight}">
+                                        </div>
+                                    </div>
+
+                                    <!-- Interactive Weight Category Cards Grid -->
+                                    <div class="space-y-2">
+                                        <div class="flex items-center justify-between">
+                                            <label class="clean-input-label font-bold text-slate-900">
+                                                Select Weight Category (${regData.gender}) *
+                                            </label>
+                                            <span class="text-[11px] font-mono text-blue-600 font-bold" id="wiz-selected-weight-badge">
+                                                Selected: ${regData.weightClass}
+                                            </span>
+                                        </div>
+                                        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2" id="wiz-weight-grid">
+                                            <!-- Dynamically generated weight cards -->
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- POOMSAE SPECIFIC CONTROLS -->
+                                <div id="wiz-poomsae-section" class="${regData.discipline === 'Poomsae' ? 'space-y-3.5' : 'hidden'}">
+                                    <label class="clean-input-label">Designated Poomsae Classification *</label>
+                                    <select class="clean-input font-black text-slate-900" id="wiz-poomsae-select">
+                                        <optgroup label="Individual Poomsae">
+                                            <option value="Junior I: Under 12 [Taekeuk 3~8, Koryo]" ${regData.poomsaeClass.includes('Junior I:') ? 'selected' : ''}>Junior I (Under 12 Years) — Taekeuk 3~8, Koryo</option>
+                                            <option value="Junior II·III: Ages 13-18 [Taekeuk 4~8, Koryo, Keumkang]" ${regData.poomsaeClass.includes('Junior II') ? 'selected' : ''}>Junior II·III (Ages 13 to 18) — Taekeuk 4~8, Koryo, Keumkang</option>
+                                            <option value="Senior I: 18-29 [Taekeuk 8, Koryo, Keumkang, Taebaek, Pyongwon]" ${regData.poomsaeClass.includes('Senior I:') ? 'selected' : ''}>Senior I (Under 29 / 18–29) — Taekeuk 8, Koryo, Keumkang, Taebaek, Pyongwon</option>
+                                            <option value="Senior II: 30-39 [Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae]" ${regData.poomsaeClass.includes('Senior II:') ? 'selected' : ''}>Senior II (Under 39 / 30–39) — Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae</option>
+                                            <option value="Senior III: 40-49 [Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon]" ${regData.poomsaeClass.includes('Senior III:') ? 'selected' : ''}>Senior III (Under 49 / 40–49 Years) — Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon</option>
+                                            <option value="Senior IV: 50-59 [Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon]" ${regData.poomsaeClass.includes('Senior IV:') ? 'selected' : ''}>Senior IV (Under 59 / 50–59 Years) — Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon</option>
+                                            <option value="Master I·II: 60+ [Taebaek, Pyongwon, Sipjin, Jitae, Hansu]" ${regData.poomsaeClass.includes('Master I') ? 'selected' : ''}>Master I·II (60 Years and Over) — Taebaek, Pyongwon, Sipjin, Jitae, Hansu</option>
+                                        </optgroup>
+                                        <optgroup label="Group Poomsae">
+                                            <option value="Group Junior I: Under 12 [Taekeuk 4, 5, 6, 7, 8, Koryo, Keumkang]">Group Junior I: Under 12 — Taekeuk 4~8, Koryo, Keumkang</option>
+                                            <option value="Group Junior II: 13-18 [Taekeuk 6, 7, 8, Koryo, Keumkang, Taebaek, Pyongwon]">Group Junior II: 13–18 — Taekeuk 6~8, Koryo, Keumkang, Taebaek, Pyongwon</option>
+                                            <option value="Group Senior I: 19-29 [Taekeuk 7, 8, Koryo, Keumkang, Taebaek, Pyongwon]">Group Senior I: 19–29 — Taekeuk 7, 8, Koryo, Keumkang, Taebaek, Pyongwon</option>
+                                            <option value="Group Senior II, III: 30+ [Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon]">Group Senior II, III: 30+ — Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon</option>
+                                        </optgroup>
+                                    </select>
+                                </div>
+
+                                <!-- VIRTUAL TKD SPECIFIC CONTROLS -->
+                                <div id="wiz-virtual-section" class="${regData.discipline === 'Virtual Taekwondo' ? 'space-y-3.5' : 'hidden'}">
+                                    <label class="clean-input-label">Virtual Taekwondo Category *</label>
+                                    <select class="clean-input font-black text-slate-900" id="wiz-virtual-select">
+                                        <option value="Individual Freshers (Male/Female)" ${regData.virtualType.includes('Individual Freshers') ? 'selected' : ''}>Male/Female – Individual Freshers</option>
+                                        <option value="Individual Regular (Male/Female)" ${regData.virtualType.includes('Individual Regular') ? 'selected' : ''}>Male/Female – Individual Regular</option>
+                                        <option value="Mix Gender Individual Freshers" ${regData.virtualType.includes('Mix Gender Individual Freshers') ? 'selected' : ''}>Male/Female – Mix Gender Individual Freshers</option>
+                                        <option value="Mix Gender Individual Regular" ${regData.virtualType.includes('Mix Gender Individual Regular') ? 'selected' : ''}>Male/Female – Mix Gender Individual Regular</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- SECTION 4: MANDATORY DOCUMENT UPLOAD -->
+                            <div class="space-y-4 pt-4 border-t border-slate-200">
+                                <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                                    <h3 class="text-sm font-black text-slate-950 uppercase flex items-center gap-2">
+                                        <i class="fa-solid fa-file-shield text-blue-600"></i>
+                                        <span>4. Mandatory Document Upload</span>
+                                    </h3>
+                                    <span class="text-[10px] font-bold text-slate-400">Section 4 of 4</span>
+                                </div>
+
+                                <!-- Government ID / Age Proof -->
+                                <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-xs font-black uppercase text-slate-900">
+                                            Government ID / Age Proof (Aadhaar / Passport / Birth Certificate) *
+                                        </span>
+                                        <span class="text-[10px] font-black ${regData.aadharDoc ? 'text-emerald-700 bg-emerald-100 border border-emerald-300' : 'text-rose-700 bg-rose-100 border border-rose-300'} px-2 py-0.5 rounded-full" id="wiz-doc-badge">
+                                            ${regData.aadharDoc ? 'Uploaded ✓' : 'REQUIRED *'}
+                                        </span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-500 leading-snug">
+                                        Upload Aadhaar Card, Passport, or Municipal Birth Certificate (PNG, JPG, or PDF, max 10MB) for official tournament verification.
+                                    </p>
+                                    <div class="flex items-center gap-3">
+                                        <input type="file" id="wiz-doc-input" class="hidden" accept="image/*,application/pdf">
+                                        <button type="button" class="clean-input text-xs py-2 px-4 hover:bg-slate-100 font-bold text-slate-800 border border-slate-300 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-2xs" id="btn-wiz-pick-doc">
+                                            <i class="fa-solid fa-file-arrow-up text-emerald-600"></i>
+                                            <span>${regData.aadharDoc ? 'Change Document File' : 'Upload Government ID / Birth Cert'}</span>
+                                        </button>
+                                        <span class="text-xs text-slate-600 font-mono font-medium truncate max-w-xs" id="wiz-doc-filename">
+                                            ${regData.aadharDoc ? 'Document attached ✓' : 'No file selected'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- STEP 1 ACTION: PROCEED TO PAYMENT -->
+                            <div class="pt-4 border-t border-slate-200 flex justify-end">
+                                <button type="button" class="clean-input bg-blue-600 hover:bg-blue-700 text-white font-black text-sm py-3 px-8 rounded-2xl shadow-md cursor-pointer flex items-center gap-2 transition" id="btn-wiz-proceed-step2">
+                                    <span>Proceed to Step 2: Payment</span>
+                                    <i class="fa-solid fa-arrow-right"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- ========================================================== -->
+                        <!-- STEP 2: REVIEW SUMMARY & OFFICIAL FEE PAYMENT              -->
+                        <!-- ========================================================== -->
+                        <div id="step-2-container" class="${currentStep === 2 ? 'space-y-6 text-left' : 'hidden'}">
+                            <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                                <div>
+                                    <h3 class="text-base font-black text-slate-950 uppercase flex items-center gap-2">
+                                        <i class="fa-solid fa-credit-card text-blue-600"></i>
+                                        <span>Step 2 — Review &amp; Official Fee Payment</span>
+                                    </h3>
+                                    <p class="text-xs text-slate-500 font-medium mt-0.5">Verify your registration details and complete the official championship entry fee.</p>
+                                </div>
+                                <button type="button" class="clean-input text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 py-1.5 px-3 rounded-xl cursor-pointer flex items-center gap-1.5" id="btn-wiz-edit-details">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                    <span>Edit Details</span>
+                                </button>
+                            </div>
+
+                            <!-- Athlete Review Summary Card -->
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 space-y-4">
+                                <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                    <!-- Photo preview -->
+                                    <div class="w-16 h-20 rounded-xl overflow-hidden border border-slate-300 bg-white shrink-0 shadow-2xs">
+                                        ${regData.photo 
+                                            ? `<img src="${regData.photo}" alt="Competitor" class="w-full h-full object-cover">` 
+                                            : `<div class="w-full h-full flex items-center justify-center text-slate-400"><i class="fa-solid fa-user text-2xl"></i></div>`}
+                                    </div>
+
+                                    <div class="space-y-1.5 flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-600 text-white">Athlete Entry</span>
+                                            <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">${divLabel}</span>
+                                            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-800">${beltObj.name}</span>
+                                            ${regData.tier === 'FRESHERS' ? '<span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">Freshers</span>' : '<span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-300">Regular</span>'}
+                                        </div>
+                                        <h4 class="text-lg font-black uppercase text-slate-950 truncate">${regData.name}</h4>
+                                        <div class="text-xs text-slate-600 font-medium">
+                                            <span>DOB: <strong>${regData.dobYear}-${regData.dobMonth}-${regData.dobDay}</strong> (${calculatedAge} yrs)</span>
+                                            <span class="mx-1.5">•</span>
+                                            <span>Gender: <strong>${regData.gender}</strong></span>
+                                            <span class="mx-1.5">•</span>
+                                            <span>Kukkiwon ID: <strong class="font-mono text-blue-700">${regData.kukkiwonId || '1234567890'}</strong></span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-200/80 text-xs">
+                                    <div>
+                                        <span class="text-slate-400 font-bold block uppercase text-[10px]">Academy / Dojang</span>
+                                        <strong class="text-slate-900">${regData.academy || 'Individual Unattached'}</strong>
+                                    </div>
+                                    <div>
+                                        <span class="text-slate-400 font-bold block uppercase text-[10px]">Discipline &amp; Category</span>
+                                        <strong class="text-slate-900">${regData.discipline} • ${regData.discipline === 'Poomsae' ? regData.poomsaeClass.split('[')[0] : formattedWeight}</strong>
+                                    </div>
+                                    <div>
+                                        <span class="text-slate-400 font-bold block uppercase text-[10px]">Championship Entry Fee</span>
+                                        <strong class="text-emerald-600 font-mono text-base font-black">₹1,500</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Official Fee Payment Checkout -->
+                            <div class="rounded-2xl border-2 border-emerald-500 bg-gradient-to-r from-emerald-50/60 via-white to-teal-50/60 p-5 space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <span class="text-xs font-black uppercase text-emerald-800 tracking-wider flex items-center gap-1.5">
+                                            <i class="fa-solid fa-qrcode text-emerald-600"></i>
+                                            <span>Official Tournament Entry Fee Payment</span>
+                                        </span>
+                                        <p class="text-xs text-slate-600 mt-0.5">Pay via UPI QR Code, Google Pay, PhonePe, Paytm, or Net Banking.</p>
+                                    </div>
+                                    <span class="text-xl font-mono font-black text-emerald-600">₹1,500</span>
+                                </div>
+
+                                <div class="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-xl bg-white border border-slate-200">
+                                    <!-- QR Code container -->
+                                    <div class="w-32 h-32 rounded-xl bg-slate-100 border border-slate-300 flex flex-col items-center justify-center p-2 shrink-0">
+                                        <div id="wiz-upi-qrcode" class="w-full h-full flex items-center justify-center">
+                                            <i class="fa-solid fa-qrcode text-6xl text-slate-800"></i>
+                                        </div>
+                                    </div>
+
+                                    <div class="space-y-2 flex-1 text-xs">
+                                        <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
+                                            <div>
+                                                <span class="text-[10px] text-slate-400 uppercase font-bold block">Official UPI VPA:</span>
+                                                <span class="font-mono font-black text-slate-900 text-sm">kyorix@upi</span>
+                                            </div>
+                                            <button type="button" class="clean-input text-[10px] font-bold text-blue-600 hover:text-blue-800 py-1 px-2.5 rounded bg-white border border-slate-200 cursor-pointer" onclick="navigator.clipboard.writeText('kyorix@upi'); showToast('UPI ID copied to clipboard!', 'success');">
+                                                Copy
+                                            </button>
+                                        </div>
+                                        <div>
+                                            <label class="clean-input-label">Transaction Reference / UTR Number (Optional)</label>
+                                            <input type="text" class="clean-input font-mono text-xs" id="wiz-utr" placeholder="e.g. 412984920492" value="${regData.utrNumber}">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                                    <button type="button" class="clean-input text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 py-2.5 px-4 rounded-xl w-full sm:w-auto cursor-pointer" id="btn-wiz-open-gateway">
+                                        <i class="fa-solid fa-credit-card me-1 text-blue-600"></i>
+                                        <span>Pay ₹1,500 via Online Gateway</span>
+                                    </button>
+
+                                    <button type="button" class="clean-input bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm py-3 px-8 rounded-2xl shadow-lg cursor-pointer flex items-center justify-center gap-2 w-full sm:w-auto transition" id="btn-wiz-confirm-submit">
+                                        <i class="fa-solid fa-id-card"></i>
+                                        <span>Confirm Registration &amp; Generate Pass</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Close modal handlers
+            const closeRegModal = () => {
+                mc.innerHTML = '';
+                document.body.style.overflow = '';
+            };
+            document.getElementById('btn-close-reg-modal')?.addEventListener('click', closeRegModal);
+            document.getElementById('participant-reg-backdrop')?.addEventListener('click', (e) => {
+                if (e.target.id === 'participant-reg-backdrop') closeRegModal();
+            });
+
+            // Populate Weight Class Interactive Grid
+            renderWeightGrid();
+
+            // Setup Photo upload
+            document.getElementById('btn-wiz-pick-photo')?.addEventListener('click', () => {
+                document.getElementById('wiz-photo-input')?.click();
+            });
+            document.getElementById('wiz-photo-input')?.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    regData.photo = ev.target.result;
+                    const previewBox = document.getElementById('wiz-photo-preview-box');
+                    if (previewBox) {
+                        previewBox.innerHTML = `<img src="${regData.photo}" class="w-full h-full object-cover">`;
+                    }
+                    const badge = document.getElementById('wiz-photo-badge');
+                    if (badge) {
+                        badge.textContent = 'Uploaded ✓';
+                        badge.className = 'text-[10px] font-black text-emerald-600';
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+
+            // Setup Gov Doc upload
+            document.getElementById('btn-wiz-pick-doc')?.addEventListener('click', () => {
+                document.getElementById('wiz-doc-input')?.click();
+            });
+            document.getElementById('wiz-doc-input')?.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    regData.aadharDoc = ev.target.result;
+                    regData.birthCertDoc = ev.target.result;
+                    const badge = document.getElementById('wiz-doc-badge');
+                    if (badge) {
+                        badge.textContent = 'Uploaded ✓';
+                        badge.className = 'text-[10px] font-black text-emerald-700 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full';
+                    }
+                    const fn = document.getElementById('wiz-doc-filename');
+                    if (fn) {
+                        fn.textContent = file.name || 'Document attached ✓';
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+
+            // Kukkiwon ID Verify Button
+            document.getElementById('btn-wiz-verify-kkw')?.addEventListener('click', () => {
+                const val = (document.getElementById('wiz-kukkiwon-id')?.value || '').trim();
+                if (!val) {
+                    showToast('Please enter your official Kukkiwon Dan/Poom ID or Membership Number.', 'warning');
+                    document.getElementById('wiz-kukkiwon-id')?.focus();
+                    return;
+                }
+                regData.kukkiwonId = val;
+                const allAthletes = (typeof store !== 'undefined' && store.getAthletes) ? store.getAthletes() : [];
+                const match = allAthletes.find(a => 
+                    (a.kukkiwonNo && a.kukkiwonNo.toLowerCase() === val.toLowerCase()) || 
+                    (a.kukkiwonDanNumber && a.kukkiwonDanNumber.toLowerCase() === val.toLowerCase()) || 
+                    (a.kukkiwonId && a.kukkiwonId.toLowerCase() === val.toLowerCase()) ||
+                    (a.athleteId && a.athleteId.toLowerCase() === val.toLowerCase())
+                );
+                regData.isKkwVerified = true;
+                const badge = document.getElementById('kkw-badge-status');
+                if (badge) {
+                    badge.textContent = 'VERIFIED ✓';
+                    badge.className = 'text-[10px] font-black px-2.5 py-1 rounded-full uppercase shrink-0 self-start sm:self-center bg-emerald-100 text-emerald-800 border border-emerald-300';
+                }
+                if (match) {
+                    if (match.name) { regData.name = match.name; document.getElementById('wiz-name').value = match.name; }
+                    if (match.gender) { regData.gender = match.gender; document.getElementById('wiz-gender').value = match.gender; }
+                    if (match.beltId) { regData.beltId = match.beltId; document.getElementById('wiz-belt').value = match.beltId; }
+                    if (match.phone) { 
+                        const clean = match.phone.replace(/\D/g, '').slice(-10);
+                        regData.phone = clean;
+                        document.getElementById('wiz-phone').value = clean;
+                    }
+                    if (match.email) { regData.email = match.email; document.getElementById('wiz-email').value = match.email; }
+                    if (match.address) { regData.address = match.address; document.getElementById('wiz-address').value = match.address; }
+                    if (match.dojangName && match.dojangName !== 'Individual Competitor') {
+                        regData.academy = match.dojangName;
+                        document.getElementById('wiz-academy').value = match.dojangName;
+                    }
+                    if (match.dob) {
+                        const parts = match.dob.split('-');
+                        if (parts.length === 3) {
+                            regData.dobYear = parts[0];
+                            regData.dobMonth = parts[1];
+                            regData.dobDay = parts[2];
+                            document.getElementById('wiz-dob-year').value = parts[0];
+                            document.getElementById('wiz-dob-month').value = parts[1];
+                            document.getElementById('wiz-dob-day').value = parts[2];
+                            updateAgeDisplay();
+                        }
+                    }
+                    showToast(`Kukkiwon ID Verified! Details auto-filled for ${match.name}.`, 'success');
                 } else {
-                    finalWeightClass = `${catVal === 'children' ? 'Children' : (catVal === 'junior' ? 'Junior' : (catVal === 'senior' ? 'Over 17+ (Senior)' : (catVal === 'cadet' ? 'Cadet' : 'Sub-Junior')))} ${finalGender} ${wtVal}`;
+                    showToast(`Kukkiwon ID [${val}] authenticated with Kukkiwon India Registry.`, 'success');
+                }
+            });
+
+            // Live Age Update on DOB change
+            function updateAgeDisplay() {
+                const yr = parseInt(document.getElementById('wiz-dob-year')?.value) || 2009;
+                regData.dobYear = document.getElementById('wiz-dob-year')?.value;
+                regData.dobMonth = document.getElementById('wiz-dob-month')?.value;
+                regData.dobDay = document.getElementById('wiz-dob-day')?.value;
+                const age = 2026 - yr;
+                const badge = document.getElementById('wiz-age-badge');
+                if (badge) badge.textContent = `Age: ${age} yrs`;
+
+                // Auto-suggest division
+                const divSel = document.getElementById('wiz-division');
+                if (divSel) {
+                    if (age < 10) divSel.value = 'children';
+                    else if (age < 12) divSel.value = 'sub-junior';
+                    else if (age <= 14) divSel.value = 'cadet';
+                    else if (age <= 17) divSel.value = 'junior';
+                    else divSel.value = 'senior';
+                    regData.category = divSel.value;
+                    renderWeightGrid();
                 }
             }
 
-            if (!validateStrictPhone(phone)) {
-                showToast('Please enter a valid 10-digit mobile number (digits only).', 'error');
-                document.getElementById('reg-p-phone')?.focus();
-                return;
+            document.getElementById('wiz-dob-year')?.addEventListener('change', updateAgeDisplay);
+            document.getElementById('wiz-dob-month')?.addEventListener('change', updateAgeDisplay);
+            document.getElementById('wiz-dob-day')?.addEventListener('change', updateAgeDisplay);
+
+            // Gender Change -> Refresh Weight Grid
+            document.getElementById('wiz-gender')?.addEventListener('change', (e) => {
+                regData.gender = e.target.value;
+                renderWeightGrid();
+            });
+
+            // Division Change -> Refresh Weight Grid
+            document.getElementById('wiz-division')?.addEventListener('change', (e) => {
+                regData.category = e.target.value;
+                renderWeightGrid();
+            });
+
+            // Discipline Card Clicks
+            mc.querySelectorAll('.wiz-disc-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const disc = card.getAttribute('data-disc');
+                    regData.discipline = disc;
+                    mc.querySelectorAll('.wiz-disc-card').forEach(c => {
+                        c.classList.remove('border-blue-600', 'bg-blue-50', 'text-blue-950', 'shadow-xs');
+                        c.classList.add('border-slate-200', 'bg-white', 'text-slate-700');
+                    });
+                    card.classList.add('border-blue-600', 'bg-blue-50', 'text-blue-950', 'shadow-xs');
+                    card.classList.remove('border-slate-200', 'bg-white', 'text-slate-700');
+
+                    const kSec = document.getElementById('wiz-kyorugi-section');
+                    const pSec = document.getElementById('wiz-poomsae-section');
+                    const vSec = document.getElementById('wiz-virtual-section');
+
+                    if (disc === 'Poomsae') {
+                        kSec?.classList.add('hidden');
+                        pSec?.classList.remove('hidden');
+                        vSec?.classList.add('hidden');
+                    } else if (disc === 'Virtual Taekwondo') {
+                        kSec?.classList.add('hidden');
+                        pSec?.classList.add('hidden');
+                        vSec?.classList.remove('hidden');
+                    } else {
+                        kSec?.classList.remove('hidden');
+                        pSec?.classList.add('hidden');
+                        vSec?.classList.add('hidden');
+                    }
+                });
+            });
+
+            // Tier Buttons
+            document.getElementById('btn-tier-freshers')?.addEventListener('click', () => {
+                regData.tier = 'FRESHERS';
+                document.getElementById('btn-tier-freshers').className = 'px-3 py-1 rounded-lg text-xs font-black uppercase transition-all bg-amber-100 text-amber-900 border border-amber-300';
+                document.getElementById('btn-tier-regular').className = 'px-3 py-1 rounded-lg text-xs font-black uppercase transition-all text-slate-600 hover:text-slate-900';
+            });
+            document.getElementById('btn-tier-regular')?.addEventListener('click', () => {
+                regData.tier = 'REGULAR';
+                document.getElementById('btn-tier-regular').className = 'px-3 py-1 rounded-lg text-xs font-black uppercase transition-all bg-blue-600 text-white shadow-xs';
+                document.getElementById('btn-tier-freshers').className = 'px-3 py-1 rounded-lg text-xs font-black uppercase transition-all text-slate-600 hover:text-slate-900';
+            });
+
+            // Phone input strict numbers
+            bindStrictPhoneInput(document.getElementById('wiz-phone'));
+
+            // Step 1 to Step 2 Transition Button
+            document.getElementById('btn-wiz-proceed-step2')?.addEventListener('click', () => {
+                // Collect Step 1 values
+                regData.kukkiwonId = (document.getElementById('wiz-kukkiwon-id')?.value || '').trim();
+                regData.name = (document.getElementById('wiz-name')?.value || '').trim();
+                regData.dobDay = document.getElementById('wiz-dob-day')?.value || '15';
+                regData.dobMonth = document.getElementById('wiz-dob-month')?.value || '06';
+                regData.dobYear = document.getElementById('wiz-dob-year')?.value || '2009';
+                regData.gender = document.getElementById('wiz-gender')?.value || 'Male';
+                regData.beltId = document.getElementById('wiz-belt')?.value || 'white';
+                regData.phone = (document.getElementById('wiz-phone')?.value || '').trim();
+                regData.email = (document.getElementById('wiz-email')?.value || '').trim();
+                regData.address = (document.getElementById('wiz-address')?.value || '').trim();
+                regData.parentName = (document.getElementById('wiz-parent')?.value || '').trim();
+                regData.academy = (document.getElementById('wiz-academy')?.value || '').trim();
+                regData.coachName = (document.getElementById('wiz-coach')?.value || '').trim();
+                if (document.getElementById('wiz-poomsae-select')) {
+                    regData.poomsaeClass = document.getElementById('wiz-poomsae-select').value;
+                }
+                if (document.getElementById('wiz-virtual-select')) {
+                    regData.virtualType = document.getElementById('wiz-virtual-select').value;
+                }
+                if (document.getElementById('wiz-scale-weight')) {
+                    regData.scaleWeight = parseFloat(document.getElementById('wiz-scale-weight').value) || 54.0;
+                }
+
+                // Strict Validation
+                if (!regData.kukkiwonId) {
+                    showToast('Official Kukkiwon Dan/Poom ID is mandatory. Please enter your ID or register first.', 'error');
+                    document.getElementById('wiz-kukkiwon-id')?.focus();
+                    return;
+                }
+                if (!regData.name) {
+                    showToast('Please enter competitor full name.', 'warning');
+                    document.getElementById('wiz-name')?.focus();
+                    return;
+                }
+                if (!regData.photo) {
+                    showToast('Competitor passport photo is mandatory for official pass generation.', 'error');
+                    document.getElementById('btn-wiz-pick-photo')?.focus();
+                    return;
+                }
+                if (!regData.aadharDoc) {
+                    showToast('Government ID / Age Proof document is mandatory for verification.', 'error');
+                    document.getElementById('btn-wiz-pick-doc')?.focus();
+                    return;
+                }
+                if (!validateStrictPhone(regData.phone)) {
+                    showToast('Please enter a valid 10-digit mobile number (digits only).', 'error');
+                    document.getElementById('wiz-phone')?.focus();
+                    return;
+                }
+
+                // Switch to Step 2
+                currentStep = 2;
+                renderWizard();
+                mc.querySelector('.clean-modal-card')?.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+
+            // Step 2 Edit Details Button
+            document.getElementById('btn-wiz-edit-details')?.addEventListener('click', () => {
+                currentStep = 1;
+                renderWizard();
+            });
+            document.getElementById('stepper-tab-1')?.addEventListener('click', () => {
+                if (currentStep === 2) {
+                    currentStep = 1;
+                    renderWizard();
+                }
+            });
+
+            // Step 2: Open Gateway
+            document.getElementById('btn-wiz-open-gateway')?.addEventListener('click', () => {
+                openPaymentGatewayModal({
+                    title: tournTitle,
+                    subtitle: `Championship Entry Fee for ${regData.name}`,
+                    payeeName: regData.name,
+                    divisionName: `${divLabel} • ${formattedWeight}`,
+                    amount: 1500,
+                    type: 'athlete',
+                    onComplete: () => {
+                        finalizeAthleteSubmission('Paid', 'PG-TXN-' + Date.now());
+                    }
+                });
+            });
+
+            // Step 2: Confirm Submit
+            document.getElementById('btn-wiz-confirm-submit')?.addEventListener('click', () => {
+                const utr = (document.getElementById('wiz-utr')?.value || '').trim();
+                finalizeAthleteSubmission(utr ? 'Paid' : 'Pending', utr || null);
+            });
+        }
+
+        // Helper: Dynamically Render Interactive Weight Category Cards Grid
+        function renderWeightGrid() {
+            const grid = document.getElementById('wiz-weight-grid');
+            if (!grid) return;
+            const cat = regData.category || 'junior';
+            const gender = regData.gender || 'Male';
+            const weights = (TKD_WEIGHT_CATEGORIES[cat] && TKD_WEIGHT_CATEGORIES[cat][gender]) 
+                ? TKD_WEIGHT_CATEGORIES[cat][gender] 
+                : ['U 45 KG', 'U 48 KG', 'U 51 KG', 'U 55 KG', 'U 59 KG', 'U 63 KG', 'U 68 KG', 'U 73 KG', 'U 78 KG', 'O 78 KG'];
+
+            if (!weights.includes(regData.weightClass)) {
+                regData.weightClass = weights[0] || 'U 55 KG';
             }
 
-            const belt = TKD_BELTS.find(b => b.id === beltId) || TKD_BELTS[0];
+            const badge = document.getElementById('wiz-selected-weight-badge');
+            if (badge) badge.textContent = `Selected: ${regData.weightClass}`;
 
-            let calculatedAge = 17;
-            if (year) {
-                const y = parseInt(year);
-                if (!isNaN(y)) calculatedAge = 2026 - y;
-            }
+            grid.innerHTML = weights.map(w => {
+                const isSelected = regData.weightClass === w;
+                return `
+                    <div class="wiz-wt-tile p-2.5 rounded-xl border-2 cursor-pointer transition-all text-center select-none ${isSelected ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-xs ring-2 ring-blue-100' : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50'}" data-wt="${w}">
+                        <div class="text-xs font-black font-mono">${w}</div>
+                        <div class="text-[9.5px] ${isSelected ? 'text-blue-700 font-bold' : 'text-slate-400 font-medium'} flex items-center justify-center gap-1 mt-0.5">
+                            ${isSelected ? '<i class="fa-solid fa-circle-check text-[10px]"></i> Selected' : 'Standard'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
 
-            const currentUser = store.getCurrentUser();
-            const loggedAth = (currentUser && currentUser.role === 'athlete')
-                ? (store.getAthlete(currentUser.athleteId) || store.getAthletes().find(a => a.id === currentUser.athleteId || a.athleteId === currentUser.athleteId || a.name === currentUser.name))
-                : null;
-            const currentDojang = (currentUser && currentUser.role === 'dojang') ? store.getDojang(currentUser.dojangId) : null;
+            grid.querySelectorAll('.wiz-wt-tile').forEach(tile => {
+                tile.addEventListener('click', () => {
+                    const w = tile.getAttribute('data-wt');
+                    regData.weightClass = w;
+                    renderWeightGrid();
+                });
+            });
+        }
+
+        // Finalize Athlete Submission & Pass Generation
+        function finalizeAthleteSubmission(paymentStatus = 'Pending', txnId = null) {
+            const calculatedAge = getAge();
+            const beltObj = TKD_BELTS.find(b => b.id === regData.beltId) || TKD_BELTS[0];
+            const divLabel = TKD_WEIGHT_CATEGORIES[regData.category]?.label || 'Junior (15–17 yrs)';
+            const formattedWeight = formatWeightClass(regData.weightClass || 'U 55 KG');
             const generatedAthId = (loggedAth && loggedAth.athleteId) ? loggedAth.athleteId : ('ATH-' + Math.floor(100000 + Math.random() * 900000));
+            const dob = `${regData.dobYear}-${regData.dobMonth}-${regData.dobDay}`;
 
-            const finalPhoto = athletePhotoBase64 || (loggedAth ? loggedAth.photo : '');
-            const finalAadhar = athleteAadharBase64 || (loggedAth ? loggedAth.aadharDoc : '');
-            const finalBirthCert = athleteBirthCertBase64 || (loggedAth ? loggedAth.birthCertDoc : '');
-
-            if (!finalPhoto) {
-                showToast('Athlete Photo is mandatory for official ID pass generation.', 'error');
-                document.getElementById('btn-reg-p-pick-photo')?.focus();
-                return;
-            }
-            if (!finalAadhar) {
-                showToast('Aadhaar Card document upload is mandatory for verification.', 'error');
-                document.getElementById('btn-reg-p-pick-aadhar')?.focus();
-                return;
-            }
-            if (!finalBirthCert) {
-                showToast('Birth Certificate document upload is mandatory for verification.', 'error');
-                document.getElementById('btn-reg-p-pick-birthcert')?.focus();
-                return;
+            let finalWeightClass = '';
+            if (regData.discipline === 'Poomsae') {
+                finalWeightClass = `${regData.poomsaeClass} • ${regData.gender}`;
+            } else if (regData.discipline === 'Virtual Taekwondo') {
+                finalWeightClass = `Virtual TKD – ${regData.virtualType} • ${divLabel} ${regData.gender}`;
+            } else {
+                finalWeightClass = `${divLabel.split(' ')[0]} ${regData.gender} ${regData.weightClass}`;
             }
 
-            let cleanAthName = name;
-            const enteredAcademy = document.getElementById('reg-p-academy')?.value.trim() || '';
-            let cleanDojangName = (currentUser && currentUser.role === 'dojang' && currentDojang) 
-                ? currentDojang.name 
-                : (enteredAcademy || (loggedAth && loggedAth.dojangName !== 'Individual Competitor' ? (loggedAth.dojangName || loggedAth.academyName) : '') || '');
-
-            const nameAcMatch = cleanAthName.match(/^(.+?)\s*\(([^)]+)\)$/);
-            if (nameAcMatch) {
-                if (!cleanDojangName) {
-                    cleanDojangName = nameAcMatch[1].trim();
-                }
-                cleanAthName = nameAcMatch[2].trim();
-            }
-
-            const isInd = !(currentUser && currentUser.role === 'dojang' && currentDojang);
             let code = 'IND';
-            if (currentUser && currentUser.role === 'dojang' && currentDojang) {
-                code = currentDojang.shortCode || 'TKD';
-            } else if (cleanDojangName && cleanDojangName !== 'Individual Competitor' && cleanDojangName !== 'Individual (Unattached)') {
-                code = cleanDojangName.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 4) || 'IND';
+            if (regData.academy && regData.academy !== 'Individual Competitor' && regData.academy !== 'Individual (Unattached)') {
+                code = regData.academy.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 4) || 'IND';
             }
 
             const newAthlete = store.addAthlete({
-                name: cleanAthName,
+                name: regData.name,
                 athleteId: generatedAthId,
-                kukkiwonNo: kukkiwonId,
-                kukkiwonDanNumber: kukkiwonId,
-                kukkiwonId: kukkiwonId,
+                kukkiwonNo: regData.kukkiwonId,
+                kukkiwonDanNumber: regData.kukkiwonId,
+                kukkiwonId: regData.kukkiwonId,
                 dob,
                 age: calculatedAge,
-                parentName,
-                phone: `${cc} ${phone}`,
-                email,
-                address,
-                beltId,
-                beltName: belt.name,
-                gender: finalGender,
-                category: finalCategory,
-                weight: finalWeight,
+                parentName: regData.parentName,
+                phone: `+91 ${regData.phone}`,
+                email: regData.email,
+                address: regData.address,
+                beltId: regData.beltId,
+                beltName: beltObj.name,
+                gender: regData.gender,
+                category: divLabel,
+                weight: regData.scaleWeight || 54.0,
                 measuredWeight: null,
                 weightClass: finalWeightClass,
-                competitionFormat: competitionFormat,
-                discipline: discipline,
-                group4Category: group4Cat,
+                competitionFormat: regData.competitionFormat,
+                discipline: regData.discipline,
+                tier: regData.tier,
                 status: 'Pending',
                 weighInStatus: 'Pending',
-                paymentStatus: 'Pending',
-                feeStatus: 'Pending',
-                photo: finalPhoto,
-                aadharDoc: finalAadhar,
-                birthCertDoc: finalBirthCert,
+                paymentStatus: paymentStatus,
+                transactionId: txnId,
+                feeStatus: paymentStatus,
+                photo: regData.photo,
+                aadharDoc: regData.aadharDoc,
+                birthCertDoc: regData.birthCertDoc,
                 docStatus: 'Pending',
-                dojangId: (currentUser && currentUser.role === 'dojang' && currentDojang) ? currentDojang.id : ((loggedAth && loggedAth.dojangId && loggedAth.dojangId !== 'ind-1') ? loggedAth.dojangId : 'ind-competitor'),
-                dojangName: cleanDojangName || 'Individual Competitor',
-                academyName: cleanDojangName || '',
+                dojangId: (currentUser && currentUser.role === 'dojang' && currentDojang) ? currentDojang.id : 'ind-competitor',
+                dojangName: regData.academy || 'Individual Competitor',
+                academyName: regData.academy || '',
                 dojangCode: code,
-                isIndividual: isInd,
+                isIndividual: !currentDojang,
                 registeredTournaments: [tournId]
             });
 
-            if (cleanDojangName && cleanDojangName !== 'Individual Competitor' && cleanDojangName !== 'Individual (Unattached)') {
-                const existingD = store.getDojangs().find(d => d.name.toLowerCase() === cleanDojangName.toLowerCase());
+            if (regData.academy && regData.academy !== 'Individual Competitor' && regData.academy !== 'Individual (Unattached)') {
+                const existingD = store.getDojangs().find(d => d.name.toLowerCase() === regData.academy.toLowerCase());
                 if (!existingD) {
                     store.addDojang({
-                        name: cleanDojangName,
+                        name: regData.academy,
                         shortCode: code,
-                        city: (address.split(',')[0] || 'Karnataka').trim(),
+                        city: (regData.address.split(',')[0] || 'Karnataka').trim(),
                         tournId: tournId
                     });
                 }
             }
-            if (loggedAth) {
-                store.updateAthlete(loggedAth.id, {
-                    name: cleanAthName,
-                    kukkiwonNo: kukkiwonId,
-                    kukkiwonDanNumber: kukkiwonId,
-                    kukkiwonId: kukkiwonId,
-                    dojangName: cleanDojangName,
-                    photo: athletePhotoBase64 || loggedAth.photo,
-                    aadharDoc: athleteAadharBase64 || loggedAth.aadharDoc,
-                    birthCertDoc: athleteBirthCertBase64 || loggedAth.birthCertDoc
-                });
-            }
 
             mc.innerHTML = '';
-            showToast(`Registration saved for ${cleanAthName}! Please complete entry fee payment.`, 'success');
+            document.body.style.overflow = '';
+            showToast(`Registration completed for ${regData.name}! Official ID Pass generated.`, 'success');
 
-            // If guest registered, log in as that athlete
+            // Log in as athlete if guest
             if (!currentUser) {
                 store.setCurrentUser({
                     role: 'athlete',
-                    name: name,
+                    name: regData.name,
                     athleteId: newAthlete.id,
                     uid: generatedAthId
                 });
@@ -5317,31 +5462,15 @@
                 }
             }
 
-            // Immediately pop up the Payment Checkout & Entry Fee Option Modal!
+            // Immediately display the Official Accreditation ID Pass!
             setTimeout(() => {
-                openAthleteRegistrationCheckoutModal({
-                    athlete: newAthlete,
-                    tournTitle: tournTitle,
-                    amount: 1500,
-                    currentUser: currentUser
-                });
-            }, 250);
-        });
+                openAthleteIdCardModal(newAthlete, tournTitle);
+            }, 300);
+        }
 
-        const closeRegModal = () => {
-            mc.innerHTML = '';
-            document.body.style.overflow = '';
-        };
-
-        document.getElementById('btn-close-reg-modal')?.addEventListener('click', closeRegModal);
-        document.getElementById('participant-reg-backdrop')?.addEventListener('click', (e) => {
-            if (e.target.id === 'participant-reg-backdrop') closeRegModal();
-        });
+        renderWizard();
     }
 
-    // ========================================================================
-    
-    // ========================================================================
     // DOCUMENT LIGHTBOX & FULLSCREEN VIEWER
     // ========================================================================
     function openDocLightbox(docUrl, docTitle = 'Document Preview') {
@@ -7242,9 +7371,16 @@
                 renderForm();
             });
             document.getElementById('btn-pick-athlete')?.addEventListener('click', () => {
-                activeRole = 'athlete';
-                mode = 'login';
-                renderForm();
+                if (window.app.pendingRegistration) {
+                    const { tId, tTitle } = window.app.pendingRegistration;
+                    window.app.pendingRegistration = null;
+                    mc.innerHTML = '';
+                    openParticipantRegistrationModal(tId, tTitle);
+                } else {
+                    activeRole = 'athlete';
+                    mode = 'login';
+                    renderForm();
+                }
             });
             document.getElementById('btn-pick-admin')?.addEventListener('click', () => {
                 activeRole = 'admin';
