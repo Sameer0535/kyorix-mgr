@@ -1,6 +1,6 @@
 {
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.js" },
-    { "source": "/((?!api/|css/|js/|images/|data/|.*\\..*).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|css/|js/|images/|data/|draws-app/|ess-app/|.*\\..*).*)", "destination": "/index.html" }
   ]
 }

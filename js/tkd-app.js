@@ -23,9 +23,9 @@
     // --- Seed Tournaments ---
     const SEED_TOURNAMENTS = [
         {
-            id: 'tourn-state-2026',
-            title: 'State Level Open Taekwondo Championship 2026',
-            shortCode: 'STATE-2026',
+            id: 'tourn-kukkiwon-2026',
+            title: 'Kukkiwon Cup India Taekwondo Championship 2026',
+            shortCode: 'KUKKIWON-2026',
             venue: 'Kanteerava Indoor Stadium, Bengaluru',
             location: 'Bengaluru, Karnataka',
             startDate: '2026-06-12',
@@ -33,8 +33,8 @@
             date: '12-14 June 2026',
             status: 'Active',
             feePerAthlete: 1500,
-            organizer: 'Karnataka State Taekwondo Association',
-            description: 'Official State Level Open Taekwondo Championship 2026 featuring Kyorugi and Poomsae divisions.'
+            organizer: 'Kukkiwon / Indian Taekwondo Federation',
+            description: 'Official Kukkiwon Cup India Taekwondo Championship 2026 featuring Kyorugi and Poomsae divisions.'
         }
     ];
 
@@ -171,7 +171,40 @@
                     try { sessionStorage.setItem('tkd_active_view', savedView); } catch(e) {}
                 }
             }
-            if (!localStorage.getItem('tkd_tournaments')) localStorage.setItem('tkd_tournaments', JSON.stringify(SEED_TOURNAMENTS));
+            if (!localStorage.getItem('tkd_tournaments')) {
+                localStorage.setItem('tkd_tournaments', JSON.stringify(SEED_TOURNAMENTS));
+            } else {
+                try {
+                    const rawT = localStorage.getItem('tkd_tournaments');
+                    let tourns = rawT ? JSON.parse(rawT) : [];
+                    if (!Array.isArray(tourns) || tourns.length === 0) {
+                        tourns = SEED_TOURNAMENTS;
+                        localStorage.setItem('tkd_tournaments', JSON.stringify(tourns));
+                    } else {
+                        const hasKukkiwon = tourns.some(t => t.id === 'tourn-kukkiwon-2026' || (t.title && t.title.toLowerCase().includes('kukkiwon')));
+                        if (!hasKukkiwon) {
+                            const legacyIdx = tourns.findIndex(t => t.id === 'tourn-state-2026' || t.id === 'tourn-1');
+                            if (legacyIdx >= 0) {
+                                tourns[legacyIdx] = {
+                                    ...tourns[legacyIdx],
+                                    id: 'tourn-kukkiwon-2026',
+                                    title: 'Kukkiwon Cup India Taekwondo Championship 2026',
+                                    shortCode: 'KUKKIWON-2026',
+                                    organizer: 'Kukkiwon / Indian Taekwondo Federation',
+                                    description: 'Official Kukkiwon Cup India Taekwondo Championship 2026 featuring Kyorugi and Poomsae divisions.'
+                                };
+                            } else {
+                                tourns.unshift(SEED_TOURNAMENTS[0]);
+                            }
+                            localStorage.setItem('tkd_tournaments', JSON.stringify(tourns));
+                        }
+                    }
+                    const currentSelected = localStorage.getItem('tkd_selected_tourn_id');
+                    if (!currentSelected || currentSelected === 'tourn-state-2026' || currentSelected === 'tourn-1') {
+                        localStorage.setItem('tkd_selected_tourn_id', 'tourn-kukkiwon-2026');
+                    }
+                } catch(e) {}
+            }
             if (!localStorage.getItem('tkd_dojangs'))     localStorage.setItem('tkd_dojangs',     JSON.stringify([]));
             if (!localStorage.getItem('tkd_athletes'))    localStorage.setItem('tkd_athletes',    JSON.stringify([]));
             if (!localStorage.getItem('tkd_coaches'))     localStorage.setItem('tkd_coaches',     JSON.stringify([]));
@@ -573,16 +606,32 @@
             const all = this.getAthletes();
             if (!tournId || tournId === 'all') return all;
             return all.filter(a => {
+                // If synced from Kukkiwon Cup or associated with Kukkiwon 2026, always match for Kukkiwon tournaments
+                if (a.syncedFrom === 'kukkiwon-cup-championship' || a.syncedFrom === 'kukkiwon') {
+                    if (tournId === 'tourn-kukkiwon-2026' || tournId === 'tourn-state-2026' || tournId === 'tourn-1') {
+                        return true;
+                    }
+                }
                 if (a.dojangId === 'ind-competitor' || a.isIndividual || a.dojangName === 'Individual Competitor') {
                     if (Array.isArray(a.registeredTournaments) && a.registeredTournaments.length > 0) {
-                        return a.registeredTournaments.includes(tournId) || a.registeredTournaments.includes('tourn-state-2026') || a.tournId === tournId || a.tournId === 'tourn-state-2026';
+                        return a.registeredTournaments.includes(tournId) || a.registeredTournaments.includes('tourn-kukkiwon-2026') || a.registeredTournaments.includes('tourn-state-2026') || a.tournId === tournId || a.tournId === 'tourn-kukkiwon-2026' || a.tournId === 'tourn-state-2026';
                     }
                     return true;
                 }
                 if (Array.isArray(a.registeredTournaments) && a.registeredTournaments.length > 0) {
-                    return a.registeredTournaments.includes(tournId);
+                    if (a.registeredTournaments.includes(tournId)) return true;
+                    if ((tournId === 'tourn-kukkiwon-2026' || tournId === 'tourn-state-2026' || tournId === 'tourn-1') &&
+                        (a.registeredTournaments.includes('tourn-kukkiwon-2026') || a.registeredTournaments.includes('tourn-state-2026') || a.registeredTournaments.includes('tourn-1') || a.registeredTournaments.includes('all'))) {
+                        return true;
+                    }
                 }
-                if (a.tournId) return a.tournId === tournId;
+                if (a.tournId) {
+                    if (a.tournId === tournId) return true;
+                    if ((tournId === 'tourn-kukkiwon-2026' || tournId === 'tourn-state-2026' || tournId === 'tourn-1') &&
+                        (a.tournId === 'tourn-kukkiwon-2026' || a.tournId === 'tourn-state-2026' || a.tournId === 'tourn-1')) {
+                        return true;
+                    }
+                }
                 // If athlete is unattached or has no specific tournament restricted, include in active tournament
                 if (!a.registeredTournaments || a.registeredTournaments.length === 0) {
                     return true;
@@ -4337,7 +4386,7 @@
     // ========================================================================
     // 2. PARTICIPANT REGISTRATION MODAL
     // ========================================================================
-    function openParticipantRegistrationModal(tournId = 'tourn-state-2026', tournTitle = 'State Level Open Taekwondo Championship 2026') {
+    function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tournTitle = 'Kukkiwon Cup India Taekwondo Championship 2026') {
         const mc = document.getElementById('modal-container');
         if (!mc) return;
 
@@ -14175,7 +14224,7 @@
                 <div class="bg-slate-950 rounded-2xl border border-slate-200 shadow-lg overflow-hidden relative" style="height: calc(100vh - 165px); min-height: 750px;">
                     <iframe 
                         id="ess-arena-frame" 
-                        src="/ess-app/index.html" 
+                        src="ess-app/index.html?v=505" 
                         class="w-full h-full border-0 block bg-[#0a0a0a]" 
                         allow="fullscreen; autoplay; audio;"
                         title="Kyorix Electronic Scoring System"
@@ -14628,7 +14677,7 @@
 
                 <!-- Full Embedded Draws Engine Iframe -->
                 <div class="relative w-full bg-slate-900 rounded-2xl overflow-hidden shadow-lg border border-slate-200">
-                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=478" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
+                    <iframe id="tkd-draws-iframe" src="draws-app/index.html?v=505" class="w-full border-0 block bg-slate-950" style="height: calc(100vh - 170px); min-height: 850px;" allow="fullscreen"></iframe>
                 </div>
             </div>
         `;

@@ -604,22 +604,29 @@ const server = http.createServer(async (req, res) => {
                     rank: beltRank,
                     kukkiwonDanNumber: kukkiwonDan,
                     kukkiwonId: kukkiwonDan,
+                    kukkiwonNo: kukkiwonDan,
                     academyName: academy,
                     dojangName: academy,
                     club: academy,
                     dojangId: (existingIdx >= 0 ? currentAthletes[existingIdx].dojangId : null) || 'ind-competitor',
-                    category: (existingIdx >= 0 && currentAthletes[existingIdx].category) ? currentAthletes[existingIdx].category : deduceCategoryFromDob(dob, gender),
-                    weightClass: (existingIdx >= 0 ? currentAthletes[existingIdx].weightClass : '') || '',
-                    status: 'Confirmed',
+                    category: (existingIdx >= 0 && currentAthletes[existingIdx].category) ? currentAthletes[existingIdx].category : (item.category || deduceCategoryFromDob(dob, gender)),
+                    weightClass: (existingIdx >= 0 ? currentAthletes[existingIdx].weightClass : '') || item.weightClass || item.weightDivision || '',
+                    status: (existingIdx >= 0 && currentAthletes[existingIdx].status === 'Passed') ? 'Passed' : 'Confirmed',
                     weighInStatus: (existingIdx >= 0 && currentAthletes[existingIdx].weighInStatus === 'Passed') ? 'Passed' : 'Pending',
-                    measuredWeight: (existingIdx >= 0 ? currentAthletes[existingIdx].measuredWeight : null) || null,
+                    measuredWeight: (existingIdx >= 0 ? currentAthletes[existingIdx].measuredWeight : null) || item.measuredWeight || null,
                     paymentStatus: 'Paid',
                     feeStatus: 'Paid',
-                    tournId: item.tournId || 'tourn-state-2026',
+                    tournId: item.tournId || 'tourn-kukkiwon-2026',
+                    tournamentId: item.tournId || 'tourn-kukkiwon-2026',
+                    tournamentTitle: 'Kukkiwon Cup India Taekwondo Championship 2026',
                     registeredTournaments: Array.from(new Set([
                         ...(existingIdx >= 0 && Array.isArray(currentAthletes[existingIdx].registeredTournaments) ? currentAthletes[existingIdx].registeredTournaments : []),
-                        item.tournId || 'tourn-state-2026'
-                    ])),
+                        item.tournId,
+                        'tourn-kukkiwon-2026',
+                        'tourn-state-2026',
+                        'tourn-1',
+                        'all'
+                    ].filter(Boolean))),
                     syncedFrom: 'kukkiwon-cup-championship',
                     syncedAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString()
@@ -1182,6 +1189,11 @@ const server = http.createServer(async (req, res) => {
             filtered = filtered.filter(a => 
                 (Array.isArray(a.registeredTournaments) && a.registeredTournaments.includes(tournId)) ||
                 a.tournId === tournId ||
+                a.syncedFrom === 'kukkiwon-cup-championship' ||
+                ((tournId === 'tourn-kukkiwon-2026' || tournId === 'tourn-state-2026') && (
+                    (Array.isArray(a.registeredTournaments) && (a.registeredTournaments.includes('tourn-kukkiwon-2026') || a.registeredTournaments.includes('tourn-state-2026'))) ||
+                    a.tournId === 'tourn-kukkiwon-2026' || a.tournId === 'tourn-state-2026'
+                )) ||
                 !a.registeredTournaments ||
                 a.registeredTournaments.length === 0 ||
                 a.dojangId === 'ind-competitor' ||
