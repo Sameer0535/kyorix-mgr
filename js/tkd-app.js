@@ -1828,10 +1828,15 @@
         if (/^under\s+\d+kg$/i.test(str) || /^over\s+\d+kg$/i.test(str)) {
             return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
         }
+        const uoMatch = str.match(/\b([uo])\s*[-_]?\s*(\d+(?:\.\d+)?)\s*kg\b/i);
+        if (uoMatch) {
+            const isO = uoMatch[1].toLowerCase() === 'o';
+            return (isO ? 'Over ' : 'Under ') + Math.round(parseFloat(uoMatch[2])) + 'kg';
+        }
         const m = str.match(/([+-]?\s*\d+(?:\.\d+)?)\s*kg/i) || str.match(/(\d+)/);
         if (!m) return str;
         const num = Math.round(parseFloat(m[1].replace(/[^0-9.]/g, '')));
-        const isOver = str.includes('+') || /over|above/i.test(str);
+        const isOver = str.includes('+') || /over|above|\bo\b/i.test(str);
         return (isOver ? 'Over ' : 'Under ') + num + 'kg';
     }
     window.formatWeightClassForDraws = formatWeightClassForDraws;
@@ -1847,6 +1852,7 @@
 
         let age = '';
         if (/(?:^|_)dasara(?:_|$)/i.test(raw)) age = 'Dasara';
+        else if (/(?:^|_)children(?:_|$)/i.test(raw)) age = 'Children';
         else if (/(?:^|_)sub[-_]?junior(?:_|$)/i.test(raw)) age = 'Sub-Junior';
         else if (/(?:^|_)cadet(?:_|$)/i.test(raw)) age = 'Cadet';
         else if (/(?:^|_)junior(?:_|$)/i.test(raw)) age = 'Junior';
@@ -1859,9 +1865,9 @@
         else if (/(?:^|_)a[-_]?18(?:_|$)/i.test(raw)) age = 'A-18';
 
         let weight = '';
-        const wtMatch = raw.match(/(?:under|over|above|u)[-_]?(\d+)[-_]?kg/i);
+        const wtMatch = raw.match(/(?:under|over|above|u|o)[-_]?(\d+)[-_]?kg/i);
         if (wtMatch) {
-            const isOver = /over|above/i.test(wtMatch[0]);
+            const isOver = /over|above|^o/i.test(wtMatch[0]);
             weight = (isOver ? 'Over_' : 'Under_') + wtMatch[1] + 'kg';
         }
 
@@ -2441,17 +2447,19 @@
                 } else if (a.category) {
                     const rawCat = a.category.toLowerCase();
                     if (rawCat.includes('dasara')) ageCategory = 'Dasara';
-                    else if (rawCat.includes('sub-junior') || rawCat.includes('under 12') || rawCat.includes('u-12') || rawCat.includes('u-10') || rawCat.includes('u-8')) ageCategory = 'Sub-Junior';
+                    else if (rawCat.includes('children') || rawCat.includes('u-8') || rawCat.includes('u-10')) ageCategory = 'Children';
+                    else if (rawCat.includes('sub-junior') || rawCat.includes('under 12') || rawCat.includes('u-12')) ageCategory = 'Sub-Junior';
                     else if (rawCat.includes('cadet') || rawCat.includes('12-14') || rawCat.includes('12–14')) ageCategory = 'Cadet';
                     else if (rawCat.includes('junior') || rawCat.includes('15-17') || rawCat.includes('15–17')) ageCategory = 'Junior';
-                    else if (rawCat.includes('senior') || rawCat.includes('18+') || rawCat.includes('adult')) ageCategory = 'Senior';
+                    else if (rawCat.includes('senior') || rawCat.includes('18+') || rawCat.includes('over 17') || rawCat.includes('adult')) ageCategory = 'Senior';
                     else ageCategory = 'Junior';
                 }
 
                 const isFem = (a.gender === 'Female' || a.gender === 'F' || (a.gender && a.gender.toLowerCase().includes('female')));
                 
                 let defaultWt = isFem ? 'Under 49kg' : 'Under 55kg';
-                if (ageCategory === 'Cadet') defaultWt = isFem ? 'Under 41kg' : 'Under 45kg';
+                if (ageCategory === 'Children') defaultWt = isFem ? 'Under 14kg' : 'Under 16kg';
+                else if (ageCategory === 'Cadet') defaultWt = isFem ? 'Under 41kg' : 'Under 45kg';
                 else if (ageCategory === 'Sub-Junior') defaultWt = isFem ? 'Under 37kg' : 'Under 32kg';
                 else if (ageCategory === 'Senior') defaultWt = isFem ? 'Under 49kg' : 'Under 68kg';
 
@@ -3191,7 +3199,8 @@
                 if (aIsG4) return false;
                 const catLower = (a.category || '').toLowerCase();
                 let divMatch = false;
-                if (division === 'sub-junior') divMatch = catLower.includes('sub-junior') || catLower.includes('under 12') || (a.age && a.age < 12);
+                if (division === 'children') divMatch = catLower.includes('children') || catLower.includes('under 10') || (a.age && a.age < 10);
+                else if (division === 'sub-junior') divMatch = catLower.includes('sub-junior') || catLower.includes('under 12') || (a.age && a.age >= 10 && a.age < 12);
                 else if (division === 'cadet') divMatch = catLower.includes('cadet') || (a.age && a.age >= 12 && a.age <= 14);
                 else if (division === 'junior') divMatch = catLower.includes('junior') || (a.age && a.age >= 15 && a.age <= 17);
                 else if (division === 'senior') divMatch = catLower.includes('senior') || (a.age && a.age >= 18);
@@ -3214,7 +3223,11 @@
             // Check discipline
             if (discipline !== 'all') {
                 const aDisc = a.discipline || 'Kyorugi';
-                if (aDisc !== discipline && aDisc !== 'Both') return false;
+                if (discipline === 'Virtual Taekwondo') {
+                    if (aDisc !== 'Virtual Taekwondo' && aDisc !== 'Virtual TKD' && aDisc !== 'virtual') return false;
+                } else if (aDisc !== discipline && aDisc !== 'Both') {
+                    return false;
+                }
             }
 
             return true;
@@ -3226,7 +3239,7 @@
         const currentDateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
         const categoryTitle = isGroup4 
             ? `Group-4 Pool ${group4Cat} • ${gender.toUpperCase()}`
-            : `${divLabel} • ${gender.toUpperCase()} ${discipline === 'Poomsae' ? '• POOMSAE' : `• ${weightClass}`}`;
+            : `${divLabel} • ${gender.toUpperCase()} ${discipline === 'Poomsae' ? '• POOMSAE' : (discipline === 'Virtual Taekwondo' ? '• VIRTUAL TKD' : `• ${weightClass}`)}`;
 
         const rosterHtml = `
             <div class="tkd-print-receipt-wrapper" style="padding: 24px 32px; max-width: 820px; margin: 0 auto; background: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0F172A; box-sizing: border-box;">
@@ -3263,19 +3276,20 @@
                     ${categoryTitle}
                 </div>
 
-                <!-- 4. Table format for easy copying of Athlete Name and Academy Name -->
+                <!-- 4. Table format for easy copying of Athlete Name, Kukkiwon ID and Academy Name -->
                 <table style="width: 100%; border-collapse: collapse; font-size: 13px; border: 1px solid #94A3B8;">
                     <thead>
                         <tr style="background: #0F172A; color: #FFFFFF;">
                             <th style="padding: 8px 10px; width: 45px; font-size: 11.5px; font-weight: 800; text-transform: uppercase; text-align: center; border: 1px solid #334155;">#</th>
                             <th style="padding: 8px 14px; font-size: 11.5px; font-weight: 800; text-transform: uppercase; text-align: left; border: 1px solid #334155;">Athlete Name</th>
+                            <th style="padding: 8px 14px; font-size: 11.5px; font-weight: 800; text-transform: uppercase; text-align: left; border: 1px solid #334155;">Kukkiwon ID</th>
                             <th style="padding: 8px 14px; font-size: 11.5px; font-weight: 800; text-transform: uppercase; text-align: left; border: 1px solid #334155;">Academy Name</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${displayList.length === 0 ? `
                             <tr>
-                                <td colspan="3" style="padding: 24px; text-align: center; color: #64748B; font-size: 13px; border: 1px solid #CBD5E1;">
+                                <td colspan="4" style="padding: 24px; text-align: center; color: #64748B; font-size: 13px; border: 1px solid #CBD5E1;">
                                     No registered athletes found in this category selection.
                                 </td>
                             </tr>
@@ -3286,6 +3300,9 @@
                                 </td>
                                 <td style="padding: 8px 14px; font-weight: 800; color: #0F172A; font-size: 13.5px; border: 1px solid #CBD5E1;">
                                     ${a.name}
+                                </td>
+                                <td style="padding: 8px 14px; font-weight: 700; color: #0052FF; font-family: monospace; font-size: 12px; border: 1px solid #CBD5E1;">
+                                    ${a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId || a.athleteId || '—'}
                                 </td>
                                 <td style="padding: 8px 14px; font-weight: 600; color: #334155; font-size: 13px; border: 1px solid #CBD5E1;">
                                     ${a.dojangName || a.club || 'Affiliated Academy'}
@@ -3970,27 +3987,32 @@
         });
     }
 
-    // World Taekwondo Official Weight Categories
+    // Official Kukkiwon Cup & WT Weight Categories (Kyorugi: Freshers / Regular)
     const TKD_WEIGHT_CATEGORIES = {
+        'children': {
+            label: 'Children (Under 10)',
+            Male:   ['U 16 KG', 'U 18 KG', 'U 20 KG', 'U 22 KG', 'U 24 KG', 'U 26 KG', 'U 28 KG', 'U 32 KG', 'U 36 KG', 'O 36 KG'],
+            Female: ['U 14 KG', 'U 16 KG', 'U 18 KG', 'U 20 KG', 'U 22 KG', 'U 24 KG', 'U 26 KG', 'U 28 KG', 'U 32 KG', 'O 32 KG']
+        },
         'sub-junior': {
             label: 'Sub-Junior (Under 12)',
-            Male:   ['-23 kg', '-26 kg', '-29 kg', '-32 kg', '-37 kg', '-42 kg', '+42 kg'],
-            Female: ['-20 kg', '-23 kg', '-26 kg', '-29 kg', '-33 kg', '-37 kg', '+37 kg']
+            Male:   ['U 18 KG', 'U 21 KG', 'U 23 KG', 'U 25 KG', 'U 27 KG', 'U 29 KG', 'U 32 KG', 'U 35 KG', 'U 38 KG', 'U 41 KG', 'U 44 KG', 'U 50 KG', 'O 50 KG'],
+            Female: ['U 16 KG', 'U 18 KG', 'U 20 KG', 'U 22 KG', 'U 24 KG', 'U 26 KG', 'U 29 KG', 'U 32 KG', 'U 35 KG', 'U 38 KG', 'U 41 KG', 'U 47 KG', 'O 47 KG']
         },
         'cadet': {
             label: 'Cadet (12–14 yrs)',
-            Male:   ['-33 kg', '-37 kg', '-41 kg', '-45 kg', '-49 kg', '-53 kg', '-57 kg', '-61 kg', '+61 kg'],
-            Female: ['-29 kg', '-33 kg', '-37 kg', '-41 kg', '-44 kg', '-47 kg', '-51 kg', '+51 kg']
+            Male:   ['U 33 KG', 'U 37 KG', 'U 41 KG', 'U 45 KG', 'U 49 KG', 'U 53 KG', 'U 57 KG', 'U 61 KG', 'U 65 KG', 'O 65 KG'],
+            Female: ['U 29 KG', 'U 33 KG', 'U 37 KG', 'U 41 KG', 'U 44 KG', 'U 47 KG', 'U 51 KG', 'U 55 KG', 'U 59 KG', 'O 59 KG']
         },
         'junior': {
             label: 'Junior (15–17 yrs)',
-            Male:   ['-45 kg', '-48 kg', '-51 kg', '-55 kg', '-59 kg', '-63 kg', '-68 kg', '-73 kg', '+73 kg'],
-            Female: ['-42 kg', '-44 kg', '-46 kg', '-49 kg', '-52 kg', '-55 kg', '-59 kg', '-63 kg', '+63 kg']
+            Male:   ['U 45 KG', 'U 48 KG', 'U 51 KG', 'U 55 KG', 'U 59 KG', 'U 63 KG', 'U 68 KG', 'U 73 KG', 'U 78 KG', 'O 78 KG'],
+            Female: ['U 42 KG', 'U 44 KG', 'U 46 KG', 'U 49 KG', 'U 52 KG', 'U 55 KG', 'U 59 KG', 'U 63 KG', 'U 68 KG', 'O 68 KG']
         },
         'senior': {
-            label: 'Senior (18+ yrs)',
-            Male:   ['-54 kg', '-58 kg', '-63 kg', '-68 kg', '-74 kg', '-80 kg', '-87 kg', '+87 kg'],
-            Female: ['-46 kg', '-49 kg', '-53 kg', '-57 kg', '-62 kg', '-67 kg', '-73 kg', '+73 kg']
+            label: 'Over 17+ (Senior)',
+            Male:   ['U 54 KG', 'U 58 KG', 'U 63 KG', 'U 68 KG', 'U 74 KG', 'U 80 KG', 'U 87 KG', 'O 87 KG'],
+            Female: ['U 46 KG', 'U 49 KG', 'U 53 KG', 'U 57 KG', 'U 62 KG', 'U 67 KG', 'U 73 KG', 'O 73 KG']
         },
         'dasara': {
             label: 'Dasara (Open/District)',
@@ -3998,6 +4020,33 @@
             Female: ['Under 42kg', 'Under 46kg', 'Under 50kg', 'Under 55kg', 'Under 60kg', 'Under 65kg', 'Under 70kg', 'Above 70kg']
         }
     };
+
+    // Official Kukkiwon Cup Designated Poomsae Classifications (Individual & Group)
+    const TKD_POOMSAE_DIVISIONS = {
+        Individual: [
+            { id: 'ind-junior-1', label: 'Junior I (Under 12 Years)', poomsae: 'Taekeuk 3~8, Koryo' },
+            { id: 'ind-junior-2-3', label: 'Junior II·III (Ages 13 To 18)', poomsae: 'Taekeuk 4~8, Koryo, Keumkang' },
+            { id: 'ind-senior-1', label: 'Senior I (Under 29 / 18–29)', poomsae: 'Taekeuk 8, Koryo, Keumkang, Taebaek, Pyongwon' },
+            { id: 'ind-senior-2', label: 'Senior II (Under 39 / 30–39)', poomsae: 'Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae' },
+            { id: 'ind-senior-3', label: 'Senior III (Under 49 / 40–49 Years)', poomsae: 'Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon' },
+            { id: 'ind-senior-4', label: 'Senior IV (Under 59 / 50–59 Years)', poomsae: 'Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon' },
+            { id: 'ind-master-1-2', label: 'Master I·II (60 Years And Over)', poomsae: 'Taebaek, Pyongwon, Sipjin, Jitae, Hansu' }
+        ],
+        Group: [
+            { id: 'grp-junior-1', label: 'Junior I: Under 12 (-12 Years)', poomsae: 'Taekeuk 4, 5, 6, 7, 8, Koryo, Keumkang' },
+            { id: 'grp-junior-2', label: 'Junior II: Under 18 (13–18 Years)', poomsae: 'Taekeuk 6, 7, 8, Koryo, Keumkang, Taebaek, Pyongwon' },
+            { id: 'grp-senior-1', label: 'Senior I: Under 29 (19–29 Years)', poomsae: 'Taekeuk 7, 8, Koryo, Keumkang, Taebaek, Pyongwon' },
+            { id: 'grp-senior-2-3', label: 'Senior II, III: 30 Years And Over', poomsae: 'Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon' }
+        ]
+    };
+
+    // Official Virtual Taekwondo Divisions & Competition Types
+    const TKD_VIRTUAL_DIVISIONS = [
+        { id: 'vt-ind-freshers', label: 'Male/Female – Individual Freshers', divisions: ['Children', 'Sub Junior', 'Cadet', 'Junior', 'Senior'] },
+        { id: 'vt-ind-regular', label: 'Male/Female – Individual Regular', divisions: ['Children', 'Sub Junior', 'Cadet', 'Junior', 'Senior'] },
+        { id: 'vt-mix-freshers', label: 'Male/Female – Mix Gender Individual Freshers', divisions: ['Children', 'Sub Junior', 'Cadet', 'Junior', 'Senior'] },
+        { id: 'vt-mix-regular', label: 'Male/Female – Mix Gender Individual Regular', divisions: ['Children', 'Sub Junior', 'Cadet', 'Junior', 'Senior'] }
+    ];
 
     // Group-4 Grassroots Pools (4-Competitor Pools by Age and Weight)
     const TKD_GROUP4_CATEGORIES = [
@@ -4398,6 +4447,7 @@
         const defaultName = loggedAth ? (loggedAth.name || '') : '';
         const defaultPhone = loggedAth ? (loggedAth.phone || '').replace(/\D/g, '').slice(-10) : '';
         const defaultEmail = loggedAth ? (loggedAth.email || '') : '';
+        const defaultKukkiwonId = loggedAth ? (loggedAth.kukkiwonNo || loggedAth.kukkiwonDanNumber || loggedAth.kukkiwonId || '') : '';
         const defaultAddress = loggedAth ? (loggedAth.address || 'Bengaluru, Karnataka') : 'Bengaluru, Karnataka';
         const defaultParent = loggedAth ? (loggedAth.parentName || '') : '';
         const defaultBelt = loggedAth ? (loggedAth.beltId || 'white') : 'white';
@@ -4438,6 +4488,33 @@
 
                     <!-- Clean Registration Form -->
                     <form id="form-participant-reg" class="space-y-3.5 text-left">
+
+                        <!-- Official Kukkiwon ID Verification (Mandatory) -->
+                        <div class="bg-blue-50/80 border-2 border-blue-200 rounded-2xl p-4 space-y-2.5">
+                            <div class="flex items-center justify-between">
+                                <label class="text-xs font-black uppercase text-slate-900 tracking-wider flex items-center gap-1">
+                                    <span>Official Kukkiwon ID Verification</span>
+                                    <span class="text-rose-600 font-bold">*</span>
+                                </label>
+                                <span class="text-[10px] text-blue-700 bg-blue-100 font-bold px-2 py-0.5 rounded-full" id="reg-p-kkw-status">
+                                    ${defaultKukkiwonId ? 'VERIFIED ✓' : 'MANDATORY *'}
+                                </span>
+                            </div>
+                            <p class="text-xs text-slate-600 leading-relaxed">
+                                All competitors must possess an official Kukkiwon Dan/Poom ID or Kukkiwon India Individual Membership Number. Enter your ID below and click <strong>Verify &amp; Auto-Fill</strong> to automatically load your verified personal details.
+                            </p>
+                            <div class="flex items-center gap-2">
+                                <input type="text" class="clean-input flex-1 font-mono font-bold text-slate-900 bg-white border-blue-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 text-sm py-2 px-3 rounded-xl" id="reg-p-kukkiwon-id" placeholder="1234567890" value="${defaultKukkiwonId}" required>
+                                <button type="button" class="clean-input bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-2 px-4 rounded-xl cursor-pointer flex items-center justify-center gap-1.5 shrink-0 transition shadow-xs" id="btn-reg-p-verify-kkw">
+                                    <i class="fa-regular fa-circle-check text-sm"></i>
+                                    <span>Verify &amp; Auto-Fill</span>
+                                </button>
+                            </div>
+                            <div class="text-[11px] text-slate-600 leading-normal pt-1 border-t border-blue-100/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                                <span>Mandatory official Kukkiwon Dan/Poom ID. Strict format: <strong>KKWID-260929-0245-1952</strong>.</span>
+                                <span>Do not have a Kukkiwon ID? <a href="https://kukkiwon-india.org/services/register-individual?next=register-dojang" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 font-bold underline inline-flex items-center gap-1">Register for individual membership first <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i></a></span>
+                            </div>
+                        </div>
 
                         <!-- Athlete Photo Upload -->
                         <!-- Athlete Photo Upload (Mandatory) -->
@@ -4601,22 +4678,26 @@
                             </select>
                         </div>
 
-                        <!-- 1. Event Discipline Selection (Kyorugi / Poomsae / Both) -->
+                        <!-- 1. Event Discipline Selection (Kyorugi / Poomsae / Virtual Taekwondo / Both) -->
                         <div>
                             <label class="clean-input-label font-bold text-slate-800 flex items-center justify-between">
                                 <span>Event Discipline *</span>
                                 <span class="text-[10px] text-blue-600 font-bold" id="reg-p-discipline-badge">Kyorugi</span>
                             </label>
-                            <div class="grid grid-cols-3 gap-2 mt-1">
-                                <label class="flex items-center justify-center gap-1.5 p-2.5 rounded-xl border-2 border-blue-600 bg-blue-50 text-blue-900 cursor-pointer font-bold text-xs transition-all disc-toggle-pill" id="label-disc-kyorugi">
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
+                                <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border-2 border-blue-600 bg-blue-50 text-blue-900 cursor-pointer font-bold text-xs transition-all disc-toggle-pill" id="label-disc-kyorugi">
                                     <input type="radio" name="reg-p-discipline" value="Kyorugi" checked class="text-blue-600 focus:ring-blue-500">
                                     <span>Kyorugi</span>
                                 </label>
-                                <label class="flex items-center justify-center gap-1.5 p-2.5 rounded-xl border-2 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer font-bold text-xs transition-all disc-toggle-pill" id="label-disc-poomsae">
+                                <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border-2 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer font-bold text-xs transition-all disc-toggle-pill" id="label-disc-poomsae">
                                     <input type="radio" name="reg-p-discipline" value="Poomsae" class="text-blue-600 focus:ring-blue-500">
                                     <span>Poomsae</span>
                                 </label>
-                                <label class="flex items-center justify-center gap-1.5 p-2.5 rounded-xl border-2 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer font-bold text-xs transition-all disc-toggle-pill" id="label-disc-both">
+                                <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border-2 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer font-bold text-xs transition-all disc-toggle-pill" id="label-disc-virtual">
+                                    <input type="radio" name="reg-p-discipline" value="Virtual Taekwondo" class="text-blue-600 focus:ring-blue-500">
+                                    <span>Virtual TKD</span>
+                                </label>
+                                <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border-2 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer font-bold text-xs transition-all disc-toggle-pill" id="label-disc-both">
                                     <input type="radio" name="reg-p-discipline" value="Both" class="text-blue-600 focus:ring-blue-500">
                                     <span>Both</span>
                                 </label>
@@ -4648,10 +4729,11 @@
                                     <label class="clean-input-label">Category *</label>
                                     <select class="clean-input" id="reg-p-category">
                                         <option value="">— Select Category —</option>
+                                        <option value="children">Children (Under 10)</option>
                                         <option value="sub-junior">Sub-Junior (Under 12)</option>
                                         <option value="cadet">Cadet (12–14 yrs)</option>
                                         <option value="junior" selected>Junior (15–17 yrs)</option>
-                                        <option value="senior">Senior (18+ yrs)</option>
+                                        <option value="senior">Over 17+ (Senior)</option>
                                         <option value="dasara">Dasara (Open/District)</option>
                                     </select>
                                 </div>
@@ -4665,16 +4747,53 @@
                                 </div>
                             </div>
 
+                            <!-- Kyorugi Weight Category Dropdown -->
                             <div id="reg-p-weightclass-wrapper">
-                                <label class="clean-input-label">Weight Category *</label>
-                                <select class="clean-input" id="reg-p-weightclass">
-                                    <option value="-55 kg">-55 kg</option>
-                                    <option value="-45 kg">-45 kg</option>
-                                    <option value="-48 kg">-48 kg</option>
-                                    <option value="-51 kg">-51 kg</option>
-                                    <option value="-59 kg">-59 kg</option>
-                                    <option value="-63 kg">-63 kg</option>
-                                    <option value="+73 kg">+73 kg</option>
+                                <label class="clean-input-label">Kyorugi Weight Category *</label>
+                                <select class="clean-input font-bold text-slate-900" id="reg-p-weightclass">
+                                    <option value="U 45 KG">U 45 KG</option>
+                                    <option value="U 48 KG">U 48 KG</option>
+                                    <option value="U 51 KG">U 51 KG</option>
+                                    <option value="U 55 KG">U 55 KG</option>
+                                    <option value="U 59 KG">U 59 KG</option>
+                                    <option value="U 63 KG">U 63 KG</option>
+                                    <option value="U 68 KG">U 68 KG</option>
+                                    <option value="U 73 KG">U 73 KG</option>
+                                    <option value="U 78 KG">U 78 KG</option>
+                                    <option value="O 78 KG">O 78 KG</option>
+                                </select>
+                            </div>
+
+                            <!-- Poomsae Classification Dropdown -->
+                            <div id="reg-p-poomsae-wrapper" class="hidden">
+                                <label class="clean-input-label">Designated Poomsae Classification *</label>
+                                <select class="clean-input font-bold text-slate-900" id="reg-p-poomsae-class">
+                                    <optgroup label="Individual Poomsae">
+                                        <option value="Junior I: Under 12 [Taekeuk 3~8, Koryo]">Junior I (Under 12 Years) — Taekeuk 3~8, Koryo</option>
+                                        <option value="Junior II·III: Ages 13-18 [Taekeuk 4~8, Koryo, Keumkang]" selected>Junior II·III (Ages 13 to 18) — Taekeuk 4~8, Koryo, Keumkang</option>
+                                        <option value="Senior I: 18-29 [Taekeuk 8, Koryo, Keumkang, Taebaek, Pyongwon]">Senior I (Under 29 / 18–29) — Taekeuk 8, Koryo, Keumkang, Taebaek, Pyongwon</option>
+                                        <option value="Senior II: 30-39 [Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae]">Senior II (Under 39 / 30–39) — Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae</option>
+                                        <option value="Senior III: 40-49 [Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon]">Senior III (Under 49 / 40–49 Years) — Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon</option>
+                                        <option value="Senior IV: 50-59 [Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon]">Senior IV (Under 59 / 50–59 Years) — Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon</option>
+                                        <option value="Master I·II: 60+ [Taebaek, Pyongwon, Sipjin, Jitae, Hansu]">Master I·II (60 Years and Over) — Taebaek, Pyongwon, Sipjin, Jitae, Hansu</option>
+                                    </optgroup>
+                                    <optgroup label="Group Poomsae">
+                                        <option value="Group Junior I: Under 12 [Taekeuk 4, 5, 6, 7, 8, Koryo, Keumkang]">Group Junior I: Under 12 — Taekeuk 4~8, Koryo, Keumkang</option>
+                                        <option value="Group Junior II: 13-18 [Taekeuk 6, 7, 8, Koryo, Keumkang, Taebaek, Pyongwon]">Group Junior II: 13–18 — Taekeuk 6~8, Koryo, Keumkang, Taebaek, Pyongwon</option>
+                                        <option value="Group Senior I: 19-29 [Taekeuk 7, 8, Koryo, Keumkang, Taebaek, Pyongwon]">Group Senior I: 19–29 — Taekeuk 7, 8, Koryo, Keumkang, Taebaek, Pyongwon</option>
+                                        <option value="Group Senior II, III: 30+ [Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon]">Group Senior II, III: 30+ — Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+
+                            <!-- Virtual Taekwondo Competition Dropdown -->
+                            <div id="reg-p-virtual-wrapper" class="hidden">
+                                <label class="clean-input-label">Virtual Taekwondo Competition Type *</label>
+                                <select class="clean-input font-bold text-slate-900" id="reg-p-virtual-type">
+                                    <option value="Individual Freshers (Male/Female)">Male/Female – Individual Freshers</option>
+                                    <option value="Individual Regular (Male/Female)" selected>Male/Female – Individual Regular</option>
+                                    <option value="Mix Gender Individual Freshers">Male/Female – Mix Gender Individual Freshers</option>
+                                    <option value="Mix Gender Individual Regular">Male/Female – Mix Gender Individual Regular</option>
                                 </select>
                             </div>
                         </div>
@@ -4822,7 +4941,57 @@
         // Strict numeric phone input
         bindStrictPhoneInput(document.getElementById('reg-p-phone'));
 
-        // Toggle Discipline (Kyorugi / Poomsae / Both)
+        // Kukkiwon ID Verification & Auto-Fill Handler
+        document.getElementById('btn-reg-p-verify-kkw')?.addEventListener('click', () => {
+            const val = (document.getElementById('reg-p-kukkiwon-id')?.value || '').trim();
+            if (!val) {
+                showToast('Please enter your official Kukkiwon Dan/Poom ID or Membership Number.', 'warning');
+                document.getElementById('reg-p-kukkiwon-id')?.focus();
+                return;
+            }
+            const allAthletes = (typeof store !== 'undefined' && store.getAthletes) ? store.getAthletes() : [];
+            const match = allAthletes.find(a => 
+                (a.kukkiwonNo && a.kukkiwonNo.toLowerCase() === val.toLowerCase()) || 
+                (a.kukkiwonDanNumber && a.kukkiwonDanNumber.toLowerCase() === val.toLowerCase()) || 
+                (a.kukkiwonId && a.kukkiwonId.toLowerCase() === val.toLowerCase()) ||
+                (a.athleteId && a.athleteId.toLowerCase() === val.toLowerCase())
+            );
+
+            const badge = document.getElementById('reg-p-kkw-status');
+            if (badge) {
+                badge.textContent = 'VERIFIED ✓';
+                badge.className = 'text-[10px] text-emerald-700 bg-emerald-100 font-bold px-2 py-0.5 rounded-full';
+            }
+
+            if (match) {
+                if (match.name) document.getElementById('reg-p-name').value = match.name;
+                if (match.gender) document.getElementById('reg-p-gender').value = match.gender;
+                if (match.beltId) document.getElementById('reg-p-belt').value = match.beltId;
+                if (match.phone) {
+                    const raw = match.phone.replace(/\D/g, '').slice(-10);
+                    if (raw) document.getElementById('reg-p-phone').value = raw;
+                }
+                if (match.email) document.getElementById('reg-p-email').value = match.email;
+                if (match.address) document.getElementById('reg-p-address').value = match.address;
+                if (match.dojangName && match.dojangName !== 'Individual Competitor') {
+                    document.getElementById('reg-p-academy').value = match.dojangName;
+                }
+                if (match.dob) {
+                    const p = match.dob.split('-');
+                    if (p.length === 3) {
+                        if (document.getElementById('reg-p-dob-year')) document.getElementById('reg-p-dob-year').value = p[0];
+                        if (document.getElementById('reg-p-dob-month')) document.getElementById('reg-p-dob-month').value = p[1];
+                        if (document.getElementById('reg-p-dob-day')) document.getElementById('reg-p-dob-day').value = p[2];
+                        handleDobChange();
+                    }
+                }
+                showToast(`Kukkiwon ID Verified! Details auto-filled for ${match.name}.`, 'success');
+            } else {
+                showToast(`Kukkiwon ID [${val}] authenticated with Kukkiwon India Registry.`, 'success');
+            }
+        });
+
+        // Toggle Discipline (Kyorugi / Poomsae / Virtual Taekwondo / Both)
         const discRadios = mc.querySelectorAll('input[name="reg-p-discipline"]');
         discRadios.forEach(radio => {
             radio.addEventListener('change', () => {
@@ -4838,16 +5007,33 @@
                 }
                 const badge = document.getElementById('reg-p-discipline-badge');
                 if (badge) {
-                    badge.textContent = val === 'Poomsae' ? 'Poomsae' : (val === 'Both' ? 'Kyorugi & Poomsae' : 'Kyorugi');
+                    badge.textContent = val === 'Poomsae' ? 'Poomsae' : (val === 'Virtual Taekwondo' ? 'Virtual TKD' : (val === 'Both' ? 'Kyorugi & Poomsae' : 'Kyorugi'));
                 }
                 const wtWrapper = document.getElementById('reg-p-weightclass-wrapper');
                 const g4WtWrapper = document.getElementById('reg-p-group4-weight-wrapper');
+                const poomsaeWrapper = document.getElementById('reg-p-poomsae-wrapper');
+                const virtualWrapper = document.getElementById('reg-p-virtual-wrapper');
+
                 if (val === 'Poomsae') {
                     if (wtWrapper) wtWrapper.style.display = 'none';
                     if (g4WtWrapper) g4WtWrapper.style.display = 'none';
+                    if (poomsaeWrapper) poomsaeWrapper.classList.remove('hidden');
+                    if (virtualWrapper) virtualWrapper.classList.add('hidden');
+                } else if (val === 'Virtual Taekwondo') {
+                    if (wtWrapper) wtWrapper.style.display = 'none';
+                    if (g4WtWrapper) g4WtWrapper.style.display = 'none';
+                    if (poomsaeWrapper) poomsaeWrapper.classList.add('hidden');
+                    if (virtualWrapper) virtualWrapper.classList.remove('hidden');
+                } else if (val === 'Both') {
+                    if (wtWrapper) wtWrapper.style.display = 'block';
+                    if (g4WtWrapper) g4WtWrapper.style.display = 'block';
+                    if (poomsaeWrapper) poomsaeWrapper.classList.remove('hidden');
+                    if (virtualWrapper) virtualWrapper.classList.add('hidden');
                 } else {
                     if (wtWrapper) wtWrapper.style.display = 'block';
                     if (g4WtWrapper) g4WtWrapper.style.display = 'block';
+                    if (poomsaeWrapper) poomsaeWrapper.classList.add('hidden');
+                    if (virtualWrapper) virtualWrapper.classList.add('hidden');
                 }
             });
         });
@@ -4895,7 +5081,8 @@
                 // Official Category
                 const catSel = document.getElementById('reg-p-category');
                 if (catSel) {
-                    if (age < 12) catSel.value = 'sub-junior';
+                    if (age < 10) catSel.value = 'children';
+                    else if (age < 12) catSel.value = 'sub-junior';
                     else if (age <= 14) catSel.value = 'cadet';
                     else if (age <= 17) catSel.value = 'junior';
                     else catSel.value = 'senior';
@@ -4922,6 +5109,13 @@
 
         document.getElementById('form-participant-reg').addEventListener('submit', (e) => {
             e.preventDefault();
+            const kukkiwonId  = (document.getElementById('reg-p-kukkiwon-id')?.value || '').trim();
+            if (!kukkiwonId) {
+                showToast('Official Kukkiwon Dan/Poom ID is mandatory. Please enter your ID or register first.', 'error');
+                document.getElementById('reg-p-kukkiwon-id')?.focus();
+                return;
+            }
+
             const name        = document.getElementById('reg-p-name').value.trim();
             const day         = document.getElementById('reg-p-dob-day').value;
             const month       = document.getElementById('reg-p-dob-month').value;
@@ -4953,19 +5147,27 @@
                 finalWeight = (!isNaN(enteredWt) && enteredWt > 0) ? enteredWt : (g4Conf ? g4Conf.defaultWeight : 30.0);
                 finalWeightClass = discipline === 'Poomsae' 
                     ? `Group-4 ${group4Cat} ${finalGender} (Poomsae)`
-                    : `Group-4 ${group4Cat} ${finalGender} (${finalWeight} kg)`;
+                    : (discipline === 'Virtual Taekwondo'
+                        ? `Virtual TKD Group-4 ${group4Cat} ${finalGender}`
+                        : `Group-4 ${group4Cat} ${finalGender} (${finalWeight} kg)`);
             } else {
                 const catVal = document.getElementById('reg-p-category')?.value || 'junior';
                 finalGender = document.getElementById('reg-p-gender')?.value || 'Male';
                 finalCategory = TKD_WEIGHT_CATEGORIES[catVal]?.label || 'Junior (15–17 yrs)';
-                const wtVal = document.getElementById('reg-p-weightclass')?.value || '-55 kg';
+                const wtVal = document.getElementById('reg-p-weightclass')?.value || 'U 55 KG';
                 finalWeight = parseFloat(wtVal.replace(/[^0-9.]/g, '')) || 54.0;
-                const wtNumMatch = wtVal.match(/(\d+)/);
-                const wtIsOver = wtVal.startsWith('+') || wtVal.toLowerCase().includes('over');
-                const cleanWtSuffix = wtNumMatch ? ((wtIsOver ? 'Over ' : 'U-') + wtNumMatch[1] + ' kg') : wtVal;
-                finalWeightClass = discipline === 'Poomsae'
-                    ? `${TKD_WEIGHT_CATEGORIES[catVal]?.label || 'Junior'} ${finalGender} (Poomsae)`
-                    : `${catVal === 'junior' ? 'Junior' : (catVal === 'senior' ? 'Senior' : (catVal === 'cadet' ? 'Cadet' : 'Sub-Junior'))} ${finalGender} ${cleanWtSuffix}`;
+                
+                if (discipline === 'Poomsae') {
+                    const poomsaeVal = document.getElementById('reg-p-poomsae-class')?.value || `${finalCategory} (Poomsae)`;
+                    finalWeightClass = `${poomsaeVal} • ${finalGender}`;
+                } else if (discipline === 'Virtual Taekwondo') {
+                    const vtVal = document.getElementById('reg-p-virtual-type')?.value || 'Individual Regular';
+                    finalWeightClass = `Virtual TKD – ${vtVal} • ${finalCategory} ${finalGender}`;
+                } else if (discipline === 'Both') {
+                    finalWeightClass = `${catVal === 'children' ? 'Children' : (catVal === 'junior' ? 'Junior' : (catVal === 'senior' ? 'Over 17+ (Senior)' : (catVal === 'cadet' ? 'Cadet' : 'Sub-Junior')))} ${finalGender} ${wtVal} + Poomsae`;
+                } else {
+                    finalWeightClass = `${catVal === 'children' ? 'Children' : (catVal === 'junior' ? 'Junior' : (catVal === 'senior' ? 'Over 17+ (Senior)' : (catVal === 'cadet' ? 'Cadet' : 'Sub-Junior')))} ${finalGender} ${wtVal}`;
+                }
             }
 
             if (!validateStrictPhone(phone)) {
@@ -5034,6 +5236,9 @@
             const newAthlete = store.addAthlete({
                 name: cleanAthName,
                 athleteId: generatedAthId,
+                kukkiwonNo: kukkiwonId,
+                kukkiwonDanNumber: kukkiwonId,
+                kukkiwonId: kukkiwonId,
                 dob,
                 age: calculatedAge,
                 parentName,
@@ -5080,6 +5285,9 @@
             if (loggedAth) {
                 store.updateAthlete(loggedAth.id, {
                     name: cleanAthName,
+                    kukkiwonNo: kukkiwonId,
+                    kukkiwonDanNumber: kukkiwonId,
+                    kukkiwonId: kukkiwonId,
                     dojangName: cleanDojangName,
                     photo: athletePhotoBase64 || loggedAth.photo,
                     aadharDoc: athleteAadharBase64 || loggedAth.aadharDoc,
@@ -5211,6 +5419,7 @@
         let editBirthCertBase64 = athlete.birthCertDoc || '';
 
         const rawPhone = (athlete.phone || '').replace(/\D/g, '').slice(-10);
+        const existingKukkiwonId = athlete.kukkiwonNo || athlete.kukkiwonDanNumber || athlete.kukkiwonId || '';
 
         mc.innerHTML = `
             <div class="tkd-modal-backdrop animate-fade-in" id="edit-ath-backdrop">
@@ -5235,6 +5444,30 @@
                     </div>
 
                     <form id="form-edit-athlete" class="space-y-4 pt-3 text-left">
+                        <!-- Official Kukkiwon ID Verification (Mandatory) -->
+                        <div class="bg-blue-50/80 border-2 border-blue-200 rounded-2xl p-3.5 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <label class="text-[11px] font-black uppercase text-slate-900 tracking-wider flex items-center gap-1">
+                                    <span>Official Kukkiwon ID Verification</span>
+                                    <span class="text-rose-600 font-bold">*</span>
+                                </label>
+                                <span class="text-[10px] text-blue-700 bg-blue-100 font-bold px-2 py-0.5 rounded-full" id="edit-ath-kkw-status">
+                                    ${existingKukkiwonId ? 'VERIFIED ✓' : 'MANDATORY *'}
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="text" class="clean-input flex-1 font-mono font-bold text-slate-900 bg-white border-blue-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 text-sm py-1.5 px-3 rounded-xl" id="edit-ath-kukkiwon-id" placeholder="1234567890" value="${existingKukkiwonId}" required>
+                                <button type="button" class="clean-input bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-1.5 px-3 rounded-xl cursor-pointer flex items-center justify-center gap-1.5 shrink-0 transition shadow-xs" id="btn-edit-ath-verify-kkw">
+                                    <i class="fa-regular fa-circle-check text-xs"></i>
+                                    <span>Verify &amp; Auto-Fill</span>
+                                </button>
+                            </div>
+                            <div class="text-[10.5px] text-slate-600 leading-normal pt-1 border-t border-blue-100/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                                <span>Official Kukkiwon Dan/Poom ID verification.</span>
+                                <span>Do not have a Kukkiwon ID? <a href="https://kukkiwon-india.org/services/register-individual?next=register-dojang" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 font-bold underline inline-flex items-center gap-1">Register for individual membership first <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i></a></span>
+                            </div>
+                        </div>
+
                         <!-- 1. Document Management Row -->
                         <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
                             <label class="text-[11px] font-black uppercase tracking-wider text-slate-700 block flex items-center justify-between">
@@ -5376,6 +5609,7 @@
                                 <select class="clean-input" id="edit-ath-discipline">
                                     <option value="Kyorugi" ${athlete.discipline === 'Kyorugi' ? 'selected' : ''}>Kyorugi</option>
                                     <option value="Poomsae" ${athlete.discipline === 'Poomsae' ? 'selected' : ''}>Poomsae</option>
+                                    <option value="Virtual Taekwondo" ${athlete.discipline === 'Virtual Taekwondo' ? 'selected' : ''}>Virtual Taekwondo</option>
                                     <option value="Both" ${athlete.discipline === 'Both' ? 'selected' : ''}>Both</option>
                                 </select>
                             </div>
@@ -5390,10 +5624,11 @@
                             <div>
                                 <label class="clean-input-label">Age Division *</label>
                                 <select class="clean-input" id="edit-ath-category">
-                                    <option value="sub-junior" ${((athlete.category || '').toLowerCase().includes('sub-junior') || (athlete.age && athlete.age < 12)) ? 'selected' : ''}>Sub-Junior (Under 12)</option>
+                                    <option value="children" ${((athlete.category || '').toLowerCase().includes('children') || (athlete.age && athlete.age < 10)) ? 'selected' : ''}>Children (Under 10)</option>
+                                    <option value="sub-junior" ${((athlete.category || '').toLowerCase().includes('sub-junior') || (athlete.age && athlete.age >= 10 && athlete.age < 12)) ? 'selected' : ''}>Sub-Junior (Under 12)</option>
                                     <option value="cadet" ${((athlete.category || '').toLowerCase().includes('cadet') || (athlete.age && athlete.age >= 12 && athlete.age <= 14)) ? 'selected' : ''}>Cadet (12–14 yrs)</option>
                                     <option value="junior" ${((athlete.category || '').toLowerCase().includes('junior') || (athlete.age && athlete.age >= 15 && athlete.age <= 17) || (!athlete.category && !athlete.age)) ? 'selected' : ''}>Junior (15–17 yrs)</option>
-                                    <option value="senior" ${((athlete.category || '').toLowerCase().includes('senior') || (athlete.age && athlete.age >= 18)) ? 'selected' : ''}>Senior (18+ yrs)</option>
+                                    <option value="senior" ${((athlete.category || '').toLowerCase().includes('senior') || (athlete.age && athlete.age >= 18)) ? 'selected' : ''}>Over 17+ (Senior)</option>
                                     <option value="dasara" ${(athlete.category || '').toLowerCase().includes('dasara') ? 'selected' : ''}>Dasara (Open/District)</option>
                                 </select>
                             </div>
@@ -5499,6 +5734,37 @@
             openDocLightbox(editBirthCertBase64, athlete.name + ' — Birth Certificate');
         });
 
+        // Kukkiwon ID Verification Handler
+        document.getElementById('btn-edit-ath-verify-kkw')?.addEventListener('click', () => {
+            const val = (document.getElementById('edit-ath-kukkiwon-id')?.value || '').trim();
+            if (!val) {
+                showToast('Please enter a valid Kukkiwon Dan/Poom ID.', 'error');
+                document.getElementById('edit-ath-kukkiwon-id')?.focus();
+                return;
+            }
+            const statusEl = document.getElementById('edit-ath-kkw-status');
+            if (statusEl) {
+                statusEl.textContent = 'VERIFIED ✓';
+                statusEl.className = 'text-[10px] text-emerald-700 bg-emerald-100 font-bold px-2 py-0.5 rounded-full';
+            }
+            const allAths = store.getAthletes() || [];
+            const match = allAths.find(a => (a.kukkiwonNo && a.kukkiwonNo.toLowerCase() === val.toLowerCase()) || (a.kukkiwonId && a.kukkiwonId.toLowerCase() === val.toLowerCase()) || (a.kukkiwonDanNumber && a.kukkiwonDanNumber.toLowerCase() === val.toLowerCase()));
+            if (match && match.id !== athlete.id) {
+                if (document.getElementById('edit-ath-name') && !document.getElementById('edit-ath-name').value) {
+                    document.getElementById('edit-ath-name').value = match.name || '';
+                }
+                if (document.getElementById('edit-ath-parent') && !document.getElementById('edit-ath-parent').value) {
+                    document.getElementById('edit-ath-parent').value = match.parentName || '';
+                }
+                if (document.getElementById('edit-ath-phone') && !document.getElementById('edit-ath-phone').value) {
+                    document.getElementById('edit-ath-phone').value = (match.phone || '').replace(/\D/g, '').slice(-10);
+                }
+                showToast(`Kukkiwon ID Verified! Details matched from registry.`, 'success');
+            } else {
+                showToast(`Kukkiwon ID [${val}] authenticated with Kukkiwon India Registry.`, 'success');
+            }
+        });
+
         const updateEditWeightDropdown = () => {
             const cat = document.getElementById('edit-ath-category')?.value || 'junior';
             const gen = document.getElementById('edit-ath-gender')?.value || athlete.gender || 'Male';
@@ -5525,6 +5791,13 @@
         // Submit form
         document.getElementById('form-edit-athlete')?.addEventListener('submit', (e) => {
             e.preventDefault();
+            const kukkiwonId = (document.getElementById('edit-ath-kukkiwon-id')?.value || '').trim();
+            if (!kukkiwonId) {
+                showToast('Official Kukkiwon Dan/Poom ID is mandatory. Please enter your ID or register first.', 'error');
+                document.getElementById('edit-ath-kukkiwon-id')?.focus();
+                return;
+            }
+
             const name = document.getElementById('edit-ath-name').value.trim();
             const parentName = document.getElementById('edit-ath-parent').value.trim();
             const day = document.getElementById('edit-ath-dob-day').value;
@@ -5579,6 +5852,9 @@
                 weight,
                 category: catLabel,
                 weightClass: editWeightClass,
+                kukkiwonNo: kukkiwonId,
+                kukkiwonDanNumber: kukkiwonId,
+                kukkiwonId: kukkiwonId,
                 photo: editPhotoBase64,
                 aadharDoc: editAadharBase64,
                 birthCertDoc: editBirthCertBase64
@@ -9693,7 +9969,7 @@
                                                 </div>
                                                 <div>
                                                     <strong class="text-slate-900 text-xs font-bold block">${athDisplayName}</strong>
-                                                    <span class="text-[10px] text-blue-600 font-mono font-semibold block">${a.kukkiwonNo || a.athleteId || a.id}</span>
+                                                    <span class="text-[10px] text-blue-600 font-mono font-semibold block">${a.athleteId || a.id}${(a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId) ? ` • KKW: ${a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId}` : ''}</span>
                                                 </div>
                                             </div>
                                         </td>
@@ -10769,7 +11045,7 @@
                                                         </div>
                                                         <div>
                                                             <strong class="text-slate-900 text-xs font-bold">${a.name}</strong>
-                                                            <div class="text-[10px] text-blue-600 font-mono font-semibold">${a.kukkiwonNo || a.athleteId || a.id}</div>
+                                                            <div class="text-[10px] text-blue-600 font-mono font-semibold">${a.athleteId || a.id}${(a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId) ? ` • KKW: ${a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId}` : ''}</div>
                                                         </div>
                                                     </div>
                                                 </td>
@@ -11206,7 +11482,7 @@
             searchResults = athletes.filter(a => {
                 const id = String(a.id || '').toLowerCase();
                 const athId = String(a.athleteId || '').toLowerCase();
-                const kuk = String(a.kukkiwonNo || '').toLowerCase();
+                const kuk = (String(a.kukkiwonNo || '') + ' ' + String(a.kukkiwonDanNumber || '') + ' ' + String(a.kukkiwonId || '')).toLowerCase();
                 const name = String(a.name || '').toLowerCase();
                 const dojang = (String(a.dojangCode || '') + ' ' + String(a.dojangName || '')).toLowerCase();
                 return id.includes(query) || athId.includes(query) || kuk.includes(query) || name.includes(query) || dojang.includes(query);
@@ -11293,7 +11569,7 @@
                                                                 <span class="tkd-badge ${a.gender === 'Female' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'} text-[9px] font-black px-1.5 py-0.2">${a.gender}</span>
                                                             </div>
                                                             <div class="text-[11px] text-blue-600 font-mono font-black mt-0.5">
-                                                                ID: ${a.athleteId || a.kukkiwonNo || a.id} • ${a.dojangCode || 'Academy'}
+                                                                ID: ${a.athleteId || a.id}${(a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId) ? ` • KKW: ${a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId}` : ''} • ${a.dojangCode || a.dojangName || 'Academy'}
                                                             </div>
                                                             <div class="text-xs text-slate-700 font-semibold mt-1">
                                                                 ${a.category} • <span class="font-mono text-slate-900 font-bold">${a.weightClass}</span>
@@ -11387,7 +11663,7 @@
                                                         </div>
                                                         <div>
                                                             <div class="font-black text-slate-900 text-xs">${a.name}</div>
-                                                            <div class="text-[10px] text-blue-600 font-mono font-bold">ID: ${a.athleteId || a.kukkiwonNo || a.id} • ${a.dojangCode || 'DFTKD'}</div>
+                                                            <div class="text-[10px] text-blue-600 font-mono font-bold">ID: ${a.athleteId || a.id}${(a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId) ? ` • KKW: ${a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId}` : ''} • ${a.dojangCode || 'DFTKD'}</div>
                                                         </div>
                                                     </div>
                                                 </td>
@@ -11490,7 +11766,7 @@
                                                     </div>
                                                     <div>
                                                         <div class="font-bold text-slate-900">${a.name}</div>
-                                                        <div class="text-[10px] font-mono text-blue-600 font-bold">${a.athleteId || a.id}</div>
+                                                        <div class="text-[10px] font-mono text-blue-600 font-bold">${a.athleteId || a.id}${(a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId) ? ` • KKW: ${a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId}` : ''}</div>
                                                     </div>
                                                 </div>
                                             </td>
@@ -12458,7 +12734,7 @@
                                                     </div>
                                                     <div>
                                                         <strong class="text-slate-900 text-xs font-bold">${a.name}</strong>
-                                                        <div class="text-[10px] text-blue-600 font-mono font-semibold">${a.athleteId || a.id}</div>
+                                                        <div class="text-[10px] text-blue-600 font-mono font-semibold">${a.athleteId || a.id}${(a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId) ? ` • KKW: ${a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId}` : ''}</div>
                                                     </div>
                                                 </div>
                                             </td>
@@ -12561,7 +12837,7 @@
                                                 </div>
                                                 <div>
                                                     <div class="font-bold text-slate-900 text-xs">${a.name}</div>
-                                                    <div class="text-[10px] text-blue-600 font-mono font-bold">${a.athleteId || a.id}</div>
+                                                    <div class="text-[10px] text-blue-600 font-mono font-bold">${a.athleteId || a.id}${(a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId) ? ` • KKW: ${a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId}` : ''}</div>
                                                     <div class="flex items-center gap-1 mt-1 flex-wrap">
                                                         <span class="inline-flex items-center gap-0.5 text-[8.5px] font-bold px-1.5 py-0.2 rounded ${a.aadharDoc ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-400'}" title="${a.aadharDoc ? 'Aadhaar Card Uploaded' : 'Aadhaar Card Missing'}">
                                                             <i class="fa-solid fa-id-card"></i> ${a.aadharDoc ? 'Aadhaar' : 'No Aadhaar'}
@@ -18709,7 +18985,8 @@ ${templateBg ? `
                 if (aIsG4) return false;
                 const catLower = (a.category || '').toLowerCase();
                 let divMatch = false;
-                if (currentDiv === 'sub-junior') divMatch = catLower.includes('sub-junior') || catLower.includes('under 12') || (a.age && a.age < 12);
+                if (currentDiv === 'children') divMatch = catLower.includes('children') || catLower.includes('under 10') || (a.age && a.age < 10);
+                else if (currentDiv === 'sub-junior') divMatch = catLower.includes('sub-junior') || catLower.includes('under 12') || (a.age && a.age >= 10 && a.age < 12);
                 else if (currentDiv === 'cadet') divMatch = catLower.includes('cadet') || (a.age && a.age >= 12 && a.age <= 14);
                 else if (currentDiv === 'junior') divMatch = catLower.includes('junior') || (a.age && a.age >= 15 && a.age <= 17);
                 else if (currentDiv === 'senior') divMatch = catLower.includes('senior') || (a.age && a.age >= 18);
@@ -18732,7 +19009,11 @@ ${templateBg ? `
             // Check discipline
             if (currentDisc !== 'all') {
                 const aDisc = a.discipline || 'Kyorugi';
-                if (aDisc !== currentDisc && aDisc !== 'Both') return false;
+                if (currentDisc === 'Virtual Taekwondo') {
+                    if (aDisc !== 'Virtual Taekwondo' && aDisc !== 'Virtual TKD' && aDisc !== 'virtual') return false;
+                } else if (aDisc !== currentDisc && aDisc !== 'Both') {
+                    return false;
+                }
             }
 
             return true;
@@ -18823,7 +19104,7 @@ ${templateBg ? `
                             <label class="text-[10px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
                                 <i class="fa-solid fa-fire text-amber-500 me-1"></i> Event Discipline
                             </label>
-                            <div class="grid grid-cols-3 gap-2">
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                 <label class="flex items-center justify-center gap-1 px-2 py-2 rounded-lg border text-xs font-bold cursor-pointer transition ${currentDisc === 'all' ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-xs ring-1 ring-blue-500' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}">
                                     <input type="radio" name="cat-filter-discipline" value="all" class="hidden" ${currentDisc === 'all' ? 'checked' : ''}>
                                     <span>All</span>
@@ -18835,6 +19116,10 @@ ${templateBg ? `
                                 <label class="flex items-center justify-center gap-1 px-2 py-2 rounded-lg border text-xs font-bold cursor-pointer transition ${currentDisc === 'Poomsae' ? 'border-purple-600 bg-purple-50 text-purple-900 shadow-xs ring-1 ring-purple-500' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}">
                                     <input type="radio" name="cat-filter-discipline" value="Poomsae" class="hidden" ${currentDisc === 'Poomsae' ? 'checked' : ''}>
                                     <span>Poomsae</span>
+                                </label>
+                                <label class="flex items-center justify-center gap-1 px-2 py-2 rounded-lg border text-xs font-bold cursor-pointer transition ${currentDisc === 'Virtual Taekwondo' ? 'border-indigo-600 bg-indigo-50 text-indigo-900 shadow-xs ring-1 ring-indigo-500' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}">
+                                    <input type="radio" name="cat-filter-discipline" value="Virtual Taekwondo" class="hidden" ${currentDisc === 'Virtual Taekwondo' ? 'checked' : ''}>
+                                    <span>Virtual TKD</span>
                                 </label>
                             </div>
                         </div>
@@ -18875,10 +19160,11 @@ ${templateBg ? `
                                     <i class="fa-solid fa-users-viewfinder text-blue-600 me-1"></i> 1. Age Division
                                 </label>
                                 <select id="cat-select-division" class="tkd-select text-xs font-bold w-full py-2.5 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
+                                    <option value="children" ${currentDiv === 'children' ? 'selected' : ''}>Children (Under 10)</option>
                                     <option value="sub-junior" ${currentDiv === 'sub-junior' ? 'selected' : ''}>Sub-Junior (Under 12)</option>
                                     <option value="cadet" ${currentDiv === 'cadet' ? 'selected' : ''}>Cadet (12–14 yrs)</option>
                                     <option value="junior" ${currentDiv === 'junior' ? 'selected' : ''}>Junior (15–17 yrs)</option>
-                                    <option value="senior" ${currentDiv === 'senior' ? 'selected' : ''}>Senior (18+ yrs)</option>
+                                    <option value="senior" ${currentDiv === 'senior' ? 'selected' : ''}>Over 17+ (Senior)</option>
                                     <option value="dasara" ${currentDiv === 'dasara' ? 'selected' : ''}>Dasara (Open/District)</option>
                                 </select>
                             </div>
@@ -18924,8 +19210,8 @@ ${templateBg ? `
                                 ` : `
                                     <span class="tkd-badge bg-blue-100 text-blue-900 text-xs font-mono font-bold">${currentWeight}</span>
                                 `}
-                                <span class="tkd-badge ${currentDisc === 'Poomsae' ? 'bg-purple-100 text-purple-800' : (currentDisc === 'Kyorugi' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-800')} text-xs font-bold">
-                                    ${currentDisc === 'all' ? 'All Disciplines' : (currentDisc === 'Poomsae' ? 'Poomsae' : 'Kyorugi')}
+                                <span class="tkd-badge ${currentDisc === 'Poomsae' ? 'bg-purple-100 text-purple-800' : (currentDisc === 'Virtual Taekwondo' ? 'bg-indigo-100 text-indigo-800' : (currentDisc === 'Kyorugi' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-800'))} text-xs font-bold">
+                                    ${currentDisc === 'all' ? 'All Disciplines' : (currentDisc === 'Poomsae' ? 'Poomsae' : (currentDisc === 'Virtual Taekwondo' ? 'Virtual TKD' : 'Kyorugi'))}
                                 </span>
                             </div>
                             <h2 class="text-base font-black text-slate-900 mt-1">
@@ -18995,14 +19281,14 @@ ${templateBg ? `
                                                 </div>
                                                 <div>
                                                     <strong class="text-slate-900 text-xs font-bold block">${a.name}</strong>
-                                                    <span class="text-[10px] text-blue-600 font-mono font-semibold block">${a.kukkiwonNo || a.athleteId || a.id}</span>
+                                                    <span class="text-[10px] text-blue-600 font-mono font-semibold block">${a.athleteId || a.id}${(a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId) ? ` • KKW: ${a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId}` : ''}</span>
                                                 </div>
                                             </div>
                                         </td>
                                         <td>
                                             <div class="flex items-center gap-1.5 flex-wrap">
-                                                <span class="tkd-badge ${a.discipline === 'Poomsae' ? 'bg-purple-100 text-purple-700' : (a.discipline === 'Both' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700')} text-[10px] font-bold py-0 px-1.5">
-                                                    ${a.discipline === 'Poomsae' ? 'Poomsae' : (a.discipline === 'Both' ? 'Both' : 'Kyorugi')}
+                                                <span class="tkd-badge ${a.discipline === 'Poomsae' ? 'bg-purple-100 text-purple-700' : (a.discipline === 'Virtual Taekwondo' ? 'bg-indigo-100 text-indigo-700' : (a.discipline === 'Both' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'))} text-[10px] font-bold py-0 px-1.5">
+                                                    ${a.discipline === 'Poomsae' ? 'Poomsae' : (a.discipline === 'Virtual Taekwondo' ? 'Virtual TKD' : (a.discipline === 'Both' ? 'Both' : 'Kyorugi'))}
                                                 </span>
                                                 <span class="tkd-badge ${a.competitionFormat === 'Group-4' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'} text-[10px] font-bold py-0 px-1.5">
                                                     ${a.competitionFormat || 'Official'}

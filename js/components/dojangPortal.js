@@ -268,18 +268,21 @@ function openAddStudentModal(portalContainer, currentDojang) {
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="tkd-label">Kukkiwon Certificate #</label>
-                            <input type="text" class="tkd-input" id="sa-kkw" placeholder="KKW-0988112">
-                        </div>
-                        <div>
-                            <label class="tkd-label">Discipline</label>
-                            <select class="tkd-select" id="sa-discipline">
-                                <option value="kyorugi">Kyorugi (Sparring)</option>
-                                <option value="poomsae">Poomsae (Forms)</option>
-                            </select>
-                        </div>
+                    <div class="space-y-1">
+                        <label class="tkd-label flex items-center justify-between">
+                            <span>Kukkiwon ID * <span class="text-rose-600 font-bold">(Mandatory)</span></span>
+                            <a href="https://kukkiwon-india.org/services/register-individual?next=register-dojang" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 text-[10px] font-bold underline">Register for individual membership first &nearr;</a>
+                        </label>
+                        <input type="text" class="tkd-input font-mono font-bold" id="sa-kkw" placeholder="1234567890" required>
+                    </div>
+
+                    <div>
+                        <label class="tkd-label">Discipline</label>
+                        <select class="tkd-select" id="sa-discipline">
+                            <option value="kyorugi">Kyorugi (Sparring)</option>
+                            <option value="poomsae">Poomsae (Forms)</option>
+                            <option value="virtual">Virtual Taekwondo</option>
+                        </select>
                     </div>
 
                     <div class="flex justify-end gap-2 pt-2">
@@ -301,7 +304,12 @@ function openAddStudentModal(portalContainer, currentDojang) {
         const dob = document.getElementById('sa-dob').value;
         const beltId = document.getElementById('sa-belt').value;
         const weight = parseFloat(document.getElementById('sa-weight').value);
-        const kukkiwonNo = document.getElementById('sa-kkw').value || 'KKW-PENDING';
+        const kukkiwonNo = (document.getElementById('sa-kkw').value || '').trim();
+        if (!kukkiwonNo) {
+            showToast('Kukkiwon Dan/Poom ID is mandatory. Please enter a valid ID or register first.', 'error');
+            document.getElementById('sa-kkw')?.focus();
+            return;
+        }
         const discipline = document.getElementById('sa-discipline').value;
         const belt = TKD_BELTS.find(b => b.id === beltId) || TKD_BELTS[0];
 
@@ -313,12 +321,14 @@ function openAddStudentModal(portalContainer, currentDojang) {
             beltId,
             beltName: belt.name,
             weight,
-            weightClass: `${discipline === 'kyorugi' ? 'Kyorugi' : 'Poomsae'} (${weight} kg)`,
+            weightClass: `${discipline === 'kyorugi' ? 'Kyorugi' : (discipline === 'virtual' ? 'Virtual TKD' : 'Poomsae')} (${weight} kg)`,
             discipline,
             dojangId: currentDojang.id,
             dojangName: currentDojang.name,
             dojangCode: currentDojang.shortCode,
-            kukkiwonNo
+            kukkiwonNo,
+            kukkiwonDanNumber: kukkiwonNo,
+            kukkiwonId: kukkiwonNo
         });
 
         modalContainer.innerHTML = '';
