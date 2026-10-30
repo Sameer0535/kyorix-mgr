@@ -1828,6 +1828,12 @@
         if (/^under\s+\d+kg$/i.test(str) || /^over\s+\d+kg$/i.test(str)) {
             return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
         }
+        // Match code pattern like KY-REG-SEN-M-U54 or KY-FR-JUN-M-O78 or [KY-REG-SEN-M-U54]
+        const codeMatch = str.match(/(?:^|[-_\s\[])([uo])(\d+)(?:[-_\s\]]|$|kg)/i);
+        if (codeMatch) {
+            const isO = codeMatch[1].toLowerCase() === 'o';
+            return (isO ? 'Over ' : 'Under ') + codeMatch[2] + 'kg';
+        }
         const uoMatch = str.match(/\b([uo])\s*[-_]?\s*(\d+(?:\.\d+)?)\s*kg\b/i);
         if (uoMatch) {
             const isO = uoMatch[1].toLowerCase() === 'o';
@@ -2155,7 +2161,15 @@
     }
     window.pollLiveMatchDataFromServer = pollLiveMatchDataFromServer;
 
-    if (typeof window !== 'undefined') {
+    // Register VT short aliases
+Object.keys(vtCodeMap).forEach(shortCode => {
+    const fullCode = vtCodeMap[shortCode];
+    if (ALL_CATEGORIES_REGISTRY[fullCode]) {
+        ALL_CATEGORIES_REGISTRY[shortCode] = { ...ALL_CATEGORIES_REGISTRY[fullCode], code: shortCode, canonicalCode: fullCode };
+    }
+});
+
+if (typeof window !== 'undefined') {
         // Poll every 12 seconds to prevent excessive CPU / render thrashing
         setInterval(pollLiveMatchDataFromServer, 2500); setTimeout(pollLiveMatchDataFromServer, 200);
         window.addEventListener('focus', pollLiveMatchDataFromServer);
@@ -2673,9 +2687,17 @@
                 <table class="tkd-id-details-table">
                     <tbody>
                         <tr>
-                            <td class="tkd-id-label-col">Discipline:</td>
+                            <td class="tkd-id-label-col">Category Code:</td>
+                            <td class="tkd-id-val-col font-mono font-black ${idCardTemplateBg ? 'text-blue-900' : 'text-amber-300'}">
+                                <span class="px-1.5 py-0.5 rounded ${idCardTemplateBg ? 'bg-blue-100 text-blue-900 border border-blue-200' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'} text-[10.5px]">
+                                    ${athlete.categoryCode || deriveAthleteCategoryCode(athlete)}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="tkd-id-label-col">Discipline / Tier:</td>
                             <td class="tkd-id-val-col ${idCardTemplateBg ? 'text-amber-700 font-black' : 'text-amber-300 font-bold'}">
-                                ${athlete.discipline === 'Poomsae' ? 'Poomsae' : (athlete.discipline === 'Both' ? 'Kyorugi & Poomsae' : 'Kyorugi')}
+                                ${athlete.discipline || 'Kyorugi'} • <span class="font-bold text-[10px] uppercase px-1 py-0.2 rounded ${athlete.tier === 'FRESHERS' ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-900'}">${athlete.tier || 'REGULAR'}</span>
                             </td>
                         </tr>
                         <tr>
@@ -3167,6 +3189,7 @@
     }
 
     // Official Selected Weight / Group-4 Category Roster Download / Print
+    // Official Selected Weight / Group-4 Category Roster Download / Print
     function printCategoryRoster(filter = null) {
         const selectedTournId = store.getSelectedTournamentId();
         const activeTourn = store.getTournament(selectedTournId) || store.getActiveTournament() || store.getTournaments()[0] || {
@@ -3177,57 +3200,99 @@
 
         const format = (filter && filter.format) || _activeCategoryFilter.format || 'Official';
         const discipline = (filter && filter.discipline) || _activeCategoryFilter.discipline || 'all';
+        const tier = (filter && filter.tier) || _activeCategoryFilter.tier || 'all';
         const division = (filter && filter.division) || _activeCategoryFilter.division || 'junior';
         const group4Cat = (filter && filter.group4Cat) || _activeCategoryFilter.group4Cat || 'U-10';
         const gender = (filter && filter.gender) || _activeCategoryFilter.gender || 'Male';
-        const weightClass = (filter && filter.weightClass) || _activeCategoryFilter.weightClass || '-55 kg';
+        const weightClass = (filter && filter.weightClass) || _activeCategoryFilter.weightClass || 'Under 55kg';
+        const categoryCode = (filter && filter.categoryCode) || _activeCategoryFilter.categoryCode || '';
 
         const isGroup4 = format === 'Group-4';
-        const g4Config = TKD_GROUP4_CATEGORIES.find(c => c.id === group4Cat) || { id: group4Cat, label: `${group4Cat} Pool` };
-        const divConfig = TKD_WEIGHT_CATEGORIES[division] || TKD_WEIGHT_CATEGORIES['junior'] || {};
-        const divLabel = isGroup4 ? `Group-4 Grassroots Pool (${group4Cat})` : (divConfig.label || division);
+        const divLabels = {
+            'senior': 'Senior (Ages 17+)',
+            'junior': 'Junior (Ages 15–17)',
+            'cadet': 'Cadet (Ages 12–14)',
+            'sub-junior': 'Sub-Junior (Ages 8–11)',
+            'children': 'Children (Under 8 / Ages 4–7)'
+        };
+        const divLabel = isGroup4 ? `Group-4 Grassroots Pool (${group4Cat})` : (divLabels[division] || division);
         const allTournAthletes = (activeTourn && activeTourn.id) ? store.getAthletesForTournament(activeTourn.id) : store.getAthletes();
 
         function matchesAthlete(a) {
-            // Check Format
             const aIsG4 = a.competitionFormat === 'Group-4' || (a.category && a.category.includes('Group-4')) || a.group4Category;
             if (isGroup4) {
                 if (!aIsG4) return false;
-                const g4Match = (a.group4Category === group4Cat) || (a.category && a.category.includes(group4Cat));
-                if (!g4Match) return false;
-            } else {
-                if (aIsG4) return false;
-                const catLower = (a.category || '').toLowerCase();
-                let divMatch = false;
-                if (division === 'children') divMatch = catLower.includes('children') || catLower.includes('under 10') || (a.age && a.age < 10);
-                else if (division === 'sub-junior') divMatch = catLower.includes('sub-junior') || catLower.includes('under 12') || (a.age && a.age >= 10 && a.age < 12);
-                else if (division === 'cadet') divMatch = catLower.includes('cadet') || (a.age && a.age >= 12 && a.age <= 14);
-                else if (division === 'junior') divMatch = catLower.includes('junior') || (a.age && a.age >= 15 && a.age <= 17);
-                else if (division === 'senior') divMatch = catLower.includes('senior') || (a.age && a.age >= 18);
-                else if (division === 'dasara') divMatch = catLower.includes('dasara');
-                else divMatch = catLower.includes(division);
-                if (!divMatch) return false;
+                return (a.group4Category === group4Cat) || (a.category && a.category.includes(group4Cat));
+            }
+            if (aIsG4) return false;
 
-                if (a.discipline !== 'Poomsae') {
-                    const targetNum = (weightClass.match(/\d+/) || ['55'])[0];
-                    const rawW = (a.weightClass || '').toLowerCase();
-                    const wtMatch = rawW.includes(targetNum) || rawW.includes(weightClass.toLowerCase());
-                    if (!wtMatch) return false;
+            // Discipline matching
+            if (discipline !== 'all') {
+                const aDisc = (a.discipline || 'Kyorugi').toLowerCase();
+                const dTarget = discipline.toLowerCase();
+                if (dTarget === 'kyukpa' || dTarget === 'breaking') {
+                    if (!aDisc.includes('kyukpa') && !aDisc.includes('breaking')) return false;
+                } else if (dTarget === 'virtual taekwondo' || dTarget === 'virtual tkd') {
+                    if (!aDisc.includes('virtual')) return false;
+                } else if (dTarget === 'poomsae') {
+                    if (!aDisc.includes('poomsae') && aDisc !== 'both') return false;
+                } else if (dTarget === 'kyorugi') {
+                    if (!aDisc.includes('kyorugi') && aDisc !== 'both') return false;
+                } else if (!aDisc.includes(dTarget)) {
+                    return false;
                 }
             }
 
-            // Check gender
-            const genMatch = (a.gender || 'Male').toLowerCase() === gender.toLowerCase();
-            if (!genMatch) return false;
-
-            // Check discipline
-            if (discipline !== 'all') {
-                const aDisc = a.discipline || 'Kyorugi';
-                if (discipline === 'Virtual Taekwondo') {
-                    if (aDisc !== 'Virtual Taekwondo' && aDisc !== 'Virtual TKD' && aDisc !== 'virtual') return false;
-                } else if (aDisc !== discipline && aDisc !== 'Both') {
-                    return false;
+            // Tier matching
+            if (tier !== 'all') {
+                const aTier = (a.tier || '').toLowerCase();
+                const tTarget = tier.toLowerCase();
+                const code = (a.categoryCode || '').toUpperCase();
+                const isFresherCode = code.includes('-FR-');
+                const isRegCode = code.includes('-REG-');
+                if (tTarget === 'freshers') {
+                    if (aTier && aTier !== 'freshers' && !isFresherCode) return false;
+                } else if (tTarget === 'regular') {
+                    if (aTier && aTier !== 'regular' && !isRegCode) return false;
                 }
+            }
+
+            // Division matching
+            const catLower = (a.category || a.division || '').toLowerCase();
+            const code = (a.categoryCode || '').toUpperCase();
+            let divMatch = false;
+            if (division === 'children') {
+                divMatch = code.includes('-CHI-') || code.includes('-CHILD-') || catLower.includes('children') || catLower.includes('under 8') || (a.age && a.age < 8);
+            } else if (division === 'sub-junior') {
+                divMatch = code.includes('-SUB-') || code.includes('-SUBJUN-') || catLower.includes('sub-junior') || (a.age && a.age >= 8 && a.age <= 11);
+            } else if (division === 'cadet') {
+                divMatch = code.includes('-CAD-') || catLower.includes('cadet') || (a.age && a.age >= 12 && a.age <= 14);
+            } else if (division === 'junior') {
+                divMatch = code.includes('-JUN-') || catLower.includes('junior') || (a.age && a.age >= 15 && a.age <= 17);
+            } else if (division === 'senior') {
+                divMatch = code.includes('-SEN-') || catLower.includes('senior') || (a.age && a.age >= 17);
+            } else {
+                divMatch = catLower.includes(division);
+            }
+            if (!divMatch) return false;
+
+            // Gender matching
+            const isMixEvent = (a.categoryCode || '').includes('-MIX-') || (a.categoryCode || '').includes('-PAIR-');
+            if (!isMixEvent) {
+                const genMatch = (a.gender || 'Male').toLowerCase() === gender.toLowerCase();
+                if (!genMatch) return false;
+            }
+
+            // WeightClass or CategoryCode matching
+            if (categoryCode && a.categoryCode) {
+                return a.categoryCode === categoryCode;
+            }
+            if (weightClass && weightClass !== 'all') {
+                const rawW = (a.weightClass || '').toLowerCase();
+                const targetW = weightClass.toLowerCase();
+                const targetNum = (weightClass.match(/\d+/) || [])[0];
+                const matchW = rawW.includes(targetW) || (targetNum && rawW.includes(targetNum));
+                if (!matchW && !rawW.includes(targetW.slice(0, 4))) return false;
             }
 
             return true;
@@ -3239,12 +3304,11 @@
         const currentDateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
         const categoryTitle = isGroup4 
             ? `Group-4 Pool ${group4Cat} • ${gender.toUpperCase()}`
-            : `${divLabel} • ${gender.toUpperCase()} ${discipline === 'Poomsae' ? '• POOMSAE' : (discipline === 'Virtual Taekwondo' ? '• VIRTUAL TKD' : `• ${weightClass}`)}`;
+            : `${divLabel} • ${gender.toUpperCase()} • ${discipline.toUpperCase()}${tier !== 'all' ? ` (${tier.toUpperCase()})` : ''} • ${weightClass}${categoryCode ? ` [${categoryCode}]` : ''}`;
 
         const rosterHtml = `
-            <div class="tkd-print-receipt-wrapper" style="padding: 24px 32px; max-width: 820px; margin: 0 auto; background: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0F172A; box-sizing: border-box;">
+            <div class="tkd-print-receipt-wrapper" style="padding: 24px 32px; max-width: 860px; margin: 0 auto; background: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0F172A; box-sizing: border-box;">
                 
-                <!-- 1. Top Section: Company Logo & Federation Header (like before) -->
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0052FF; padding-bottom: 14px; margin-bottom: 16px;">
                     <div style="display: flex; align-items: center; gap: 14px;">
                         <img src="images/kyorix-mark-clean.png" style="height: 48px; width: auto; object-fit: contain;">
@@ -3252,60 +3316,68 @@
                             <div style="font-size: 10.5px; font-weight: 900; color: #0052FF; letter-spacing: 0.12em; text-transform: uppercase;">
                                 ${isGroup4 ? 'GROUP-4 GRASSROOTS COMPETITOR ENTRY LIST' : 'OFFICIAL TOURNAMENT COMPETITOR ENTRY LIST'}
                             </div>
-                            <div style="font-size: 16px; font-weight: 900; color: #0F172A; margin-top: 2px;">World Taekwondo State Federation</div>
-                            <div style="font-size: 10.5px; color: #64748B;">Official Championship Technical Bureau • Draw Eligibility Certification</div>
+                            <div style="font-size: 16px; font-weight: 900; color: #0F172A; margin-top: 2px;">World Taekwondo Championship Registry</div>
+                            <div style="font-size: 10.5px; color: #64748B;">Technical Bureau • Official Weigh-In &amp; Bracket Draw Qualification</div>
                         </div>
                     </div>
                     <div style="text-align: right;">
                         <span style="display: inline-block; padding: 3px 12px; border-radius: 999px; font-size: 10px; font-weight: 800; background: ${isGroup4 ? '#FEF3C7' : '#D1FAE5'}; color: ${isGroup4 ? '#92400E' : '#065F46'}; border: 1px solid ${isGroup4 ? '#FDE68A' : '#A7F3D0'};">
-                            ${isGroup4 ? 'GROUP-4 ROSTER' : 'OFFICIAL ROSTER'}
+                            ${isGroup4 ? 'GROUP-4 ROSTER' : 'OFFICIAL WT ROSTER'}
                         </span>
                         <div style="font-size: 10px; color: #64748B; margin-top: 4px;">Date: ${currentDateStr}</div>
                     </div>
                 </div>
 
-                <!-- 2. Tournament Name first -->
                 <div style="margin-bottom: 3px;">
                     <h1 style="font-size: 20px; font-weight: 900; color: #0F172A; margin: 0; line-height: 1.25;">
                         ${activeTourn.title || 'State Level Open Taekwondo Championship 2026'}
                     </h1>
                 </div>
 
-                <!-- 3. Division & Category below in words (no box) -->
-                <div style="font-size: 15px; font-weight: 700; color: #334155; margin-bottom: 18px;">
+                <div style="font-size: 14px; font-weight: 700; color: #334155; margin-bottom: 18px;">
                     ${categoryTitle}
                 </div>
 
-                <!-- 4. Table format for easy copying of Athlete Name, Kukkiwon ID and Academy Name -->
-                <table style="width: 100%; border-collapse: collapse; font-size: 13px; border: 1px solid #94A3B8;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 12.5px; border: 1px solid #94A3B8;">
                     <thead>
                         <tr style="background: #0F172A; color: #FFFFFF;">
-                            <th style="padding: 8px 10px; width: 45px; font-size: 11.5px; font-weight: 800; text-transform: uppercase; text-align: center; border: 1px solid #334155;">#</th>
-                            <th style="padding: 8px 14px; font-size: 11.5px; font-weight: 800; text-transform: uppercase; text-align: left; border: 1px solid #334155;">Athlete Name</th>
-                            <th style="padding: 8px 14px; font-size: 11.5px; font-weight: 800; text-transform: uppercase; text-align: left; border: 1px solid #334155;">Kukkiwon ID</th>
-                            <th style="padding: 8px 14px; font-size: 11.5px; font-weight: 800; text-transform: uppercase; text-align: left; border: 1px solid #334155;">Academy Name</th>
+                            <th style="padding: 8px 10px; width: 35px; font-size: 11px; font-weight: 800; text-transform: uppercase; text-align: center; border: 1px solid #334155;">#</th>
+                            <th style="padding: 8px 12px; font-size: 11px; font-weight: 800; text-transform: uppercase; text-align: left; border: 1px solid #334155;">Athlete Name</th>
+                            <th style="padding: 8px 12px; font-size: 11px; font-weight: 800; text-transform: uppercase; text-align: left; border: 1px solid #334155;">Kukkiwon ID</th>
+                            <th style="padding: 8px 12px; font-size: 11px; font-weight: 800; text-transform: uppercase; text-align: left; border: 1px solid #334155;">Academy Name</th>
+                            <th style="padding: 8px 12px; font-size: 11px; font-weight: 800; text-transform: uppercase; text-align: left; border: 1px solid #334155;">Category Code &amp; Weight</th>
+                            <th style="padding: 8px 10px; font-size: 11px; font-weight: 800; text-transform: uppercase; text-align: center; border: 1px solid #334155;">Status</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${displayList.length === 0 ? `
                             <tr>
-                                <td colspan="4" style="padding: 24px; text-align: center; color: #64748B; font-size: 13px; border: 1px solid #CBD5E1;">
+                                <td colspan="6" style="padding: 24px; text-align: center; color: #64748B; font-size: 13px; border: 1px solid #CBD5E1;">
                                     No registered athletes found in this category selection.
                                 </td>
                             </tr>
                         ` : displayList.map((a, i) => `
                             <tr style="border-bottom: 1px solid #CBD5E1; ${i % 2 === 1 ? 'background: #F8FAFC;' : 'background: #FFFFFF;'}">
-                                <td style="padding: 8px 10px; font-weight: 700; color: #64748B; text-align: center; width: 45px; border: 1px solid #CBD5E1;">
+                                <td style="padding: 8px 10px; font-weight: 700; color: #64748B; text-align: center; border: 1px solid #CBD5E1;">
                                     ${i + 1}
                                 </td>
-                                <td style="padding: 8px 14px; font-weight: 800; color: #0F172A; font-size: 13.5px; border: 1px solid #CBD5E1;">
+                                <td style="padding: 8px 12px; font-weight: 800; color: #0F172A; font-size: 13px; border: 1px solid #CBD5E1;">
                                     ${a.name}
                                 </td>
-                                <td style="padding: 8px 14px; font-weight: 700; color: #0052FF; font-family: monospace; font-size: 12px; border: 1px solid #CBD5E1;">
+                                <td style="padding: 8px 12px; font-weight: 700; color: #0052FF; font-family: monospace; font-size: 11.5px; border: 1px solid #CBD5E1;">
                                     ${a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId || a.athleteId || '—'}
                                 </td>
-                                <td style="padding: 8px 14px; font-weight: 600; color: #334155; font-size: 13px; border: 1px solid #CBD5E1;">
+                                <td style="padding: 8px 12px; font-weight: 600; color: #334155; font-size: 12.5px; border: 1px solid #CBD5E1;">
                                     ${a.dojangName || a.club || 'Affiliated Academy'}
+                                </td>
+                                <td style="padding: 8px 12px; font-size: 11.5px; border: 1px solid #CBD5E1;">
+                                    <span style="font-family: monospace; font-weight: 800; color: #0052FF;">${a.categoryCode || '—'}</span>
+                                    <div style="font-size: 10.5px; color: #64748B;">${a.weightClass || ''} ${(a.measuredWeight || a.weight) ? `(${a.measuredWeight || a.weight} kg)` : ''}</div>
+                                </td>
+                                <td style="padding: 8px 10px; text-align: center; border: 1px solid #CBD5E1;">
+                                    <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 800; background: ${(a.status === 'Passed' || a.weighInStatus === 'Passed') ? '#D1FAE5' : '#FEF3C7'}; color: ${(a.status === 'Passed' || a.weighInStatus === 'Passed') ? '#065F46' : '#92400E'};">
+                                        ${(a.status === 'Passed' || a.weighInStatus === 'Passed') ? 'PASSED' : 'PENDING'}
+                                    </span>
                                 </td>
                             </tr>
                         `).join('')}
@@ -3987,32 +4059,640 @@
         });
     }
 
-    // Official Kukkiwon Cup & WT Weight Categories (Kyorugi: Freshers / Regular)
-    const TKD_WEIGHT_CATEGORIES = {
-        'children': {
-            label: 'Children (Under 10)',
-            Male:   ['U 16 KG', 'U 18 KG', 'U 20 KG', 'U 22 KG', 'U 24 KG', 'U 26 KG', 'U 28 KG', 'U 32 KG', 'U 36 KG', 'O 36 KG'],
-            Female: ['U 14 KG', 'U 16 KG', 'U 18 KG', 'U 20 KG', 'U 22 KG', 'U 24 KG', 'U 26 KG', 'U 28 KG', 'U 32 KG', 'O 32 KG']
+    // Official WT & Kyorix Tournament System Master Categories (Kyorugi, Poomsae, Kyukpa, Speed Kicking, Virtual TKD)
+    const KYORUGI_CATEGORIES = {
+        senior: {
+            id: 'senior',
+            name: 'Senior Division',
+            label: 'Senior (Ages 17+)',
+            ageRange: 'Ages 17+',
+            minAge: 17,
+            maxAge: 65,
+            Male: [
+                { id: 'sen-m-u54', name: 'Finweight (Under 54kg)', shortName: 'Finweight', shortLabel: 'Under 54kg', minWeight: 45.0, maxWeight: 54.0, regularCode: 'KY-REG-SEN-M-U54', freshersCode: 'KY-FR-SEN-M-U54' },
+                { id: 'sen-m-u58', name: 'Flyweight (Under 58kg)', shortName: 'Flyweight', shortLabel: 'Under 58kg', minWeight: 54.1, maxWeight: 58.0, regularCode: 'KY-REG-SEN-M-U58', freshersCode: 'KY-FR-SEN-M-U58' },
+                { id: 'sen-m-u63', name: 'Bantamweight (Under 63kg)', shortName: 'Bantamweight', shortLabel: 'Under 63kg', minWeight: 58.1, maxWeight: 63.0, regularCode: 'KY-REG-SEN-M-U63', freshersCode: 'KY-FR-SEN-M-U63' },
+                { id: 'sen-m-u68', name: 'Featherweight (Under 68kg)', shortName: 'Featherweight', shortLabel: 'Under 68kg', minWeight: 63.1, maxWeight: 68.0, regularCode: 'KY-REG-SEN-M-U68', freshersCode: 'KY-FR-SEN-M-U68' },
+                { id: 'sen-m-u74', name: 'Lightweight (Under 74kg)', shortName: 'Lightweight', shortLabel: 'Under 74kg', minWeight: 68.1, maxWeight: 74.0, regularCode: 'KY-REG-SEN-M-U74', freshersCode: 'KY-FR-SEN-M-U74' },
+                { id: 'sen-m-u80', name: 'Welterweight (Under 80kg)', shortName: 'Welterweight', shortLabel: 'Under 80kg', minWeight: 74.1, maxWeight: 80.0, regularCode: 'KY-REG-SEN-M-U80', freshersCode: 'KY-FR-SEN-M-U80' },
+                { id: 'sen-m-u87', name: 'Middleweight (Under 87kg)', shortName: 'Middleweight', shortLabel: 'Under 87kg', minWeight: 80.1, maxWeight: 87.0, regularCode: 'KY-REG-SEN-M-U87', freshersCode: 'KY-FR-SEN-M-U87' },
+                { id: 'sen-m-o87', name: 'Heavyweight (+87kg / Over 87kg)', shortName: 'Heavyweight', shortLabel: 'Over 87kg', minWeight: 87.1, maxWeight: 140.0, regularCode: 'KY-REG-SEN-M-O87', freshersCode: 'KY-FR-SEN-M-O87' }
+            ],
+            Female: [
+                { id: 'sen-f-u46', name: 'Finweight (Under 46kg)', shortName: 'Finweight', shortLabel: 'Under 46kg', minWeight: 38.0, maxWeight: 46.0, regularCode: 'KY-REG-SEN-F-U46', freshersCode: 'KY-FR-SEN-F-U46' },
+                { id: 'sen-f-u49', name: 'Flyweight (Under 49kg)', shortName: 'Flyweight', shortLabel: 'Under 49kg', minWeight: 46.1, maxWeight: 49.0, regularCode: 'KY-REG-SEN-F-U49', freshersCode: 'KY-FR-SEN-F-U49' },
+                { id: 'sen-f-u53', name: 'Bantamweight (Under 53kg)', shortName: 'Bantamweight', shortLabel: 'Under 53kg', minWeight: 49.1, maxWeight: 53.0, regularCode: 'KY-REG-SEN-F-U53', freshersCode: 'KY-FR-SEN-F-U53' },
+                { id: 'sen-f-u57', name: 'Featherweight (Under 57kg)', shortName: 'Featherweight', shortLabel: 'Under 57kg', minWeight: 53.1, maxWeight: 57.0, regularCode: 'KY-REG-SEN-F-U57', freshersCode: 'KY-FR-SEN-F-U57' },
+                { id: 'sen-f-u62', name: 'Lightweight (Under 62kg)', shortName: 'Lightweight', shortLabel: 'Under 62kg', minWeight: 57.1, maxWeight: 62.0, regularCode: 'KY-REG-SEN-F-U62', freshersCode: 'KY-FR-SEN-F-U62' },
+                { id: 'sen-f-u67', name: 'Welterweight (Under 67kg)', shortName: 'Welterweight', shortLabel: 'Under 67kg', minWeight: 62.1, maxWeight: 67.0, regularCode: 'KY-REG-SEN-F-U67', freshersCode: 'KY-FR-SEN-F-U67' },
+                { id: 'sen-f-u73', name: 'Middleweight (Under 73kg)', shortName: 'Middleweight', shortLabel: 'Under 73kg', minWeight: 67.1, maxWeight: 73.0, regularCode: 'KY-REG-SEN-F-U73', freshersCode: 'KY-FR-SEN-F-U73' },
+                { id: 'sen-f-o73', name: 'Heavyweight (+73kg / Over 73kg)', shortName: 'Heavyweight', shortLabel: 'Over 73kg', minWeight: 73.1, maxWeight: 120.0, regularCode: 'KY-REG-SEN-F-O73', freshersCode: 'KY-FR-SEN-F-O73' }
+            ]
+        },
+        junior: {
+            id: 'junior',
+            name: 'Junior Division',
+            label: 'Junior (Ages 15–17)',
+            ageRange: 'Ages 15–17',
+            minAge: 15,
+            maxAge: 17,
+            Male: [
+                { id: 'jun-m-u45', name: 'Finweight (Under 45kg)', shortName: 'Finweight', shortLabel: 'Under 45kg', minWeight: 35.0, maxWeight: 45.0, regularCode: 'KY-REG-JUN-M-U45', freshersCode: 'KY-FR-JUN-M-U45' },
+                { id: 'jun-m-u48', name: 'Flyweight (Under 48kg)', shortName: 'Flyweight', shortLabel: 'Under 48kg', minWeight: 45.1, maxWeight: 48.0, regularCode: 'KY-REG-JUN-M-U48', freshersCode: 'KY-FR-JUN-M-U48' },
+                { id: 'jun-m-u51', name: 'Bantamweight (Under 51kg)', shortName: 'Bantamweight', shortLabel: 'Under 51kg', minWeight: 48.1, maxWeight: 51.0, regularCode: 'KY-REG-JUN-M-U51', freshersCode: 'KY-FR-JUN-M-U51' },
+                { id: 'jun-m-u55', name: 'Featherweight (Under 55kg)', shortName: 'Featherweight', shortLabel: 'Under 55kg', minWeight: 51.1, maxWeight: 55.0, regularCode: 'KY-REG-JUN-M-U55', freshersCode: 'KY-FR-JUN-M-U55' },
+                { id: 'jun-m-u59', name: 'Lightweight (Under 59kg)', shortName: 'Lightweight', shortLabel: 'Under 59kg', minWeight: 55.1, maxWeight: 59.0, regularCode: 'KY-REG-JUN-M-U59', freshersCode: 'KY-FR-JUN-M-U59' },
+                { id: 'jun-m-u63', name: 'Welterweight (Under 63kg)', shortName: 'Welterweight', shortLabel: 'Under 63kg', minWeight: 59.1, maxWeight: 63.0, regularCode: 'KY-REG-JUN-M-U63', freshersCode: 'KY-FR-JUN-M-U63' },
+                { id: 'jun-m-u68', name: 'Light Middle (Under 68kg)', shortName: 'Light Middle', shortLabel: 'Under 68kg', minWeight: 63.1, maxWeight: 68.0, regularCode: 'KY-REG-JUN-M-U68', freshersCode: 'KY-FR-JUN-M-U68' },
+                { id: 'jun-m-u73', name: 'Middleweight (Under 73kg)', shortName: 'Middleweight', shortLabel: 'Under 73kg', minWeight: 68.1, maxWeight: 73.0, regularCode: 'KY-REG-JUN-M-U73', freshersCode: 'KY-FR-JUN-M-U73' },
+                { id: 'jun-m-u78', name: 'Light Heavy (Under 78kg)', shortName: 'Light Heavy', shortLabel: 'Under 78kg', minWeight: 73.1, maxWeight: 78.0, regularCode: 'KY-REG-JUN-M-U78', freshersCode: 'KY-FR-JUN-M-U78' },
+                { id: 'jun-m-o78', name: 'Heavyweight (+78kg / Over 78kg)', shortName: 'Heavyweight', shortLabel: 'Over 78kg', minWeight: 78.1, maxWeight: 120.0, regularCode: 'KY-REG-JUN-M-O78', freshersCode: 'KY-FR-JUN-M-O78' }
+            ],
+            Female: [
+                { id: 'jun-f-u42', name: 'Finweight (Under 42kg)', shortName: 'Finweight', shortLabel: 'Under 42kg', minWeight: 32.0, maxWeight: 42.0, regularCode: 'KY-REG-JUN-F-U42', freshersCode: 'KY-FR-JUN-F-U42' },
+                { id: 'jun-f-u44', name: 'Flyweight (Under 44kg)', shortName: 'Flyweight', shortLabel: 'Under 44kg', minWeight: 42.1, maxWeight: 44.0, regularCode: 'KY-REG-JUN-F-U44', freshersCode: 'KY-FR-JUN-F-U44' },
+                { id: 'jun-f-u46', name: 'Bantamweight (Under 46kg)', shortName: 'Bantamweight', shortLabel: 'Under 46kg', minWeight: 44.1, maxWeight: 46.0, regularCode: 'KY-REG-JUN-F-U46', freshersCode: 'KY-FR-JUN-F-U46' },
+                { id: 'jun-f-u49', name: 'Featherweight (Under 49kg)', shortName: 'Featherweight', shortLabel: 'Under 49kg', minWeight: 46.1, maxWeight: 49.0, regularCode: 'KY-REG-JUN-F-U49', freshersCode: 'KY-FR-JUN-F-U49' },
+                { id: 'jun-f-u52', name: 'Lightweight (Under 52kg)', shortName: 'Lightweight', shortLabel: 'Under 52kg', minWeight: 49.1, maxWeight: 52.0, regularCode: 'KY-REG-JUN-F-U52', freshersCode: 'KY-FR-JUN-F-U52' },
+                { id: 'jun-f-u55', name: 'Welterweight (Under 55kg)', shortName: 'Welterweight', shortLabel: 'Under 55kg', minWeight: 52.1, maxWeight: 55.0, regularCode: 'KY-REG-JUN-F-U55', freshersCode: 'KY-FR-JUN-F-U55' },
+                { id: 'jun-f-u59', name: 'Light Middle (Under 59kg)', shortName: 'Light Middle', shortLabel: 'Under 59kg', minWeight: 55.1, maxWeight: 59.0, regularCode: 'KY-REG-JUN-F-U59', freshersCode: 'KY-FR-JUN-F-U59' },
+                { id: 'jun-f-u63', name: 'Middleweight (Under 63kg)', shortName: 'Middleweight', shortLabel: 'Under 63kg', minWeight: 59.1, maxWeight: 63.0, regularCode: 'KY-REG-JUN-F-U63', freshersCode: 'KY-FR-JUN-F-U63' },
+                { id: 'jun-f-u68', name: 'Light Heavy (Under 68kg)', shortName: 'Light Heavy', shortLabel: 'Under 68kg', minWeight: 63.1, maxWeight: 68.0, regularCode: 'KY-REG-JUN-F-U68', freshersCode: 'KY-FR-JUN-F-U68' },
+                { id: 'jun-f-o68', name: 'Heavyweight (+68kg / Over 68kg)', shortName: 'Heavyweight', shortLabel: 'Over 68kg', minWeight: 68.1, maxWeight: 105.0, regularCode: 'KY-REG-JUN-F-O68', freshersCode: 'KY-FR-JUN-F-O68' }
+            ]
+        },
+        cadet: {
+            id: 'cadet',
+            name: 'Cadet Division',
+            label: 'Cadet (Ages 12–14)',
+            ageRange: 'Ages 12–14',
+            minAge: 12,
+            maxAge: 14,
+            Male: [
+                { id: 'cad-m-u33', name: 'Finweight (Under 33kg)', shortName: 'Finweight', shortLabel: 'Under 33kg', minWeight: 25.0, maxWeight: 33.0, regularCode: 'KY-REG-CAD-M-U33', freshersCode: 'KY-FR-CAD-M-U33' },
+                { id: 'cad-m-u37', name: 'Flyweight (Under 37kg)', shortName: 'Flyweight', shortLabel: 'Under 37kg', minWeight: 33.1, maxWeight: 37.0, regularCode: 'KY-REG-CAD-M-U37', freshersCode: 'KY-FR-CAD-M-U37' },
+                { id: 'cad-m-u41', name: 'Bantamweight (Under 41kg)', shortName: 'Bantamweight', shortLabel: 'Under 41kg', minWeight: 37.1, maxWeight: 41.0, regularCode: 'KY-REG-CAD-M-U41', freshersCode: 'KY-FR-CAD-M-U41' },
+                { id: 'cad-m-u45', name: 'Featherweight (Under 45kg)', shortName: 'Featherweight', shortLabel: 'Under 45kg', minWeight: 41.1, maxWeight: 45.0, regularCode: 'KY-REG-CAD-M-U45', freshersCode: 'KY-FR-CAD-M-U45' },
+                { id: 'cad-m-u49', name: 'Lightweight (Under 49kg)', shortName: 'Lightweight', shortLabel: 'Under 49kg', minWeight: 45.1, maxWeight: 49.0, regularCode: 'KY-REG-CAD-M-U49', freshersCode: 'KY-FR-CAD-M-U49' },
+                { id: 'cad-m-u53', name: 'Welterweight (Under 53kg)', shortName: 'Welterweight', shortLabel: 'Under 53kg', minWeight: 49.1, maxWeight: 53.0, regularCode: 'KY-REG-CAD-M-U53', freshersCode: 'KY-FR-CAD-M-U53' },
+                { id: 'cad-m-u57', name: 'Light Middle (Under 57kg)', shortName: 'Light Middle', shortLabel: 'Under 57kg', minWeight: 53.1, maxWeight: 57.0, regularCode: 'KY-REG-CAD-M-U57', freshersCode: 'KY-FR-CAD-M-U57' },
+                { id: 'cad-m-u61', name: 'Middleweight (Under 61kg)', shortName: 'Middleweight', shortLabel: 'Under 61kg', minWeight: 57.1, maxWeight: 61.0, regularCode: 'KY-REG-CAD-M-U61', freshersCode: 'KY-FR-CAD-M-U61' },
+                { id: 'cad-m-u65', name: 'Light Heavy (Under 65kg)', shortName: 'Light Heavy', shortLabel: 'Under 65kg', minWeight: 61.1, maxWeight: 65.0, regularCode: 'KY-REG-CAD-M-U65', freshersCode: 'KY-FR-CAD-M-U65' },
+                { id: 'cad-m-o65', name: 'Heavyweight (+65kg / Over 65kg)', shortName: 'Heavyweight', shortLabel: 'Over 65kg', minWeight: 65.1, maxWeight: 95.0, regularCode: 'KY-REG-CAD-M-O65', freshersCode: 'KY-FR-CAD-M-O65' }
+            ],
+            Female: [
+                { id: 'cad-f-u29', name: 'Finweight (Under 29kg)', shortName: 'Finweight', shortLabel: 'Under 29kg', minWeight: 22.0, maxWeight: 29.0, regularCode: 'KY-REG-CAD-F-U29', freshersCode: 'KY-FR-CAD-F-U29' },
+                { id: 'cad-f-u33', name: 'Flyweight (Under 33kg)', shortName: 'Flyweight', shortLabel: 'Under 33kg', minWeight: 29.1, maxWeight: 33.0, regularCode: 'KY-REG-CAD-F-U33', freshersCode: 'KY-FR-CAD-F-U33' },
+                { id: 'cad-f-u37', name: 'Bantamweight (Under 37kg)', shortName: 'Bantamweight', shortLabel: 'Under 37kg', minWeight: 33.1, maxWeight: 37.0, regularCode: 'KY-REG-CAD-F-U37', freshersCode: 'KY-FR-CAD-F-U37' },
+                { id: 'cad-f-u41', name: 'Featherweight (Under 41kg)', shortName: 'Featherweight', shortLabel: 'Under 41kg', minWeight: 37.1, maxWeight: 41.0, regularCode: 'KY-REG-CAD-F-U41', freshersCode: 'KY-FR-CAD-F-U41' },
+                { id: 'cad-f-u44', name: 'Lightweight (Under 44kg)', shortName: 'Lightweight', shortLabel: 'Under 44kg', minWeight: 41.1, maxWeight: 44.0, regularCode: 'KY-REG-CAD-F-U44', freshersCode: 'KY-FR-CAD-F-U44' },
+                { id: 'cad-f-u47', name: 'Welterweight (Under 47kg)', shortName: 'Welterweight', shortLabel: 'Under 47kg', minWeight: 44.1, maxWeight: 47.0, regularCode: 'KY-REG-CAD-F-U47', freshersCode: 'KY-FR-CAD-F-U47' },
+                { id: 'cad-f-u51', name: 'Light Middle (Under 51kg)', shortName: 'Light Middle', shortLabel: 'Under 51kg', minWeight: 47.1, maxWeight: 51.0, regularCode: 'KY-REG-CAD-F-U51', freshersCode: 'KY-FR-CAD-F-U51' },
+                { id: 'cad-f-u55', name: 'Middleweight (Under 55kg)', shortName: 'Middleweight', shortLabel: 'Under 55kg', minWeight: 51.1, maxWeight: 55.0, regularCode: 'KY-REG-CAD-F-U55', freshersCode: 'KY-FR-CAD-F-U55' },
+                { id: 'cad-f-u59', name: 'Light Heavy (Under 59kg)', shortName: 'Light Heavy', shortLabel: 'Under 59kg', minWeight: 55.1, maxWeight: 59.0, regularCode: 'KY-REG-CAD-F-U59', freshersCode: 'KY-FR-CAD-F-U59' },
+                { id: 'cad-f-o59', name: 'Heavyweight (+59kg / Over 59kg)', shortName: 'Heavyweight', shortLabel: 'Over 59kg', minWeight: 59.1, maxWeight: 85.0, regularCode: 'KY-REG-CAD-F-O59', freshersCode: 'KY-FR-CAD-F-O59' }
+            ]
         },
         'sub-junior': {
-            label: 'Sub-Junior (Under 12)',
-            Male:   ['U 18 KG', 'U 21 KG', 'U 23 KG', 'U 25 KG', 'U 27 KG', 'U 29 KG', 'U 32 KG', 'U 35 KG', 'U 38 KG', 'U 41 KG', 'U 44 KG', 'U 50 KG', 'O 50 KG'],
-            Female: ['U 16 KG', 'U 18 KG', 'U 20 KG', 'U 22 KG', 'U 24 KG', 'U 26 KG', 'U 29 KG', 'U 32 KG', 'U 35 KG', 'U 38 KG', 'U 41 KG', 'U 47 KG', 'O 47 KG']
+            id: 'sub-junior',
+            name: 'Sub-Junior Division',
+            label: 'Sub-Junior (Ages 8–11)',
+            ageRange: 'Ages 8–11',
+            minAge: 8,
+            maxAge: 11,
+            Male: [
+                { id: 'sub-m-u18', name: 'Under 18kg', shortName: 'Under 18kg', shortLabel: 'Under 18kg', minWeight: 12.0, maxWeight: 18.0, regularCode: 'KY-REG-SUB-M-U18', freshersCode: 'KY-FR-SUB-M-U18' },
+                { id: 'sub-m-u21', name: 'Under 21kg', shortName: 'Under 21kg', shortLabel: 'Under 21kg', minWeight: 18.1, maxWeight: 21.0, regularCode: 'KY-REG-SUB-M-U21', freshersCode: 'KY-FR-SUB-M-U21' },
+                { id: 'sub-m-u23', name: 'Under 23kg', shortName: 'Under 23kg', shortLabel: 'Under 23kg', minWeight: 21.1, maxWeight: 23.0, regularCode: 'KY-REG-SUB-M-U23', freshersCode: 'KY-FR-SUB-M-U23' },
+                { id: 'sub-m-u25', name: 'Under 25kg', shortName: 'Under 25kg', shortLabel: 'Under 25kg', minWeight: 23.1, maxWeight: 25.0, regularCode: 'KY-REG-SUB-M-U25', freshersCode: 'KY-FR-SUB-M-U25' },
+                { id: 'sub-m-u27', name: 'Under 27kg', shortName: 'Under 27kg', shortLabel: 'Under 27kg', minWeight: 25.1, maxWeight: 27.0, regularCode: 'KY-REG-SUB-M-U27', freshersCode: 'KY-FR-SUB-M-U27' },
+                { id: 'sub-m-u29', name: 'Under 29kg', shortName: 'Under 29kg', shortLabel: 'Under 29kg', minWeight: 27.1, maxWeight: 29.0, regularCode: 'KY-REG-SUB-M-U29', freshersCode: 'KY-FR-SUB-M-U29' },
+                { id: 'sub-m-u32', name: 'Under 32kg', shortName: 'Under 32kg', shortLabel: 'Under 32kg', minWeight: 29.1, maxWeight: 32.0, regularCode: 'KY-REG-SUB-M-U32', freshersCode: 'KY-FR-SUB-M-U32' },
+                { id: 'sub-m-u35', name: 'Under 35kg', shortName: 'Under 35kg', shortLabel: 'Under 35kg', minWeight: 32.1, maxWeight: 35.0, regularCode: 'KY-REG-SUB-M-U35', freshersCode: 'KY-FR-SUB-M-U35' },
+                { id: 'sub-m-u38', name: 'Under 38kg', shortName: 'Under 38kg', shortLabel: 'Under 38kg', minWeight: 35.1, maxWeight: 38.0, regularCode: 'KY-REG-SUB-M-U38', freshersCode: 'KY-FR-SUB-M-U38' },
+                { id: 'sub-m-u41', name: 'Under 41kg', shortName: 'Under 41kg', shortLabel: 'Under 41kg', minWeight: 38.1, maxWeight: 41.0, regularCode: 'KY-REG-SUB-M-U41', freshersCode: 'KY-FR-SUB-M-U41' },
+                { id: 'sub-m-u44', name: 'Under 44kg', shortName: 'Under 44kg', shortLabel: 'Under 44kg', minWeight: 41.1, maxWeight: 44.0, regularCode: 'KY-REG-SUB-M-U44', freshersCode: 'KY-FR-SUB-M-U44' },
+                { id: 'sub-m-u50', name: 'Under 50kg', shortName: 'Under 50kg', shortLabel: 'Under 50kg', minWeight: 44.1, maxWeight: 50.0, regularCode: 'KY-REG-SUB-M-U50', freshersCode: 'KY-FR-SUB-M-U50' },
+                { id: 'sub-m-o50', name: 'Over 50kg (+50kg)', shortName: 'Over 50kg', shortLabel: 'Over 50kg', minWeight: 50.1, maxWeight: 80.0, regularCode: 'KY-REG-SUB-M-O50', freshersCode: 'KY-FR-SUB-M-O50' }
+            ],
+            Female: [
+                { id: 'sub-f-u16', name: 'Under 16kg', shortName: 'Under 16kg', shortLabel: 'Under 16kg', minWeight: 12.0, maxWeight: 16.0, regularCode: 'KY-REG-SUB-F-U16', freshersCode: 'KY-FR-SUB-F-U16' },
+                { id: 'sub-f-u18', name: 'Under 18kg', shortName: 'Under 18kg', shortLabel: 'Under 18kg', minWeight: 16.1, maxWeight: 18.0, regularCode: 'KY-REG-SUB-F-U18', freshersCode: 'KY-FR-SUB-F-U18' },
+                { id: 'sub-f-u20', name: 'Under 20kg', shortName: 'Under 20kg', shortLabel: 'Under 20kg', minWeight: 18.1, maxWeight: 20.0, regularCode: 'KY-REG-SUB-F-U20', freshersCode: 'KY-FR-SUB-F-U20' },
+                { id: 'sub-f-u22', name: 'Under 22kg', shortName: 'Under 22kg', shortLabel: 'Under 22kg', minWeight: 20.1, maxWeight: 22.0, regularCode: 'KY-REG-SUB-F-U22', freshersCode: 'KY-FR-SUB-F-U22' },
+                { id: 'sub-f-u24', name: 'Under 24kg', shortName: 'Under 24kg', shortLabel: 'Under 24kg', minWeight: 22.1, maxWeight: 24.0, regularCode: 'KY-REG-SUB-F-U24', freshersCode: 'KY-FR-SUB-F-U24' },
+                { id: 'sub-f-u26', name: 'Under 26kg', shortName: 'Under 26kg', shortLabel: 'Under 26kg', minWeight: 24.1, maxWeight: 26.0, regularCode: 'KY-REG-SUB-F-U26', freshersCode: 'KY-FR-SUB-F-U26' },
+                { id: 'sub-f-u29', name: 'Under 29kg', shortName: 'Under 29kg', shortLabel: 'Under 29kg', minWeight: 26.1, maxWeight: 29.0, regularCode: 'KY-REG-SUB-F-U29', freshersCode: 'KY-FR-SUB-F-U29' },
+                { id: 'sub-f-u32', name: 'Under 32kg', shortName: 'Under 32kg', shortLabel: 'Under 32kg', minWeight: 29.1, maxWeight: 32.0, regularCode: 'KY-REG-SUB-F-U32', freshersCode: 'KY-FR-SUB-F-U32' },
+                { id: 'sub-f-u35', name: 'Under 35kg', shortName: 'Under 35kg', shortLabel: 'Under 35kg', minWeight: 32.1, maxWeight: 35.0, regularCode: 'KY-REG-SUB-F-U35', freshersCode: 'KY-FR-SUB-F-U35' },
+                { id: 'sub-f-u38', name: 'Under 38kg', shortName: 'Under 38kg', shortLabel: 'Under 38kg', minWeight: 35.1, maxWeight: 38.0, regularCode: 'KY-REG-SUB-F-U38', freshersCode: 'KY-FR-SUB-F-U38' },
+                { id: 'sub-f-u41', name: 'Under 41kg', shortName: 'Under 41kg', shortLabel: 'Under 41kg', minWeight: 38.1, maxWeight: 41.0, regularCode: 'KY-REG-SUB-F-U41', freshersCode: 'KY-FR-SUB-F-U41' },
+                { id: 'sub-f-u47', name: 'Under 47kg', shortName: 'Under 47kg', shortLabel: 'Under 47kg', minWeight: 41.1, maxWeight: 47.0, regularCode: 'KY-REG-SUB-F-U47', freshersCode: 'KY-FR-SUB-F-U47' },
+                { id: 'sub-f-o47', name: 'Over 47kg (+47kg)', shortName: 'Over 47kg', shortLabel: 'Over 47kg', minWeight: 47.1, maxWeight: 75.0, regularCode: 'KY-REG-SUB-F-O47', freshersCode: 'KY-FR-SUB-F-O47' }
+            ]
+        },
+        children: {
+            id: 'children',
+            name: 'Children Division',
+            label: 'Children (Under 8 Years / Ages 4–7)',
+            ageRange: 'Ages 4–7',
+            minAge: 4,
+            maxAge: 7,
+            Male: [
+                { id: 'chi-m-u16', name: 'Under 16kg', shortName: 'Under 16kg', shortLabel: 'Under 16kg', minWeight: 10.0, maxWeight: 16.0, regularCode: 'KY-REG-CHI-M-U16', freshersCode: 'KY-FR-CHI-M-U16' },
+                { id: 'chi-m-u18', name: 'Under 18kg', shortName: 'Under 18kg', shortLabel: 'Under 18kg', minWeight: 16.1, maxWeight: 18.0, regularCode: 'KY-REG-CHI-M-U18', freshersCode: 'KY-FR-CHI-M-U18' },
+                { id: 'chi-m-u20', name: 'Under 20kg', shortName: 'Under 20kg', shortLabel: 'Under 20kg', minWeight: 18.1, maxWeight: 20.0, regularCode: 'KY-REG-CHI-M-U20', freshersCode: 'KY-FR-CHI-M-U20' },
+                { id: 'chi-m-u22', name: 'Under 22kg', shortName: 'Under 22kg', shortLabel: 'Under 22kg', minWeight: 20.1, maxWeight: 22.0, regularCode: 'KY-REG-CHI-M-U22', freshersCode: 'KY-FR-CHI-M-U22' },
+                { id: 'chi-m-u24', name: 'Under 24kg', shortName: 'Under 24kg', shortLabel: 'Under 24kg', minWeight: 22.1, maxWeight: 24.0, regularCode: 'KY-REG-CHI-M-U24', freshersCode: 'KY-FR-CHI-M-U24' },
+                { id: 'chi-m-u26', name: 'Under 26kg', shortName: 'Under 26kg', shortLabel: 'Under 26kg', minWeight: 24.1, maxWeight: 26.0, regularCode: 'KY-REG-CHI-M-U26', freshersCode: 'KY-FR-CHI-M-U26' },
+                { id: 'chi-m-u28', name: 'Under 28kg', shortName: 'Under 28kg', shortLabel: 'Under 28kg', minWeight: 26.1, maxWeight: 28.0, regularCode: 'KY-REG-CHI-M-U28', freshersCode: 'KY-FR-CHI-M-U28' },
+                { id: 'chi-m-u32', name: 'Under 32kg', shortName: 'Under 32kg', shortLabel: 'Under 32kg', minWeight: 28.1, maxWeight: 32.0, regularCode: 'KY-REG-CHI-M-U32', freshersCode: 'KY-FR-CHI-M-U32' },
+                { id: 'chi-m-u36', name: 'Under 36kg', shortName: 'Under 36kg', shortLabel: 'Under 36kg', minWeight: 32.1, maxWeight: 36.0, regularCode: 'KY-REG-CHI-M-U36', freshersCode: 'KY-FR-CHI-M-U36' },
+                { id: 'chi-m-o36', name: 'Over 36kg (+36kg)', shortName: 'Over 36kg', shortLabel: 'Over 36kg', minWeight: 36.1, maxWeight: 60.0, regularCode: 'KY-REG-CHI-M-O36', freshersCode: 'KY-FR-CHI-M-O36' }
+            ],
+            Female: [
+                { id: 'chi-f-u14', name: 'Under 14kg', shortName: 'Under 14kg', shortLabel: 'Under 14kg', minWeight: 10.0, maxWeight: 14.0, regularCode: 'KY-REG-CHI-F-U14', freshersCode: 'KY-FR-CHI-F-U14' },
+                { id: 'chi-f-u16', name: 'Under 16kg', shortName: 'Under 16kg', shortLabel: 'Under 16kg', minWeight: 14.1, maxWeight: 16.0, regularCode: 'KY-REG-CHI-F-U16', freshersCode: 'KY-FR-CHI-F-U16' },
+                { id: 'chi-f-u18', name: 'Under 18kg', shortName: 'Under 18kg', shortLabel: 'Under 18kg', minWeight: 16.1, maxWeight: 18.0, regularCode: 'KY-REG-CHI-F-U18', freshersCode: 'KY-FR-CHI-F-U18' },
+                { id: 'chi-f-u20', name: 'Under 20kg', shortName: 'Under 20kg', shortLabel: 'Under 20kg', minWeight: 18.1, maxWeight: 20.0, regularCode: 'KY-REG-CHI-F-U20', freshersCode: 'KY-FR-CHI-F-U20' },
+                { id: 'chi-f-u22', name: 'Under 22kg', shortName: 'Under 22kg', shortLabel: 'Under 22kg', minWeight: 20.1, maxWeight: 22.0, regularCode: 'KY-REG-CHI-F-U22', freshersCode: 'KY-FR-CHI-F-U22' },
+                { id: 'chi-f-u24', name: 'Under 24kg', shortName: 'Under 24kg', shortLabel: 'Under 24kg', minWeight: 22.1, maxWeight: 24.0, regularCode: 'KY-REG-CHI-F-U24', freshersCode: 'KY-FR-CHI-F-U24' },
+                { id: 'chi-f-u26', name: 'Under 26kg', shortName: 'Under 26kg', shortLabel: 'Under 26kg', minWeight: 24.1, maxWeight: 26.0, regularCode: 'KY-REG-CHI-F-U26', freshersCode: 'KY-FR-CHI-F-U26' },
+                { id: 'chi-f-u28', name: 'Under 28kg', shortName: 'Under 28kg', shortLabel: 'Under 28kg', minWeight: 26.1, maxWeight: 28.0, regularCode: 'KY-REG-CHI-F-U28', freshersCode: 'KY-FR-CHI-F-U28' },
+                { id: 'chi-f-u32', name: 'Under 32kg', shortName: 'Under 32kg', shortLabel: 'Under 32kg', minWeight: 28.1, maxWeight: 32.0, regularCode: 'KY-REG-CHI-F-U32', freshersCode: 'KY-FR-CHI-F-U32' },
+                { id: 'chi-f-o32', name: 'Over 32kg (+32kg)', shortName: 'Over 32kg', shortLabel: 'Over 32kg', minWeight: 32.1, maxWeight: 55.0, regularCode: 'KY-REG-CHI-F-O32', freshersCode: 'KY-FR-CHI-F-O32' }
+            ]
+        }
+    };
+
+    const POOMSAE_CATEGORIES = {
+        individual: {
+            id: 'individual',
+            name: 'Recognised Individual Poomsae',
+            Freshers: [
+                { name: 'Recognised Individual (Children)', ageLabel: 'Under 12 Years / Ages 5–11 (Born After 2014)', code: 'PO-IND-FR-CHILD' },
+                { name: 'Recognised Individual (Sub Junior)', ageLabel: 'Ages 10–11 (Born 2013–2014)', code: 'PO-IND-FR-SUBJUN' },
+                { name: 'Recognised Individual (Cadet)', ageLabel: 'Ages 12–14 (Born 2010–2012)', code: 'PO-IND-FR-CADET' }
+            ],
+            Regular: [
+                { name: 'Recognised Individual (Sub Junior)', ageLabel: 'Ages 10–11 (Born 2013–2014)', code: 'PO-IND-REG-SUBJUN' },
+                { name: 'Recognised Individual (Cadet)', ageLabel: 'Ages 12–14 (Born 2010–2012)', code: 'PO-IND-REG-CADET' },
+                { name: 'Recognised Individual (Junior)', ageLabel: 'Ages 15–17 (Born 2007–2009)', code: 'PO-IND-REG-JUN' },
+                { name: 'Recognised Individual (Under 30 Yrs)', ageLabel: 'Ages 18–30 (Born 1994–2006)', code: 'PO-IND-REG-U30' },
+                { name: 'Recognised Individual (Under 40 Yrs)', ageLabel: 'Ages 31–40 (Born 1984–1993)', code: 'PO-IND-REG-U40' },
+                { name: 'Recognised Individual (Under 50 Yrs)', ageLabel: 'Ages 41–50 (Born 1974–1983)', code: 'PO-IND-REG-U50' },
+                { name: 'Recognised Individual (Under 60 Yrs)', ageLabel: 'Ages 51–60 (Born 1964–1973)', code: 'PO-IND-REG-U60' },
+                { name: 'Recognised Individual (Under 65 Yrs)', ageLabel: 'Ages 61–65 (Born 1959–1963)', code: 'PO-IND-REG-U65' },
+                { name: 'Recognised Individual (Over 65 Yrs)', ageLabel: '66 Years & Over (Born 1958 & Before)', code: 'PO-IND-REG-O65' }
+            ]
+        },
+        pair: {
+            id: 'pair',
+            name: 'Recognised Mix Pair Poomsae (1 Male + 1 Female)',
+            Freshers: [
+                { name: 'Recognised Mix Pair (Children)', ageLabel: 'Under 12 Years / Ages 5–11', code: 'PO-PAIR-FR-CHILD' },
+                { name: 'Recognised Mix Pair (Sub Junior)', ageLabel: 'Ages 10–11', code: 'PO-PAIR-FR-SUBJUN' },
+                { name: 'Recognised Mix Pair (Cadet)', ageLabel: 'Ages 12–14', code: 'PO-PAIR-FR-CADET' }
+            ],
+            Regular: [
+                { name: 'Recognised Mix Pair (Children)', ageLabel: 'Under 12 Years / Ages 5–11', code: 'PO-PAIR-REG-CHILD' },
+                { name: 'Recognised Mix Pair (Sub Junior)', ageLabel: 'Ages 10–11', code: 'PO-PAIR-REG-SUBJUN' },
+                { name: 'Recognised Mix Pair (Cadet)', ageLabel: 'Ages 12–14', code: 'PO-PAIR-REG-CADET' },
+                { name: 'Recognised Mix Pair (Junior)', ageLabel: 'Ages 15–17', code: 'PO-PAIR-REG-JUN' },
+                { name: 'Recognised Mix Pair (Under 30 Yrs)', ageLabel: 'Ages 18–30', code: 'PO-PAIR-REG-U30' },
+                { name: 'Recognised Mix Pair (Under 40 Yrs)', ageLabel: 'Ages 31–40', code: 'PO-PAIR-REG-U40' },
+                { name: 'Recognised Mix Pair (Under 50 Yrs)', ageLabel: 'Ages 41–50', code: 'PO-PAIR-REG-U50' },
+                { name: 'Recognised Mix Pair (Under 60 Yrs)', ageLabel: 'Ages 51–60', code: 'PO-PAIR-REG-U60' },
+                { name: 'Recognised Mix Pair (Over 60 Yrs)', ageLabel: '61 Years & Over', code: 'PO-PAIR-REG-O60' }
+            ]
+        },
+        team: {
+            id: 'team',
+            name: 'Recognised Team Poomsae (3 Male or 3 Female)',
+            Freshers: [
+                { name: 'Recognised Team (Children)', ageLabel: 'Under 12 Years / Ages 5–11', code: 'PO-TEAM-FR-CHILD' },
+                { name: 'Recognised Team (Sub Junior)', ageLabel: 'Ages 10–11', code: 'PO-TEAM-FR-SUBJUN' },
+                { name: 'Recognised Team (Cadet)', ageLabel: 'Ages 12–14', code: 'PO-TEAM-FR-CADET' }
+            ],
+            Regular: [
+                { name: 'Recognised Team (Cadet)', ageLabel: 'Ages 12–14', code: 'PO-TEAM-REG-CADET' },
+                { name: 'Recognised Team (Junior)', ageLabel: 'Ages 15–17', code: 'PO-TEAM-REG-JUN' },
+                { name: 'Recognised Team (Under 30 Yrs)', ageLabel: 'Ages 18–30', code: 'PO-TEAM-REG-U30' },
+                { name: 'Recognised Team (Under 40 Yrs)', ageLabel: 'Ages 31–40', code: 'PO-TEAM-REG-U40' },
+                { name: 'Recognised Team (Under 50 Yrs)', ageLabel: 'Ages 41–50', code: 'PO-TEAM-REG-U50' },
+                { name: 'Recognised Team (Under 60 Yrs)', ageLabel: 'Ages 51–60', code: 'PO-TEAM-REG-U60' },
+                { name: 'Recognised Team (Over 60 Yrs)', ageLabel: '61 Years & Over', code: 'PO-TEAM-REG-O60' }
+            ]
+        }
+    };
+
+    const BREAKING_CATEGORIES = {
+        Freshers: [
+            { name: 'E-Breaking (Freshers) - Knife Hand', technique: 'Knife Hand', division: 'Open (Ages 5–65)', code: 'BRK-FR-KNIFE-HAND' },
+            { name: 'E-Breaking (Freshers) - Close Fist Jireugi', technique: 'Close Fist Jireugi', division: 'Open (Ages 5–65)', code: 'BRK-FR-CLOSE-FIST' },
+            { name: 'E-Breaking (Freshers) - Side Kick', technique: 'Side Kick', division: 'Open (Ages 5–65)', code: 'BRK-FR-SIDE-KICK' },
+            { name: 'E-Breaking (Freshers) - Back Kick', technique: 'Back Kick', division: 'Open (Ages 5–65)', code: 'BRK-FR-BACK-KICK' }
+        ],
+        Regular: [
+            { name: 'E-Breaking (Regular) - Knife Hand', technique: 'Knife Hand', division: 'Open (Ages 5–65)', code: 'BRK-REG-KNIFE-HAND' },
+            { name: 'E-Breaking (Regular) - Close Fist Jireugi', technique: 'Close Fist Jireugi', division: 'Open (Ages 5–65)', code: 'BRK-REG-CLOSE-FIST' },
+            { name: 'E-Breaking (Regular) - Side Kick', technique: 'Side Kick', division: 'Open (Ages 5–65)', code: 'BRK-REG-SIDE-KICK' },
+            { name: 'E-Breaking (Regular) - Back Kick', technique: 'Back Kick', division: 'Open (Ages 5–65)', code: 'BRK-REG-BACK-KICK' }
+        ],
+        Traditional: [
+            { name: 'High Jump & Kyukpa Power Breaking', technique: 'High Jump Kyukpa', division: 'Senior / Ages 16+ (1st Dan / Poom & above)', code: 'BRK-HIGH-KYUKPA', altCode: 'DM-KYUKPA-HIGH' },
+            { name: 'Championship Team Breaking (Open)', technique: 'Open Team Demonstration', division: 'Open Team Demonstration', code: 'BRK-TEAM-DEMO', altCode: 'DM-TEAM-OPEN' },
+            { name: 'Individual Technical Breaking', technique: 'Precision aerial & multi-target breaking', division: 'Precision aerial & multi-target breaking', code: 'BRK-TECH-IND' }
+        ]
+    };
+
+    const SPEED_KICKING_CATEGORIES = {
+        Individual: [
+            { name: 'Speed Kicking Individual (Freshers)', tier: 'Freshers', technique: 'General High Speed Kicking', division: 'Open (Ages 5–65)', code: 'SK-IND-FRESH' },
+            { name: 'Speed Kicking Individual (Regular) - Roundhouse Kick', tier: 'Regular', technique: 'Electronic Pad Roundhouse Strikes', division: 'Open (Ages 5–65)', code: 'SK-IND-REG-ROUNDHOUSE' },
+            { name: 'Speed Kicking Individual (Regular) - Turning Kick', tier: 'Regular', technique: 'Rotational Turning Kick Speed', division: 'Open (Ages 5–65)', code: 'SK-IND-REG-TURNING' }
+        ],
+        Team: [
+            { name: 'Speed Kicking Team (Male) Under 17 Yrs', gender: 'Male', ageLimit: 'Under 17 Years', code: 'SK-TEAM-M-U17' },
+            { name: 'Speed Kicking Team (Male) Over 17 Yrs', gender: 'Male', ageLimit: 'Over 17 Years', code: 'SK-TEAM-M-O17' },
+            { name: 'Speed Kicking Team (Female) Under 17 Yrs', gender: 'Female', ageLimit: 'Under 17 Years', code: 'SK-TEAM-F-U17' },
+            { name: 'Speed Kicking Team (Female) Over 17 Yrs', gender: 'Female', ageLimit: 'Over 17 Years', code: 'SK-TEAM-F-O17' }
+        ]
+    };
+
+    const VIRTUAL_TKD_CATEGORIES = {
+        Individual: {
+            Freshers: [
+                { division: 'Children', ageRange: 'Ages 5–11 (Under 12 Yrs)', code: 'VT-IND-FR-CHILD' },
+                { division: 'Sub Junior', ageRange: 'Ages 10–11', code: 'VT-IND-FR-SUBJUN' },
+                { division: 'Cadet', ageRange: 'Ages 12–14', code: 'VT-IND-FR-CADET' },
+                { division: 'Junior', ageRange: 'Ages 15–17', code: 'VT-IND-FR-JUNIOR' },
+                { division: 'Senior', ageRange: 'Ages 17–65', code: 'VT-IND-FR-SENIOR' }
+            ],
+            Regular: [
+                { division: 'Children', ageRange: 'Ages 5–11 (Under 12 Yrs)', code: 'VT-IND-REG-CHILD' },
+                { division: 'Sub Junior', ageRange: 'Ages 10–11', code: 'VT-IND-REG-SUBJUN' },
+                { division: 'Cadet', ageRange: 'Ages 12–14', code: 'VT-IND-REG-CADET' },
+                { division: 'Junior', ageRange: 'Ages 15–17', code: 'VT-IND-REG-JUNIOR' },
+                { division: 'Senior', ageRange: 'Ages 17–65', code: 'VT-IND-REG-SENIOR' }
+            ]
+        },
+        MixGender: {
+            Freshers: [
+                { division: 'Children', ageRange: 'Ages 5–11 (Under 12 Yrs)', code: 'VT-MIX-FR-CHILD' },
+                { division: 'Sub Junior', ageRange: 'Ages 10–11', code: 'VT-MIX-FR-SUBJUN' },
+                { division: 'Cadet', ageRange: 'Ages 12–14', code: 'VT-MIX-FR-CADET' },
+                { division: 'Junior', ageRange: 'Ages 15–17', code: 'VT-MIX-FR-JUNIOR' },
+                { division: 'Senior', ageRange: 'Ages 17–65', code: 'VT-MIX-FR-SENIOR' }
+            ],
+            Regular: [
+                { division: 'Children', ageRange: 'Ages 5–11 (Under 12 Yrs)', code: 'VT-MIX-REG-CHILD' },
+                { division: 'Sub Junior', ageRange: 'Ages 10–11', code: 'VT-MIX-REG-SUBJUN' },
+                { division: 'Cadet', ageRange: 'Ages 12–14', code: 'VT-MIX-REG-CADET' },
+                { division: 'Junior', ageRange: 'Ages 15–17', code: 'VT-MIX-REG-JUNIOR' },
+                { division: 'Senior', ageRange: 'Ages 17–65', code: 'VT-MIX-REG-SENIOR' }
+            ]
+        }
+    };
+
+    // Global Master Category Code Registry
+    // Add tier views to KYORUGI_CATEGORIES
+KYORUGI_CATEGORIES.regular = {};
+KYORUGI_CATEGORIES.freshers = {};
+['senior', 'junior', 'cadet', 'sub-junior', 'children'].forEach(div => {
+    if (KYORUGI_CATEGORIES[div]) {
+        KYORUGI_CATEGORIES.regular[div] = {
+            Male: (KYORUGI_CATEGORIES[div].Male || []).map(item => ({ ...item, code: item.regularCode })),
+            Female: (KYORUGI_CATEGORIES[div].Female || []).map(item => ({ ...item, code: item.regularCode }))
+        };
+        KYORUGI_CATEGORIES.freshers[div] = {
+            Male: (KYORUGI_CATEGORIES[div].Male || []).map(item => ({ ...item, code: item.freshersCode })),
+            Female: (KYORUGI_CATEGORIES[div].Female || []).map(item => ({ ...item, code: item.freshersCode }))
+        };
+    }
+});
+
+// Add tier views to POOMSAE_CATEGORIES
+if (typeof POOMSAE_CATEGORIES !== 'undefined') {
+    POOMSAE_CATEGORIES.freshers = {
+        individual: (POOMSAE_CATEGORIES.individual && POOMSAE_CATEGORIES.individual.Freshers) || [],
+        mix_pair: (POOMSAE_CATEGORIES.pair && POOMSAE_CATEGORIES.pair.Freshers) || [],
+        team: (POOMSAE_CATEGORIES.team && POOMSAE_CATEGORIES.team.Freshers) || []
+    };
+    POOMSAE_CATEGORIES.regular = {
+        individual: (POOMSAE_CATEGORIES.individual && POOMSAE_CATEGORIES.individual.Regular) || [],
+        mix_pair: (POOMSAE_CATEGORIES.pair && POOMSAE_CATEGORIES.pair.Regular) || [],
+        team: (POOMSAE_CATEGORIES.team && POOMSAE_CATEGORIES.team.Regular) || []
+    };
+}
+
+// Virtual TKD 3-letter code aliases
+const vtCodeMap = {
+    'VT-IND-REG-CHI': 'VT-IND-REG-CHILD',
+    'VT-IND-REG-SUB': 'VT-IND-REG-SUBJUN',
+    'VT-IND-REG-CAD': 'VT-IND-REG-CADET',
+    'VT-IND-REG-JUN': 'VT-IND-REG-JUNIOR',
+    'VT-IND-REG-SEN': 'VT-IND-REG-SENIOR',
+    'VT-IND-FR-CHI': 'VT-IND-FR-CHILD',
+    'VT-IND-FR-SUB': 'VT-IND-FR-SUBJUN',
+    'VT-IND-FR-CAD': 'VT-IND-FR-CADET',
+    'VT-IND-FR-JUN': 'VT-IND-FR-JUNIOR',
+    'VT-IND-FR-SEN': 'VT-IND-FR-SENIOR',
+    'VT-MIX-REG-CHI': 'VT-MIX-REG-CHILD',
+    'VT-MIX-REG-SUB': 'VT-MIX-REG-SUBJUN',
+    'VT-MIX-REG-CAD': 'VT-MIX-REG-CADET',
+    'VT-MIX-REG-JUN': 'VT-MIX-REG-JUNIOR',
+    'VT-MIX-REG-SEN': 'VT-MIX-REG-SENIOR',
+    'VT-MIX-FR-CHI': 'VT-MIX-FR-CHILD',
+    'VT-MIX-FR-SUB': 'VT-MIX-FR-SUBJUN',
+    'VT-MIX-FR-CAD': 'VT-MIX-FR-CADET',
+    'VT-MIX-FR-JUN': 'VT-MIX-FR-JUNIOR',
+    'VT-MIX-FR-SEN': 'VT-MIX-FR-SENIOR'
+};
+
+const ALL_CATEGORIES_REGISTRY = {};
+
+    Object.keys(KYORUGI_CATEGORIES).forEach(divKey => {
+        const div = KYORUGI_CATEGORIES[divKey];
+        ['Male', 'Female'].forEach(gender => {
+            (div[gender] || []).forEach(wt => {
+                ALL_CATEGORIES_REGISTRY[wt.regularCode] = {
+                    code: wt.regularCode,
+                    discipline: 'Kyorugi',
+                    tier: 'REGULAR',
+                    division: div.name,
+                    divisionId: divKey,
+                    gender,
+                    weightClassName: wt.name,
+                    shortLabel: wt.shortLabel,
+                    minWeight: wt.minWeight,
+                    maxWeight: wt.maxWeight
+                };
+                ALL_CATEGORIES_REGISTRY[wt.freshersCode] = {
+                    code: wt.freshersCode,
+                    discipline: 'Kyorugi',
+                    tier: 'FRESHERS',
+                    division: div.name,
+                    divisionId: divKey,
+                    gender,
+                    weightClassName: wt.name,
+                    shortLabel: wt.shortLabel,
+                    minWeight: wt.minWeight,
+                    maxWeight: wt.maxWeight
+                };
+            });
+        });
+    });
+
+    Object.keys(POOMSAE_CATEGORIES).forEach(pKey => {
+        const pGroup = POOMSAE_CATEGORIES[pKey];
+        ['Freshers', 'Regular'].forEach(tier => {
+            (pGroup[tier] || []).forEach(cat => {
+                ALL_CATEGORIES_REGISTRY[cat.code] = {
+                    code: cat.code,
+                    discipline: 'Poomsae',
+                    tier: tier.toUpperCase(),
+                    division: cat.ageLabel,
+                    subType: pGroup.name,
+                    name: cat.name
+                };
+            });
+        });
+    });
+
+    ['Freshers', 'Regular'].forEach(tier => {
+        (BREAKING_CATEGORIES[tier] || []).forEach(b => {
+            ALL_CATEGORIES_REGISTRY[b.code] = {
+                code: b.code,
+                discipline: 'Kyukpa',
+                tier: tier.toUpperCase(),
+                technique: b.technique,
+                division: b.division,
+                name: b.name
+            };
+        });
+    });
+    (BREAKING_CATEGORIES.Traditional || []).forEach(b => {
+        ALL_CATEGORIES_REGISTRY[b.code] = {
+            code: b.code,
+            altCode: b.altCode,
+            discipline: 'Kyukpa',
+            tier: 'TRADITIONAL',
+            technique: b.technique,
+            division: b.division,
+            name: b.name
+        };
+        if (b.altCode) {
+            ALL_CATEGORIES_REGISTRY[b.altCode] = ALL_CATEGORIES_REGISTRY[b.code];
+        }
+    });
+
+    SPEED_KICKING_CATEGORIES.Individual.forEach(sk => {
+        ALL_CATEGORIES_REGISTRY[sk.code] = {
+            code: sk.code,
+            discipline: 'Speed Kicking',
+            tier: (sk.tier || 'REGULAR').toUpperCase(),
+            technique: sk.technique,
+            division: sk.division,
+            name: sk.name
+        };
+    });
+    SPEED_KICKING_CATEGORIES.Team.forEach(sk => {
+        ALL_CATEGORIES_REGISTRY[sk.code] = {
+            code: sk.code,
+            discipline: 'Speed Kicking',
+            tier: 'TEAM_RELAY',
+            gender: sk.gender,
+            division: sk.ageLimit,
+            name: sk.name
+        };
+    });
+
+    ['Individual', 'MixGender'].forEach(mode => {
+        ['Freshers', 'Regular'].forEach(tier => {
+            (VIRTUAL_TKD_CATEGORIES[mode][tier] || []).forEach(vt => {
+                ALL_CATEGORIES_REGISTRY[vt.code] = {
+                    code: vt.code,
+                    discipline: 'Virtual Taekwondo',
+                    tier: tier.toUpperCase(),
+                    mode,
+                    division: vt.division,
+                    ageRange: vt.ageRange,
+                    name: `Virtual TKD ${mode === 'MixGender' ? 'Mix Gender' : 'Individual'} (${tier}) - ${vt.division}`
+                };
+            });
+        });
+    });
+
+    function findCategoryByCode(code) {
+        if (!code) return null;
+        return ALL_CATEGORIES_REGISTRY[code.toUpperCase().trim()] || null;
+    }
+    window.findCategoryByCode = findCategoryByCode;
+
+    function validateAthleteWeight(arg1, arg2, arg3, arg4) {
+    var ath = null;
+    var measuredWeight = 0;
+
+    if (typeof arg1 === 'object' && arg1 !== null) {
+        ath = arg1;
+        measuredWeight = arg2 !== undefined ? parseFloat(arg2) : (ath.measuredWeight || ath.weight || 0);
+    } else {
+        var divisionId = arg1;
+        var gender = arg2;
+        var weightClassOrCode = arg3;
+        measuredWeight = parseFloat(arg4) || 0;
+        ath = {
+            division: divisionId,
+            gender: gender,
+            weightClass: weightClassOrCode,
+            categoryCode: (weightClassOrCode && weightClassOrCode.startsWith('KY-')) ? weightClassOrCode : ''
+        };
+    }
+
+    if (!measuredWeight || isNaN(measuredWeight)) {
+        return { valid: false, status: 'No Weight', message: 'Scale weight not recorded' };
+    }
+
+    var minWeight = ath.minWeight !== undefined ? parseFloat(ath.minWeight) : null;
+    var maxWeight = ath.maxWeight !== undefined ? parseFloat(ath.maxWeight) : null;
+
+    if ((minWeight === null || maxWeight === null) && ath.categoryCode) {
+        var cat = typeof findCategoryByCode === 'function' ? findCategoryByCode(ath.categoryCode) : null;
+        if (cat && cat.minWeight !== undefined && cat.maxWeight !== undefined) {
+            minWeight = cat.minWeight;
+            maxWeight = cat.maxWeight;
+        }
+    }
+
+    if (minWeight === null || maxWeight === null) {
+        var divKey = (ath.division || ath.category || 'junior').toLowerCase();
+        var div = (typeof KYORUGI_CATEGORIES !== 'undefined') ? KYORUGI_CATEGORIES[divKey] : null;
+        if (!div && typeof KYORUGI_CATEGORIES !== 'undefined') {
+            var keys = ['senior', 'junior', 'cadet', 'sub-junior', 'children'];
+            for (var i = 0; i < keys.length; i++) {
+                if (divKey.includes(keys[i])) { div = KYORUGI_CATEGORIES[keys[i]]; break; }
+            }
+        }
+        if (div) {
+            var list = div[ath.gender || 'Male'] || [];
+            var match = list.find(function(w) { 
+                return w.regularCode === ath.categoryCode || 
+                    w.freshersCode === ath.categoryCode ||
+                    (ath.weightClass && (w.name.toLowerCase().includes(ath.weightClass.toLowerCase()) || w.shortLabel.toLowerCase() === ath.weightClass.toLowerCase()));
+            });
+            if (match) {
+                minWeight = match.minWeight;
+                maxWeight = match.maxWeight;
+            }
+        }
+    }
+
+    if (minWeight !== null && maxWeight !== null) {
+        if (measuredWeight < minWeight) {
+            return { valid: false, status: 'Underweight', minWeight: minWeight, maxWeight: maxWeight, message: 'Under minimum weight limit (' + minWeight + ' kg)' };
+        }
+        if (measuredWeight > maxWeight) {
+            return { valid: false, status: 'Overweight', minWeight: minWeight, maxWeight: maxWeight, message: 'Over maximum weight limit (' + maxWeight + ' kg)' };
+        }
+        return { valid: true, status: 'Passed', minWeight: minWeight, maxWeight: maxWeight, message: 'Within weight limits' };
+    }
+
+    return { valid: true, status: 'Passed', message: 'Weight recorded' };
+}
+        window.validateAthleteWeight = validateAthleteWeight;
+
+    // Helper to derive category code for any athlete
+    function deriveAthleteCategoryCode(athlete) {
+        if (!athlete) return '';
+        if (athlete.categoryCode) return athlete.categoryCode;
+        const disc = (athlete.discipline || 'Kyorugi').toLowerCase();
+        const tier = (athlete.tier || 'REGULAR').toUpperCase();
+        const gen = (athlete.gender || 'Male').toLowerCase().startsWith('f') ? 'Female' : 'Male';
+        const rawCat = (athlete.category || '').toLowerCase();
+        const rawWt = (athlete.weightClass || athlete.weight || '').toString();
+
+        if (disc.includes('poomsae')) {
+            const isPair = rawCat.includes('pair') || rawWt.includes('pair');
+            const isTeam = rawCat.includes('team') || rawWt.includes('team');
+            const sub = isPair ? POOMSAE_CATEGORIES.pair : isTeam ? POOMSAE_CATEGORIES.team : POOMSAE_CATEGORIES.individual;
+            const list = tier === 'FRESHERS' ? sub.Freshers : sub.Regular;
+            const found = list.find(c => rawCat.includes(c.code.toLowerCase()) || rawWt.includes(c.code.toLowerCase()) || rawCat.includes(c.name.toLowerCase()) || rawWt.includes(c.name.toLowerCase()));
+            return found ? found.code : (list[0] ? list[0].code : 'PO-IND-REG-U30');
+        }
+
+        if (disc.includes('kyukpa') || disc.includes('breaking')) {
+            const list = tier === 'FRESHERS' ? BREAKING_CATEGORIES.Freshers : BREAKING_CATEGORIES.Regular;
+            const found = list.find(b => rawWt.includes(b.technique) || rawCat.includes(b.technique) || rawWt.includes(b.code));
+            return found ? found.code : (list[0] ? list[0].code : 'BRK-REG-KNIFE-HAND');
+        }
+
+        if (disc.includes('speed')) {
+            const isTeam = rawCat.includes('team') || rawWt.includes('team');
+            const list = isTeam ? SPEED_KICKING_CATEGORIES.Team : SPEED_KICKING_CATEGORIES.Individual;
+            const found = list.find(sk => rawWt.includes(sk.code) || rawCat.includes(sk.code) || rawWt.includes(sk.name));
+            return found ? found.code : (list[0] ? list[0].code : 'SK-IND-REG-ROUNDHOUSE');
+        }
+
+        if (disc.includes('virtual')) {
+            const isMix = rawCat.includes('mix') || rawWt.includes('mix');
+            const sub = isMix ? VIRTUAL_TKD_DATA.MixGender : VIRTUAL_TKD_DATA.Individual;
+            const list = tier === 'FRESHERS' ? sub.Freshers : sub.Regular;
+            const found = list.find(vt => rawCat.includes(vt.division.toLowerCase()) || rawWt.includes(vt.division.toLowerCase()));
+            return found ? found.code : (list[0] ? list[0].code : 'VT-IND-REG-JUNIOR');
+        }
+
+        // Kyorugi Default
+        let divKey = 'junior';
+        if (rawCat.includes('children') || rawCat.includes('under 8') || rawCat.includes('under 10')) divKey = 'children';
+        else if (rawCat.includes('sub-junior') || rawCat.includes('under 12')) divKey = 'sub-junior';
+        else if (rawCat.includes('cadet') || rawCat.includes('12-14') || rawCat.includes('12–14')) divKey = 'cadet';
+        else if (rawCat.includes('junior') || rawCat.includes('15-17') || rawCat.includes('15–17')) divKey = 'junior';
+        else if (rawCat.includes('senior') || rawCat.includes('over 17') || rawCat.includes('17+')) divKey = 'senior';
+
+        const divObj = KYORUGI_CATEGORIES[divKey];
+        if (divObj && divObj[gen]) {
+            const found = divObj[gen].find(w => 
+                rawWt.includes(w.regularCode) || 
+                rawWt.includes(w.freshersCode) ||
+                rawWt.toLowerCase().includes(w.shortLabel.toLowerCase()) ||
+                rawWt.toLowerCase().includes(w.shortName.toLowerCase()) ||
+                (rawWt.match(/\d+/) && rawWt.match(/\d+/)[0] === (w.shortLabel.match(/\d+/) || [''])[0])
+            );
+            if (found) {
+                return tier === 'FRESHERS' ? found.freshersCode : found.regularCode;
+            }
+        }
+        return tier === 'FRESHERS' ? 'KY-FR-JUN-M-U55' : 'KY-REG-JUN-M-U55';
+    }
+    window.deriveAthleteCategoryCode = deriveAthleteCategoryCode;
+
+    // Backward Compatible Category Registry for Dropdowns
+    const TKD_WEIGHT_CATEGORIES = {
+        'children': {
+            label: 'Children (Under 8 Years / Ages 4–7)',
+            Male:   ['Under 16kg', 'Under 18kg', 'Under 20kg', 'Under 22kg', 'Under 24kg', 'Under 26kg', 'Under 28kg', 'Under 32kg', 'Under 36kg', 'Over 36kg'],
+            Female: ['Under 14kg', 'Under 16kg', 'Under 18kg', 'Under 20kg', 'Under 22kg', 'Under 24kg', 'Under 26kg', 'Under 28kg', 'Under 32kg', 'Over 32kg']
+        },
+        'sub-junior': {
+            label: 'Sub-Junior (Ages 8–11)',
+            Male:   ['Under 18kg', 'Under 21kg', 'Under 23kg', 'Under 25kg', 'Under 27kg', 'Under 29kg', 'Under 32kg', 'Under 35kg', 'Under 38kg', 'Under 41kg', 'Under 44kg', 'Under 50kg', 'Over 50kg'],
+            Female: ['Under 16kg', 'Under 18kg', 'Under 20kg', 'Under 22kg', 'Under 24kg', 'Under 26kg', 'Under 29kg', 'Under 32kg', 'Under 35kg', 'Under 38kg', 'Under 41kg', 'Under 47kg', 'Over 47kg']
         },
         'cadet': {
-            label: 'Cadet (12–14 yrs)',
-            Male:   ['U 33 KG', 'U 37 KG', 'U 41 KG', 'U 45 KG', 'U 49 KG', 'U 53 KG', 'U 57 KG', 'U 61 KG', 'U 65 KG', 'O 65 KG'],
-            Female: ['U 29 KG', 'U 33 KG', 'U 37 KG', 'U 41 KG', 'U 44 KG', 'U 47 KG', 'U 51 KG', 'U 55 KG', 'U 59 KG', 'O 59 KG']
+            label: 'Cadet (Ages 12–14)',
+            Male:   ['Under 33kg', 'Under 37kg', 'Under 41kg', 'Under 45kg', 'Under 49kg', 'Under 53kg', 'Under 57kg', 'Under 61kg', 'Under 65kg', 'Over 65kg'],
+            Female: ['Under 29kg', 'Under 33kg', 'Under 37kg', 'Under 41kg', 'Under 44kg', 'Under 47kg', 'Under 51kg', 'Under 55kg', 'Under 59kg', 'Over 59kg']
         },
         'junior': {
-            label: 'Junior (15–17 yrs)',
-            Male:   ['U 45 KG', 'U 48 KG', 'U 51 KG', 'U 55 KG', 'U 59 KG', 'U 63 KG', 'U 68 KG', 'U 73 KG', 'U 78 KG', 'O 78 KG'],
-            Female: ['U 42 KG', 'U 44 KG', 'U 46 KG', 'U 49 KG', 'U 52 KG', 'U 55 KG', 'U 59 KG', 'U 63 KG', 'U 68 KG', 'O 68 KG']
+            label: 'Junior (Ages 15–17)',
+            Male:   ['Under 45kg', 'Under 48kg', 'Under 51kg', 'Under 55kg', 'Under 59kg', 'Under 63kg', 'Under 68kg', 'Under 73kg', 'Under 78kg', 'Over 78kg'],
+            Female: ['Under 42kg', 'Under 44kg', 'Under 46kg', 'Under 49kg', 'Under 52kg', 'Under 55kg', 'Under 59kg', 'Under 63kg', 'Under 68kg', 'Over 68kg']
         },
         'senior': {
-            label: 'Over 17+ (Senior)',
-            Male:   ['U 54 KG', 'U 58 KG', 'U 63 KG', 'U 68 KG', 'U 74 KG', 'U 80 KG', 'U 87 KG', 'O 87 KG'],
-            Female: ['U 46 KG', 'U 49 KG', 'U 53 KG', 'U 57 KG', 'U 62 KG', 'U 67 KG', 'U 73 KG', 'O 73 KG']
+            label: 'Senior (Ages 17+)',
+            Male:   ['Under 54kg', 'Under 58kg', 'Under 63kg', 'Under 68kg', 'Under 74kg', 'Under 80kg', 'Under 87kg', 'Over 87kg'],
+            Female: ['Under 46kg', 'Under 49kg', 'Under 53kg', 'Under 57kg', 'Under 62kg', 'Under 67kg', 'Under 73kg', 'Over 73kg']
         },
         'dasara': {
             label: 'Dasara (Open/District)',
@@ -4060,7 +4740,14 @@
         { id: 'A-18', label: 'A-18 (Above 18 Years)', minAge: 18, defaultWeight: 68.0 }
     ];
 
-    function getWeightOptions(category, gender) {
+    function getWeightOptions(category, gender, tier = 'REGULAR') {
+        const divObj = KYORUGI_CATEGORIES[category];
+        if (divObj && divObj[gender]) {
+            return divObj[gender].map(w => {
+                const code = (tier === 'FRESHERS') ? w.freshersCode : w.regularCode;
+                return `<option value="${w.shortLabel}" data-code="${code}">${w.name} (${w.minWeight} - ${w.maxWeight} kg) [${code}]</option>`;
+            }).join('');
+        }
         const cat = TKD_WEIGHT_CATEGORIES[category];
         if (!cat) return '<option value="">— Select Category & Gender first —</option>';
         const weights = cat[gender] || [];
@@ -4429,1049 +5116,1207 @@
     // ========================================================================
     // 2. PARTICIPANT REGISTRATION MODAL
     // ========================================================================
-    function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tournTitle = 'Kukkiwon Cup India Taekwondo Championship 2026') {
-        const mc = document.getElementById('modal-container');
-        if (!mc) return;
+// Clean, Modular replacement for openParticipantRegistrationModal with full category support
+function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tournTitle = 'Kukkiwon Cup India Taekwondo Championship 2026') {
+    const mc = document.getElementById('modal-container');
+    if (!mc) return;
 
-        const currentUser = store.getCurrentUser();
-        const loggedAth = (currentUser && currentUser.role === 'athlete')
-            ? (store.getAthlete(currentUser.athleteId) || store.getAthletes().find(a => a.id === currentUser.athleteId || a.athleteId === currentUser.athleteId || a.name === currentUser.name))
-            : null;
+    const currentUser = store.getCurrentUser();
+    const loggedAth = (currentUser && currentUser.role === 'athlete')
+        ? (store.getAthlete(currentUser.athleteId) || store.getAthletes().find(a => a.id === currentUser.athleteId || a.athleteId === currentUser.athleteId || a.name === currentUser.name))
+        : null;
 
-        const defaultName = loggedAth ? (loggedAth.name || '') : '';
-        const defaultPhone = loggedAth ? (loggedAth.phone || '').replace(/\D/g, '').slice(-10) : '';
-        const defaultEmail = loggedAth ? (loggedAth.email || '') : '';
-        const defaultKukkiwonId = loggedAth ? (loggedAth.kukkiwonNo || loggedAth.kukkiwonDanNumber || loggedAth.kukkiwonId || '') : '';
-        const defaultAddress = loggedAth ? (loggedAth.address || 'Bengaluru, Karnataka') : 'Bengaluru, Karnataka';
-        const defaultParent = loggedAth ? (loggedAth.parentName || '') : '';
-        const defaultBelt = loggedAth ? (loggedAth.beltId || 'white') : 'white';
-        const defaultGender = loggedAth ? (loggedAth.gender || 'Male') : 'Male';
-        const athPhoto = loggedAth ? (loggedAth.photo || '') : '';
-        const athAadhar = loggedAth ? (loggedAth.aadharDoc || '') : '';
-        const athBirthCert = loggedAth ? (loggedAth.birthCertDoc || '') : '';
-        const currentDojang = (currentUser && currentUser.role === 'dojang') ? store.getDojang(currentUser.dojangId) : null;
-        const defaultAcademy = (currentUser && currentUser.role === 'dojang' && currentDojang) 
-            ? currentDojang.name 
-            : (loggedAth ? (loggedAth.dojangName !== 'Individual Competitor' ? (loggedAth.dojangName || '') : '') : '');
+    const defaultName = loggedAth ? (loggedAth.name || '') : '';
+    const defaultPhone = loggedAth ? (loggedAth.phone || '').replace(/\D/g, '').slice(-10) : '';
+    const defaultEmail = loggedAth ? (loggedAth.email || '') : '';
+    const defaultKukkiwonId = loggedAth ? (loggedAth.kukkiwonNo || loggedAth.kukkiwonDanNumber || loggedAth.kukkiwonId || '') : '';
+    const defaultAddress = loggedAth ? (loggedAth.address || 'Bengaluru, Karnataka') : 'Bengaluru, Karnataka';
+    const defaultParent = loggedAth ? (loggedAth.parentName || '') : '';
+    const defaultBelt = loggedAth ? (loggedAth.beltId || 'white') : 'white';
+    const defaultGender = loggedAth ? (loggedAth.gender || 'Male') : 'Male';
+    const athPhoto = loggedAth ? (loggedAth.photo || '') : '';
+    const athAadhar = loggedAth ? (loggedAth.aadharDoc || '') : '';
+    const athBirthCert = loggedAth ? (loggedAth.birthCertDoc || '') : '';
+    const currentDojang = (currentUser && currentUser.role === 'dojang') ? store.getDojang(currentUser.dojangId) : null;
+    const defaultAcademy = (currentUser && currentUser.role === 'dojang' && currentDojang) 
+        ? currentDojang.name 
+        : (loggedAth ? (loggedAth.dojangName !== 'Individual Competitor' ? (loggedAth.dojangName || '') : '') : '');
 
-        let birthYear = '2009', birthMonth = '06', birthDay = '15';
-        if (loggedAth && loggedAth.dob) {
-            const parts = loggedAth.dob.split('-');
-            if (parts.length === 3) {
-                birthYear = parts[0];
-                birthMonth = parts[1];
-                birthDay = parts[2];
+    let birthYear = '2009', birthMonth = '06', birthDay = '15';
+    if (loggedAth && loggedAth.dob) {
+        const parts = loggedAth.dob.split('-');
+        if (parts.length === 3) {
+            birthYear = parts[0];
+            birthMonth = parts[1];
+            birthDay = parts[2];
+        }
+    }
+
+    // Active Wizard State
+    let currentStep = 1;
+    let regData = {
+        kukkiwonId: defaultKukkiwonId,
+        name: defaultName,
+        parentName: defaultParent,
+        phone: defaultPhone,
+        email: defaultEmail,
+        address: defaultAddress,
+        academy: defaultAcademy,
+        coachName: '',
+        dobDay: birthDay,
+        dobMonth: birthMonth,
+        dobYear: birthYear,
+        gender: defaultGender,
+        beltId: defaultBelt,
+        discipline: 'Kyorugi',
+        tier: 'REGULAR',
+        category: 'junior',
+        weightClass: 'Under 55kg',
+        categoryCode: 'KY-REG-JUN-M-U55',
+        weightClassName: 'Featherweight (Under 55kg)',
+        minWeight: 51.1,
+        maxWeight: 55.0,
+        scaleWeight: 54.0,
+        poomsaeSubType: 'individual',
+        poomsaeCode: 'PO-IND-REG-JUN',
+        poomsaeClass: 'Recognised Individual (Junior)',
+        breakingTier: 'REGULAR',
+        breakingCode: 'BRK-REG-KNIFE-HAND',
+        breakingTechnique: 'E-Breaking (Regular) - Knife Hand',
+        speedKickingType: 'Individual',
+        speedKickingCode: 'SK-IND-REG-ROUNDHOUSE',
+        speedKickingEvent: 'Speed Kicking Individual (Regular) - Roundhouse Kick',
+        virtualMode: 'Individual',
+        virtualTier: 'REGULAR',
+        virtualDivision: 'Junior',
+        virtualCode: 'VT-IND-REG-JUNIOR',
+        virtualType: 'Individual Regular - Junior',
+        competitionFormat: 'Official',
+        group4Cat: 'U-10',
+        group4Weight: 30.0,
+        photo: athPhoto,
+        aadharDoc: athAadhar,
+        birthCertDoc: athBirthCert,
+        utrNumber: '',
+        isKkwVerified: !!defaultKukkiwonId
+    };
+
+    function getAge() {
+        const yr = parseInt(regData.dobYear) || 2009;
+        return 2026 - yr;
+    }
+
+    function computeActiveCategoryCode() {
+        const disc = regData.discipline;
+        const tier = regData.tier || 'REGULAR';
+        if (disc === 'Kyorugi') {
+            const divObj = KYORUGI_CATEGORIES[regData.category] || KYORUGI_CATEGORIES['junior'];
+            const list = divObj[regData.gender] || [];
+            const found = list.find(w => w.shortLabel === regData.weightClass || w.name === regData.weightClassName) || list[0];
+            if (found) {
+                regData.categoryCode = tier === 'FRESHERS' ? found.freshersCode : found.regularCode;
+                regData.weightClassName = found.name;
+                regData.minWeight = found.minWeight;
+                regData.maxWeight = found.maxWeight;
+                return regData.categoryCode;
             }
+            return tier === 'FRESHERS' ? 'KY-FR-JUN-M-U55' : 'KY-REG-JUN-M-U55';
         }
-
-        // Active Wizard State
-        let currentStep = 1;
-        let regData = {
-            kukkiwonId: defaultKukkiwonId,
-            name: defaultName,
-            parentName: defaultParent,
-            phone: defaultPhone,
-            email: defaultEmail,
-            address: defaultAddress,
-            academy: defaultAcademy,
-            coachName: '',
-            dobDay: birthDay,
-            dobMonth: birthMonth,
-            dobYear: birthYear,
-            gender: defaultGender,
-            beltId: defaultBelt,
-            discipline: 'Kyorugi',
-            tier: 'REGULAR',
-            category: 'junior',
-            weightClass: 'U 55 KG',
-            scaleWeight: 54.0,
-            poomsaeClass: 'Junior II·III: Ages 13-18 [Taekeuk 4~8, Koryo, Keumkang]',
-            virtualType: 'Individual Regular (Male/Female)',
-            competitionFormat: 'Official',
-            group4Cat: 'U-10',
-            group4Weight: 30.0,
-            photo: athPhoto,
-            aadharDoc: athAadhar,
-            birthCertDoc: athBirthCert,
-            utrNumber: '',
-            isKkwVerified: !!defaultKukkiwonId
-        };
-
-        function getAge() {
-            const yr = parseInt(regData.dobYear) || 2009;
-            return 2026 - yr;
+        if (disc === 'Poomsae') {
+            return regData.poomsaeCode || 'PO-IND-REG-JUN';
         }
+        if (disc === 'E-Breaking & Kyukpa' || disc === 'Kyukpa') {
+            return regData.breakingCode || 'BRK-REG-KNIFE-HAND';
+        }
+        if (disc === 'Speed Kicking') {
+            return regData.speedKickingCode || 'SK-IND-REG-ROUNDHOUSE';
+        }
+        if (disc === 'Virtual Taekwondo') {
+            return regData.virtualCode || 'VT-IND-REG-JUNIOR';
+        }
+        return 'KY-REG-JUN-M-U55';
+    }
 
-        function renderWizard() {
-            const calculatedAge = getAge();
-            const beltObj = TKD_BELTS.find(b => b.id === regData.beltId) || TKD_BELTS[0];
-            const divLabel = TKD_WEIGHT_CATEGORIES[regData.category]?.label || 'Junior (15–17 yrs)';
-            const formattedWeight = formatWeightClass(regData.weightClass || 'U 55 KG');
+    function renderWizard() {
+        const calculatedAge = getAge();
+        const beltObj = TKD_BELTS.find(b => b.id === regData.beltId) || TKD_BELTS[0];
+        const divLabel = KYORUGI_CATEGORIES[regData.category]?.label || TKD_WEIGHT_CATEGORIES[regData.category]?.label || 'Junior (Ages 15–17)';
+        const activeCatCode = computeActiveCategoryCode();
 
-            mc.innerHTML = `
-                <div class="tkd-modal-backdrop animate-fade-in" id="participant-reg-backdrop">
-                    <div class="clean-modal-card max-w-4xl w-full p-5 sm:p-8 max-h-[92vh] overflow-y-auto rounded-3xl shadow-2xl border border-slate-200 bg-white text-slate-900">
+        mc.innerHTML = `
+            <div class="tkd-modal-backdrop animate-fade-in" id="participant-reg-backdrop">
+                <div class="clean-modal-card max-w-4xl w-full p-5 sm:p-8 max-h-[92vh] overflow-y-auto rounded-3xl shadow-2xl border border-slate-200 bg-white text-slate-900">
+                    
+                    <!-- Close Button -->
+                    <button class="btn-modal-close-round" id="btn-close-reg-modal">&times;</button>
+
+                    <!-- Header & Title -->
+                    <div class="mb-5 text-left border-b border-slate-100 pb-4">
+                        <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                            <span class="badge-modal-top">
+                                <i class="fa-solid fa-trophy me-1"></i> OFFICIAL CHAMPIONSHIP REGISTRATION
+                            </span>
+                            <span class="text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
+                                ${currentStep === 1 ? 'Step 1 of 2' : 'Step 2 of 2'}
+                            </span>
+                            <span class="text-[11px] font-mono font-black text-blue-900 bg-blue-100/80 border border-blue-300 px-2.5 py-0.5 rounded-full">
+                                Code: ${activeCatCode}
+                            </span>
+                        </div>
+                        <h2 class="text-xl sm:text-2xl font-black text-slate-950 uppercase tracking-tight">${tournTitle}</h2>
+                        <p class="text-xs text-slate-500 font-medium mt-0.5">Streamlined competitor intake, official Kukkiwon verification, category matching &amp; accreditation credentialing.</p>
+                    </div>
+
+                    <!-- 2-STEP STEPPER WIDGET -->
+                    <div class="mb-6 p-3 sm:p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-3 cursor-pointer select-none" id="stepper-tab-1">
+                                <div class="w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${currentStep === 1 ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30' : 'bg-emerald-600 text-white'}">
+                                    ${currentStep > 1 ? '<i class="fa-solid fa-check"></i>' : '1'}
+                                </div>
+                                <div class="text-left hidden sm:block">
+                                    <div class="text-xs font-black ${currentStep === 1 ? 'text-blue-900' : 'text-slate-900'} uppercase">Competitor Details &amp; Category</div>
+                                    <div class="text-[10px] text-slate-500 font-medium">Personal, Academy, Category Code &amp; Proofs</div>
+                                </div>
+                            </div>
+
+                            <div class="flex-1 h-0.5 ${currentStep === 2 ? 'bg-blue-600' : 'bg-slate-200'}"></div>
+
+                            <div class="flex items-center gap-3 cursor-pointer select-none" id="stepper-tab-2">
+                                <div class="w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${currentStep === 2 ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30' : 'bg-slate-200 text-slate-600'}">
+                                    2
+                                </div>
+                                <div class="text-left hidden sm:block">
+                                    <div class="text-xs font-black ${currentStep === 2 ? 'text-blue-900' : 'text-slate-500'} uppercase">Review &amp; Official Fee Payment</div>
+                                    <div class="text-[10px] text-slate-500 font-medium">Accreditation fee &amp; pass confirmation</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================================== -->
+                    <!-- STEP 1: COMPETITOR DETAILS, CATEGORY & DOCUMENTS           -->
+                    <!-- ========================================================== -->
+                    <div id="step-1-container" class="${currentStep === 1 ? 'space-y-6 text-left' : 'hidden'}">
                         
-                        <!-- Close Button -->
-                        <button class="btn-modal-close-round" id="btn-close-reg-modal">&times;</button>
-
-                        <!-- Header & Title -->
-                        <div class="mb-5 text-left border-b border-slate-100 pb-4">
-                            <div class="flex items-center gap-2 mb-1.5 flex-wrap">
-                                <span class="badge-modal-top">
-                                    <i class="fa-solid fa-trophy me-1"></i> OFFICIAL CHAMPIONSHIP REGISTRATION
-                                </span>
-                                <span class="text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
-                                    ${currentStep === 1 ? 'Step 1 of 2' : 'Step 2 of 2'}
-                                </span>
+                        <!-- SECTION 1: COMPETITOR IDENTIFICATION & KUKKIWON ID -->
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                                <h3 class="text-sm font-black text-slate-950 uppercase flex items-center gap-2">
+                                    <i class="fa-solid fa-user-ninja text-blue-600"></i>
+                                    <span>1. Competitor Identification &amp; Personal Details</span>
+                                </h3>
+                                <span class="text-[10px] font-bold text-slate-400">Section 1 of 4</span>
                             </div>
-                            <h2 class="text-xl sm:text-2xl font-black text-slate-950 uppercase tracking-tight">${tournTitle}</h2>
-                            <p class="text-xs text-slate-500 font-medium mt-0.5">Streamlined competitor intake, official Kukkiwon verification, category matching &amp; accreditation credentialing.</p>
-                        </div>
 
-                        <!-- 2-STEP STEPPER WIDGET -->
-                        <div class="mb-6 p-3 sm:p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                            <div class="flex items-center justify-between gap-3">
-                                <!-- Step 1 Item -->
-                                <div class="flex items-center gap-3 cursor-pointer select-none" id="stepper-tab-1">
-                                    <div class="w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${currentStep === 1 ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30' : 'bg-emerald-600 text-white'}">
-                                        ${currentStep > 1 ? '<i class="fa-solid fa-check"></i>' : '1'}
-                                    </div>
-                                    <div class="text-left hidden sm:block">
-                                        <div class="text-xs font-black ${currentStep === 1 ? 'text-blue-900' : 'text-slate-900'} uppercase">Competitor Details &amp; Documents</div>
-                                        <div class="text-[10px] text-slate-500 font-medium">Personal, Academy, Category &amp; Proofs</div>
-                                    </div>
-                                </div>
-
-                                <!-- Connecting Line -->
-                                <div class="flex-1 h-0.5 ${currentStep === 2 ? 'bg-blue-600' : 'bg-slate-200'}"></div>
-
-                                <!-- Step 2 Item -->
-                                <div class="flex items-center gap-3 cursor-pointer select-none" id="stepper-tab-2">
-                                    <div class="w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${currentStep === 2 ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30' : 'bg-slate-200 text-slate-600'}">
-                                        2
-                                    </div>
-                                    <div class="text-left hidden sm:block">
-                                        <div class="text-xs font-black ${currentStep === 2 ? 'text-blue-900' : 'text-slate-500'} uppercase">Review &amp; Official Fee Payment</div>
-                                        <div class="text-[10px] text-slate-500 font-medium">Accreditation fee &amp; pass confirmation</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- ========================================================== -->
-                        <!-- STEP 1: COMPETITOR DETAILS, CATEGORY & DOCUMENTS           -->
-                        <!-- ========================================================== -->
-                        <div id="step-1-container" class="${currentStep === 1 ? 'space-y-6 text-left' : 'hidden'}">
-                            
-                            <!-- SECTION 1: COMPETITOR IDENTIFICATION & KUKKIWON ID -->
-                            <div class="space-y-4">
-                                <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                                    <h3 class="text-sm font-black text-slate-950 uppercase flex items-center gap-2">
-                                        <i class="fa-solid fa-user-ninja text-blue-600"></i>
-                                        <span>1. Competitor Identification &amp; Personal Details</span>
-                                    </h3>
-                                    <span class="text-[10px] font-bold text-slate-400">Section 1 of 4</span>
-                                </div>
-
-                                <!-- KUKKIWON INDIA INDIVIDUAL MEMBERSHIP WIDGET (STRICTLY MANDATORY) -->
-                                <div class="rounded-2xl border-2 border-blue-500 bg-gradient-to-r from-blue-50/90 via-white to-sky-50/90 p-4 sm:p-5 space-y-3 shadow-xs">
-                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                        <div>
-                                            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-black bg-blue-600 text-white uppercase tracking-wider">
-                                                <i class="fa-solid fa-shield-halved"></i>
-                                                <span>Strictly Mandatory Requirement *</span>
-                                            </div>
-                                            <h4 class="text-sm sm:text-base font-black text-slate-950 mt-1">
-                                                Official Kukkiwon ID Verification <span class="text-rose-600">*</span>
-                                            </h4>
+                            <!-- KUKKIWON INDIA INDIVIDUAL MEMBERSHIP WIDGET -->
+                            <div class="rounded-2xl border-2 border-blue-500 bg-gradient-to-r from-blue-50/90 via-white to-sky-50/90 p-4 sm:p-5 space-y-3 shadow-xs">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <div>
+                                        <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-black bg-blue-600 text-white uppercase tracking-wider">
+                                            <i class="fa-solid fa-shield-halved"></i>
+                                            <span>Strictly Mandatory Requirement *</span>
                                         </div>
-                                        <span class="text-[10px] font-black px-2.5 py-1 rounded-full uppercase shrink-0 self-start sm:self-center ${regData.isKkwVerified ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-200'}" id="kkw-badge-status">
-                                            ${regData.isKkwVerified ? 'VERIFIED ✓' : 'MANDATORY *'}
-                                        </span>
+                                        <h4 class="text-sm sm:text-base font-black text-slate-950 mt-1">
+                                            Official Kukkiwon ID Verification <span class="text-rose-600">*</span>
+                                        </h4>
                                     </div>
-                                    <p class="text-xs text-slate-600 leading-relaxed">
-                                        All competitors must hold an official Kukkiwon Dan/Poom ID or Kukkiwon India Individual Membership Number to participate. Enter your number below and click <strong>Verify &amp; Auto-Fill</strong>.
-                                    </p>
-                                    <div class="flex items-center gap-2">
-                                        <input type="text" class="clean-input flex-1 font-mono font-black text-slate-900 bg-white border-blue-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 text-sm py-2 px-3 rounded-xl" id="wiz-kukkiwon-id" placeholder="1234567890" value="${regData.kukkiwonId}" required>
-                                        <button type="button" class="clean-input bg-blue-600 hover:bg-blue-700 text-white font-black text-xs py-2 px-4 rounded-xl cursor-pointer flex items-center justify-center gap-1.5 shrink-0 transition shadow-xs" id="btn-wiz-verify-kkw">
-                                            <i class="fa-regular fa-circle-check"></i>
-                                            <span>Verify &amp; Auto-Fill</span>
+                                    <span class="text-[10px] font-black px-2.5 py-1 rounded-full uppercase shrink-0 self-start sm:self-center ${regData.isKkwVerified ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-200'}" id="kkw-badge-status">
+                                        ${regData.isKkwVerified ? 'VERIFIED ✓' : 'MANDATORY *'}
+                                    </span>
+                                </div>
+                                <p class="text-xs text-slate-600 leading-relaxed">
+                                    All competitors must hold an official Kukkiwon Dan/Poom ID or Kukkiwon India Individual Membership Number to participate. Enter your number below and click <strong>Verify &amp; Auto-Fill</strong>.
+                                </p>
+                                <div class="flex items-center gap-2">
+                                    <input type="text" class="clean-input flex-1 font-mono font-black text-slate-900 bg-white border-blue-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 text-sm py-2 px-3 rounded-xl" id="wiz-kukkiwon-id" placeholder="1234567890" value="${regData.kukkiwonId}" required>
+                                    <button type="button" class="clean-input bg-blue-600 hover:bg-blue-700 text-white font-black text-xs py-2 px-4 rounded-xl cursor-pointer flex items-center justify-center gap-1.5 shrink-0 transition shadow-xs" id="btn-wiz-verify-kkw">
+                                        <i class="fa-regular fa-circle-check"></i>
+                                        <span>Verify &amp; Auto-Fill</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Photo Upload Header Block -->
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                                <div class="w-20 h-24 rounded-2xl bg-white border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs relative group" id="wiz-photo-preview-box">
+                                    ${regData.photo ? `<img src="${regData.photo}" class="w-full h-full object-cover">` : `<div class="text-center p-2 text-slate-400"><i class="fa-solid fa-camera text-xl mb-1 block"></i><span class="text-[9px] font-bold block">PHOTO</span></div>`}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <label class="clean-input-label font-bold text-slate-900">Competitor Passport Photograph *</label>
+                                    <input type="file" id="wiz-photo-input" class="hidden" accept="image/*">
+                                    <button type="button" class="clean-input text-xs py-1.5 px-3 hover:bg-slate-100 font-bold text-slate-700 border border-slate-300 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-2xs" id="btn-wiz-pick-photo">
+                                        <i class="fa-solid fa-upload text-blue-600"></i>
+                                        <span>${regData.photo ? 'Change Passport Photo' : 'Upload Passport Photo'}</span>
+                                    </button>
+                                    <p class="text-[10.5px] text-slate-500 mt-1">Official passport-style portrait on white/neutral background for tournament accreditation ID pass.</p>
+                                </div>
+                            </div>
+
+                            <!-- Identity Fields Grid -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                <div class="sm:col-span-2">
+                                    <label class="clean-input-label">Competitor Full Name *</label>
+                                    <input type="text" class="clean-input font-bold" id="wiz-name" placeholder="Enter athlete full name as per official ID" value="${regData.name}" required>
+                                </div>
+
+                                <div>
+                                    <label class="clean-input-label flex items-center justify-between">
+                                        <span>Date of Birth *</span>
+                                        <span class="text-[10.5px] font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.2 rounded" id="wiz-age-badge">
+                                            Age: ${calculatedAge} yrs
+                                        </span>
+                                    </label>
+                                    <div class="grid grid-cols-3 gap-1.5">
+                                        <select class="clean-input font-mono text-xs px-2" id="wiz-dob-day" required>
+                                            ${Array.from({length: 31}, (_, i) => {
+                                                const d = (i + 1).toString().padStart(2, '0');
+                                                return `<option value="${d}" ${d === regData.dobDay ? 'selected' : ''}>${d}</option>`;
+                                            }).join('')}
+                                        </select>
+                                        <select class="clean-input text-xs px-1.5" id="wiz-dob-month" required>
+                                            <option value="01" ${regData.dobMonth === '01' ? 'selected' : ''}>Jan</option>
+                                            <option value="02" ${regData.dobMonth === '02' ? 'selected' : ''}>Feb</option>
+                                            <option value="03" ${regData.dobMonth === '03' ? 'selected' : ''}>Mar</option>
+                                            <option value="04" ${regData.dobMonth === '04' ? 'selected' : ''}>Apr</option>
+                                            <option value="05" ${regData.dobMonth === '05' ? 'selected' : ''}>May</option>
+                                            <option value="06" ${regData.dobMonth === '06' ? 'selected' : ''}>Jun</option>
+                                            <option value="07" ${regData.dobMonth === '07' ? 'selected' : ''}>Jul</option>
+                                            <option value="08" ${regData.dobMonth === '08' ? 'selected' : ''}>Aug</option>
+                                            <option value="09" ${regData.dobMonth === '09' ? 'selected' : ''}>Sep</option>
+                                            <option value="10" ${regData.dobMonth === '10' ? 'selected' : ''}>Oct</option>
+                                            <option value="11" ${regData.dobMonth === '11' ? 'selected' : ''}>Nov</option>
+                                            <option value="12" ${regData.dobMonth === '12' ? 'selected' : ''}>Dec</option>
+                                        </select>
+                                        <select class="clean-input font-mono text-xs px-2" id="wiz-dob-year" required>
+                                            ${Array.from({length: 60}, (_, i) => {
+                                                const yr = 2024 - i;
+                                                return `<option value="${yr}" ${yr === parseInt(regData.dobYear) ? 'selected' : ''}>${yr}</option>`;
+                                            }).join('')}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="clean-input-label">Gender *</label>
+                                    <select class="clean-input font-bold" id="wiz-gender" required>
+                                        <option value="Male" ${regData.gender === 'Male' ? 'selected' : ''}>Male</option>
+                                        <option value="Female" ${regData.gender === 'Female' ? 'selected' : ''}>Female</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="clean-input-label">Belt Rank / Certification *</label>
+                                    <select class="clean-input font-bold" id="wiz-belt" required>
+                                        ${TKD_BELTS.map(b => `<option value="${b.id}" ${b.id === regData.beltId ? 'selected' : ''}>${b.name} (${b.level})</option>`).join('')}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="clean-input-label">Parent / Guardian Name</label>
+                                    <input type="text" class="clean-input" id="wiz-parent" placeholder="Father / Mother / Guardian full name" value="${regData.parentName}">
+                                </div>
+
+                                <div>
+                                    <label class="clean-input-label">Contact Mobile Number (WhatsApp) *</label>
+                                    <div class="relative">
+                                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500 font-mono">+91</span>
+                                        <input type="tel" maxlength="10" class="clean-input ps-11 font-mono font-bold" id="wiz-phone" placeholder="9876543210" value="${regData.phone}" required>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="clean-input-label">Email Address</label>
+                                    <input type="email" class="clean-input" id="wiz-email" placeholder="athlete@domain.com" value="${regData.email}">
+                                </div>
+
+                                <div class="sm:col-span-2">
+                                    <label class="clean-input-label">Communication Address / City *</label>
+                                    <input type="text" class="clean-input" id="wiz-address" placeholder="Residential City, District, State" value="${regData.address}" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SECTION 2: ACADEMY / DOJANG AFFILIATION -->
+                        <div class="space-y-4 pt-4 border-t border-slate-200">
+                            <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                                <h3 class="text-sm font-black text-slate-950 uppercase flex items-center gap-2">
+                                    <i class="fa-solid fa-school text-blue-600"></i>
+                                    <span>2. Academy / Dojang Affiliation</span>
+                                </h3>
+                                <span class="text-[10px] font-bold text-slate-400">Section 2 of 4</span>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                <div>
+                                    <label class="clean-input-label">Dojang / Club Name *</label>
+                                    <input type="text" class="clean-input font-bold" id="wiz-academy" placeholder="e.g. Dragon Fist TKD Academy" value="${regData.academy}" required>
+                                </div>
+                                <div>
+                                    <label class="clean-input-label">Coach / Master Name</label>
+                                    <input type="text" class="clean-input" id="wiz-coach" placeholder="Instructor / Master name" value="${regData.coachName}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SECTION 3: COMPETITION DISCIPLINE & OFFICIAL CATEGORY -->
+                        <div class="space-y-4 pt-4 border-t border-slate-200">
+                            <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                                <h3 class="text-sm font-black text-slate-950 uppercase flex items-center gap-2">
+                                    <i class="fa-solid fa-medal text-blue-600"></i>
+                                    <span>3. Competition Discipline &amp; Official Category</span>
+                                </h3>
+                                <span class="text-[10px] font-bold text-slate-400">Section 3 of 4</span>
+                            </div>
+
+                            <!-- 5 Disciplines Cards Grid -->
+                            <div>
+                                <label class="clean-input-label font-bold text-slate-900 mb-2 block">Choose Tournament Discipline *</label>
+                                <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                    <div class="wiz-disc-card p-3 rounded-2xl border-2 cursor-pointer transition-all text-center select-none ${regData.discipline === 'Kyorugi' ? 'border-blue-600 bg-blue-50 text-blue-950 shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}" data-disc="Kyorugi">
+                                        <i class="fa-solid fa-hand-fist text-xl mb-1 text-blue-600"></i>
+                                        <div class="text-xs font-black uppercase">Kyorugi</div>
+                                        <div class="text-[9.5px] text-slate-500 font-medium">Full Sparring</div>
+                                    </div>
+                                    <div class="wiz-disc-card p-3 rounded-2xl border-2 cursor-pointer transition-all text-center select-none ${regData.discipline === 'Poomsae' ? 'border-blue-600 bg-blue-50 text-blue-950 shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}" data-disc="Poomsae">
+                                        <i class="fa-solid fa-person-running text-xl mb-1 text-indigo-600"></i>
+                                        <div class="text-xs font-black uppercase">Poomsae</div>
+                                        <div class="text-[9.5px] text-slate-500 font-medium">Forms &amp; Pairs</div>
+                                    </div>
+                                    <div class="wiz-disc-card p-3 rounded-2xl border-2 cursor-pointer transition-all text-center select-none ${regData.discipline === 'E-Breaking & Kyukpa' ? 'border-blue-600 bg-blue-50 text-blue-950 shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}" data-disc="E-Breaking & Kyukpa">
+                                        <i class="fa-solid fa-burst text-xl mb-1 text-rose-600"></i>
+                                        <div class="text-xs font-black uppercase">E-Breaking</div>
+                                        <div class="text-[9.5px] text-slate-500 font-medium">Pad Breaking</div>
+                                    </div>
+                                    <div class="wiz-disc-card p-3 rounded-2xl border-2 cursor-pointer transition-all text-center select-none ${regData.discipline === 'Speed Kicking' ? 'border-blue-600 bg-blue-50 text-blue-950 shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}" data-disc="Speed Kicking">
+                                        <i class="fa-solid fa-bolt text-xl mb-1 text-amber-500"></i>
+                                        <div class="text-xs font-black uppercase">Speed Kick</div>
+                                        <div class="text-[9.5px] text-slate-500 font-medium">Strike Speed</div>
+                                    </div>
+                                    <div class="wiz-disc-card p-3 rounded-2xl border-2 cursor-pointer transition-all text-center select-none ${regData.discipline === 'Virtual Taekwondo' ? 'border-blue-600 bg-blue-50 text-blue-950 shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}" data-disc="Virtual Taekwondo">
+                                        <i class="fa-solid fa-vr-cardboard text-xl mb-1 text-purple-600"></i>
+                                        <div class="text-xs font-black uppercase">Virtual TKD</div>
+                                        <div class="text-[9.5px] text-slate-500 font-medium">VR Esports</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 1. KYORUGI SPECIFIC CONTROLS -->
+                            <div id="wiz-kyorugi-section" class="${regData.discipline === 'Kyorugi' ? 'space-y-4' : 'hidden'}">
+                                <!-- Tier Toggle (Freshers KY-FR vs Regular KY-REG) -->
+                                <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
+                                    <div>
+                                        <span class="text-xs font-black text-slate-900 uppercase block">Kyorugi Experience Tier</span>
+                                        <span class="text-[10.5px] text-slate-500 font-medium">Freshers (KY-FR-... Color Belt/Beginner) vs Regular (KY-REG-... Black Belt/Advanced)</span>
+                                    </div>
+                                    <div class="flex items-center gap-1.5 p-1 rounded-xl bg-white border border-slate-200">
+                                        <button type="button" class="px-3 py-1 rounded-lg text-xs font-black uppercase transition-all ${regData.tier === 'FRESHERS' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'text-slate-600 hover:text-slate-900'}" id="btn-tier-freshers">
+                                            Freshers (KY-FR)
+                                        </button>
+                                        <button type="button" class="px-3 py-1 rounded-lg text-xs font-black uppercase transition-all ${regData.tier === 'REGULAR' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}" id="btn-tier-regular">
+                                            Regular (KY-REG)
                                         </button>
                                     </div>
-                                    <div class="text-[11px] text-slate-600 leading-normal pt-1 border-t border-blue-100/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                                        <span>Mandatory official Kukkiwon Dan/Poom ID. Strict format: <strong>1234567890</strong>.</span>
-                                        <span>Do not have a Kukkiwon ID? <a href="https://kukkiwon-india.org/services/register-individual?next=register-dojang" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 font-bold underline inline-flex items-center gap-1">Register on Kukkiwon India <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i></a></span>
-                                    </div>
                                 </div>
 
-                                <!-- Athlete Photo Upload (Mandatory) -->
-                                <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                                    <div class="flex items-center justify-between mb-2">
-                                        <label class="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
-                                            <i class="fa-solid fa-camera text-blue-600"></i>
-                                            <span>Athlete Passport Photo *</span>
-                                        </label>
-                                        <span class="text-[10px] font-black ${regData.photo ? 'text-emerald-600' : 'text-rose-600'}" id="wiz-photo-badge">
-                                            ${regData.photo ? 'Uploaded ✓' : 'REQUIRED *'}
-                                        </span>
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-14 h-14 rounded-2xl bg-white border border-slate-300 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs" id="wiz-photo-preview-box">
-                                            ${regData.photo 
-                                                ? `<img src="${regData.photo}" class="w-full h-full object-cover">` 
-                                                : `<i class="fa-solid fa-camera text-slate-400 text-lg"></i>`}
-                                        </div>
-                                        <div class="flex-1">
-                                            <input type="file" id="wiz-photo-input" class="hidden" accept="image/*">
-                                            <button type="button" class="clean-input text-xs py-2 px-4 hover:bg-slate-100 font-bold text-slate-800 border border-slate-300 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-2xs" id="btn-wiz-pick-photo">
-                                                <i class="fa-solid fa-upload text-blue-600"></i>
-                                                <span>${regData.photo ? 'Change Photo' : 'Upload Passport Photo'}</span>
-                                            </button>
-                                            <p class="text-[10.5px] text-slate-500 mt-1">Official passport-style portrait on white/neutral background for tournament accreditation ID pass.</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Identity Fields Grid -->
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                                    <div class="sm:col-span-2">
-                                        <label class="clean-input-label">Competitor Full Name *</label>
-                                        <input type="text" class="clean-input" id="wiz-name" placeholder="Enter athlete full name as per official ID" value="${regData.name}" required>
-                                    </div>
-
-                                    <!-- Date of Birth with live Age Badge -->
-                                    <div>
-                                        <label class="clean-input-label flex items-center justify-between">
-                                            <span>Date of Birth *</span>
-                                            <span class="text-[10.5px] font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.2 rounded" id="wiz-age-badge">
-                                                Age: ${calculatedAge} yrs
-                                            </span>
-                                        </label>
-                                        <div class="grid grid-cols-3 gap-1.5">
-                                            <select class="clean-input font-mono text-xs px-2" id="wiz-dob-day" required>
-                                                ${Array.from({length: 31}, (_, i) => {
-                                                    const d = (i + 1).toString().padStart(2, '0');
-                                                    return `<option value="${d}" ${d === regData.dobDay ? 'selected' : ''}>${d}</option>`;
-                                                }).join('')}
-                                            </select>
-                                            <select class="clean-input text-xs px-1.5" id="wiz-dob-month" required>
-                                                <option value="01" ${regData.dobMonth === '01' ? 'selected' : ''}>Jan</option>
-                                                <option value="02" ${regData.dobMonth === '02' ? 'selected' : ''}>Feb</option>
-                                                <option value="03" ${regData.dobMonth === '03' ? 'selected' : ''}>Mar</option>
-                                                <option value="04" ${regData.dobMonth === '04' ? 'selected' : ''}>Apr</option>
-                                                <option value="05" ${regData.dobMonth === '05' ? 'selected' : ''}>May</option>
-                                                <option value="06" ${regData.dobMonth === '06' ? 'selected' : ''}>Jun</option>
-                                                <option value="07" ${regData.dobMonth === '07' ? 'selected' : ''}>Jul</option>
-                                                <option value="08" ${regData.dobMonth === '08' ? 'selected' : ''}>Aug</option>
-                                                <option value="09" ${regData.dobMonth === '09' ? 'selected' : ''}>Sep</option>
-                                                <option value="10" ${regData.dobMonth === '10' ? 'selected' : ''}>Oct</option>
-                                                <option value="11" ${regData.dobMonth === '11' ? 'selected' : ''}>Nov</option>
-                                                <option value="12" ${regData.dobMonth === '12' ? 'selected' : ''}>Dec</option>
-                                            </select>
-                                            <select class="clean-input font-mono text-xs px-2" id="wiz-dob-year" required>
-                                                ${Array.from({length: 60}, (_, i) => {
-                                                    const yr = 2024 - i;
-                                                    return `<option value="${yr}" ${yr === parseInt(regData.dobYear) ? 'selected' : ''}>${yr}</option>`;
-                                                }).join('')}
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <!-- Gender -->
-                                    <div>
-                                        <label class="clean-input-label">Gender *</label>
-                                        <select class="clean-input" id="wiz-gender" required>
-                                            <option value="Male" ${regData.gender === 'Male' ? 'selected' : ''}>Male</option>
-                                            <option value="Female" ${regData.gender === 'Female' ? 'selected' : ''}>Female</option>
-                                        </select>
-                                    </div>
-
-                                    <!-- Belt Rank -->
-                                    <div>
-                                        <label class="clean-input-label">Belt / Dan Rank *</label>
-                                        <select class="clean-input" id="wiz-belt" required>
-                                            ${TKD_BELTS.map(b => `<option value="${b.id}" ${b.id === regData.beltId ? 'selected' : ''}>${b.name}</option>`).join('')}
-                                        </select>
-                                    </div>
-
-                                    <!-- Mobile Phone -->
-                                    <div>
-                                        <label class="clean-input-label">Mobile Number * (10 digits)</label>
-                                        <div class="clean-phone-group">
-                                            <span class="clean-country-select flex items-center justify-center font-bold text-xs bg-slate-100">+91</span>
-                                            <input type="tel" class="clean-input clean-phone-input" id="wiz-phone" placeholder="9876543210" maxlength="10" inputmode="numeric" value="${regData.phone}" required>
-                                        </div>
-                                    </div>
-
-                                    <!-- Email -->
-                                    <div>
-                                        <label class="clean-input-label">Email Address (Optional)</label>
-                                        <input type="email" class="clean-input" id="wiz-email" placeholder="athlete@example.com" value="${regData.email}">
-                                    </div>
-
-                                    <!-- Address / City -->
-                                    <div>
-                                        <label class="clean-input-label">City &amp; State *</label>
-                                        <input type="text" class="clean-input" id="wiz-address" placeholder="e.g. Bengaluru, Karnataka" value="${regData.address}" required>
-                                    </div>
-
-                                    <!-- Parent / Guardian -->
-                                    <div class="sm:col-span-2">
-                                        <label class="clean-input-label">Parent / Guardian Name (For Minors)</label>
-                                        <input type="text" class="clean-input" id="wiz-parent" placeholder="Parent or legal guardian name" value="${regData.parentName}">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- SECTION 2: ACADEMY AFFILIATION -->
-                            <div class="space-y-4 pt-4 border-t border-slate-200">
-                                <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                                    <h3 class="text-sm font-black text-slate-950 uppercase flex items-center gap-2">
-                                        <i class="fa-solid fa-building-columns text-blue-600"></i>
-                                        <span>2. Academy / Dojang Affiliation</span>
-                                    </h3>
-                                    <span class="text-[10px] font-bold text-slate-400">Section 2 of 4</span>
-                                </div>
-
+                                <!-- Age Division Selector -->
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                                     <div>
-                                        <label class="clean-input-label">Academy / Club / School Name *</label>
-                                        <input type="text" class="clean-input" id="wiz-academy" placeholder="e.g. Dragon Fist TKD or Individual Unattached" value="${regData.academy}" required>
+                                        <label class="clean-input-label">Age Division *</label>
+                                        <select class="clean-input font-black text-slate-900" id="wiz-division">
+                                            <option value="children" ${regData.category === 'children' ? 'selected' : ''}>Children Division (Under 8 Years / Ages 4–7)</option>
+                                            <option value="sub-junior" ${regData.category === 'sub-junior' ? 'selected' : ''}>Sub-Junior Division (Ages 8–11)</option>
+                                            <option value="cadet" ${regData.category === 'cadet' ? 'selected' : ''}>Cadet Division (Ages 12–14)</option>
+                                            <option value="junior" ${regData.category === 'junior' ? 'selected' : ''}>Junior Division (Ages 15–17)</option>
+                                            <option value="senior" ${regData.category === 'senior' ? 'selected' : ''}>Senior Division (Ages 17+)</option>
+                                        </select>
                                     </div>
                                     <div>
-                                        <label class="clean-input-label">Coach / Master Name (Optional)</label>
-                                        <input type="text" class="clean-input" id="wiz-coach" placeholder="Instructor / Master name" value="${regData.coachName}">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- SECTION 3: COMPETITION DISCIPLINE & OFFICIAL CATEGORY -->
-                            <div class="space-y-4 pt-4 border-t border-slate-200">
-                                <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                                    <h3 class="text-sm font-black text-slate-950 uppercase flex items-center gap-2">
-                                        <i class="fa-solid fa-medal text-blue-600"></i>
-                                        <span>3. Competition Discipline &amp; Official Category</span>
-                                    </h3>
-                                    <span class="text-[10px] font-bold text-slate-400">Section 3 of 4</span>
-                                </div>
-
-                                <!-- Discipline Selector Cards -->
-                                <div>
-                                    <label class="clean-input-label font-bold text-slate-900 mb-2 block">Choose Discipline *</label>
-                                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                                        <div class="wiz-disc-card p-3 rounded-2xl border-2 cursor-pointer transition-all text-center select-none ${regData.discipline === 'Kyorugi' ? 'border-blue-600 bg-blue-50 text-blue-950 shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}" data-disc="Kyorugi">
-                                            <i class="fa-solid fa-hand-fist text-xl mb-1 text-blue-600"></i>
-                                            <div class="text-xs font-black uppercase">Kyorugi</div>
-                                            <div class="text-[10px] text-slate-500 font-medium">Olympic Sparring</div>
-                                        </div>
-                                        <div class="wiz-disc-card p-3 rounded-2xl border-2 cursor-pointer transition-all text-center select-none ${regData.discipline === 'Poomsae' ? 'border-blue-600 bg-blue-50 text-blue-950 shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}" data-disc="Poomsae">
-                                            <i class="fa-solid fa-person-running text-xl mb-1 text-indigo-600"></i>
-                                            <div class="text-xs font-black uppercase">Poomsae</div>
-                                            <div class="text-[10px] text-slate-500 font-medium">Official Forms</div>
-                                        </div>
-                                        <div class="wiz-disc-card p-3 rounded-2xl border-2 cursor-pointer transition-all text-center select-none ${regData.discipline === 'Virtual Taekwondo' ? 'border-blue-600 bg-blue-50 text-blue-950 shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}" data-disc="Virtual Taekwondo">
-                                            <i class="fa-solid fa-vr-cardboard text-xl mb-1 text-purple-600"></i>
-                                            <div class="text-xs font-black uppercase">Virtual TKD</div>
-                                            <div class="text-[10px] text-slate-500 font-medium">VR Esports Motion</div>
-                                        </div>
-                                        <div class="wiz-disc-card p-3 rounded-2xl border-2 cursor-pointer transition-all text-center select-none ${regData.discipline === 'Speed Kicking' ? 'border-blue-600 bg-blue-50 text-blue-950 shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}" data-disc="Speed Kicking">
-                                            <i class="fa-solid fa-bolt text-xl mb-1 text-amber-500"></i>
-                                            <div class="text-xs font-black uppercase">Speed Kicking</div>
-                                            <div class="text-[10px] text-slate-500 font-medium">Electronic Impact</div>
-                                        </div>
+                                        <label class="clean-input-label">Estimated Scale Weight (kg)</label>
+                                        <input type="number" step="0.1" class="clean-input font-mono font-bold" id="wiz-scale-weight" placeholder="e.g. 54.0" value="${regData.scaleWeight}">
                                     </div>
                                 </div>
 
-                                <!-- KYORUGI SPECIFIC CONTROLS -->
-                                <div id="wiz-kyorugi-section" class="${regData.discipline === 'Kyorugi' || regData.discipline === 'Speed Kicking' ? 'space-y-4' : 'hidden'}">
-                                    
-                                    <!-- Tier Toggle (Freshers vs Regular) -->
-                                    <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
-                                        <div>
-                                            <span class="text-xs font-black text-slate-900 uppercase block">Kyorugi Experience Tier</span>
-                                            <span class="text-[10.5px] text-slate-500 font-medium">Freshers (Beginner / Local) vs Regular (State / Elite)</span>
-                                        </div>
-                                        <div class="flex items-center gap-1.5 p-1 rounded-xl bg-white border border-slate-200">
-                                            <button type="button" class="px-3 py-1 rounded-lg text-xs font-black uppercase transition-all ${regData.tier === 'FRESHERS' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'text-slate-600 hover:text-slate-900'}" id="btn-tier-freshers">
-                                                Freshers
-                                            </button>
-                                            <button type="button" class="px-3 py-1 rounded-lg text-xs font-black uppercase transition-all ${regData.tier === 'REGULAR' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}" id="btn-tier-regular">
-                                                Regular
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <!-- Age Division Selector -->
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                                        <div>
-                                            <label class="clean-input-label">Age Division *</label>
-                                            <select class="clean-input font-black text-slate-900" id="wiz-division">
-                                                <option value="children" ${regData.category === 'children' ? 'selected' : ''}>Children (Under 10 yrs)</option>
-                                                <option value="sub-junior" ${regData.category === 'sub-junior' ? 'selected' : ''}>Sub-Junior (Under 12 yrs)</option>
-                                                <option value="cadet" ${regData.category === 'cadet' ? 'selected' : ''}>Cadet (12–14 yrs)</option>
-                                                <option value="junior" ${regData.category === 'junior' ? 'selected' : ''}>Junior (15–17 yrs)</option>
-                                                <option value="senior" ${regData.category === 'senior' ? 'selected' : ''}>Over 17+ (Senior)</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label class="clean-input-label">Estimated Scale Weight (kg)</label>
-                                            <input type="number" step="0.1" class="clean-input font-mono font-bold" id="wiz-scale-weight" placeholder="e.g. 54.0" value="${regData.scaleWeight}">
-                                        </div>
-                                    </div>
-
-                                    <!-- Interactive Weight Category Cards Grid -->
-                                    <div class="space-y-2">
-                                        <div class="flex items-center justify-between">
-                                            <label class="clean-input-label font-bold text-slate-900">
-                                                Select Weight Category (${regData.gender}) *
-                                            </label>
-                                            <span class="text-[11px] font-mono text-blue-600 font-bold" id="wiz-selected-weight-badge">
-                                                Selected: ${regData.weightClass}
-                                            </span>
-                                        </div>
-                                        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2" id="wiz-weight-grid">
-                                            <!-- Dynamically generated weight cards -->
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- POOMSAE SPECIFIC CONTROLS -->
-                                <div id="wiz-poomsae-section" class="${regData.discipline === 'Poomsae' ? 'space-y-3.5' : 'hidden'}">
-                                    <label class="clean-input-label">Designated Poomsae Classification *</label>
-                                    <select class="clean-input font-black text-slate-900" id="wiz-poomsae-select">
-                                        <optgroup label="Individual Poomsae">
-                                            <option value="Junior I: Under 12 [Taekeuk 3~8, Koryo]" ${regData.poomsaeClass.includes('Junior I:') ? 'selected' : ''}>Junior I (Under 12 Years) — Taekeuk 3~8, Koryo</option>
-                                            <option value="Junior II·III: Ages 13-18 [Taekeuk 4~8, Koryo, Keumkang]" ${regData.poomsaeClass.includes('Junior II') ? 'selected' : ''}>Junior II·III (Ages 13 to 18) — Taekeuk 4~8, Koryo, Keumkang</option>
-                                            <option value="Senior I: 18-29 [Taekeuk 8, Koryo, Keumkang, Taebaek, Pyongwon]" ${regData.poomsaeClass.includes('Senior I:') ? 'selected' : ''}>Senior I (Under 29 / 18–29) — Taekeuk 8, Koryo, Keumkang, Taebaek, Pyongwon</option>
-                                            <option value="Senior II: 30-39 [Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae]" ${regData.poomsaeClass.includes('Senior II:') ? 'selected' : ''}>Senior II (Under 39 / 30–39) — Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae</option>
-                                            <option value="Senior III: 40-49 [Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon]" ${regData.poomsaeClass.includes('Senior III:') ? 'selected' : ''}>Senior III (Under 49 / 40–49 Years) — Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon</option>
-                                            <option value="Senior IV: 50-59 [Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon]" ${regData.poomsaeClass.includes('Senior IV:') ? 'selected' : ''}>Senior IV (Under 59 / 50–59 Years) — Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon</option>
-                                            <option value="Master I·II: 60+ [Taebaek, Pyongwon, Sipjin, Jitae, Hansu]" ${regData.poomsaeClass.includes('Master I') ? 'selected' : ''}>Master I·II (60 Years and Over) — Taebaek, Pyongwon, Sipjin, Jitae, Hansu</option>
-                                        </optgroup>
-                                        <optgroup label="Group Poomsae">
-                                            <option value="Group Junior I: Under 12 [Taekeuk 4, 5, 6, 7, 8, Koryo, Keumkang]">Group Junior I: Under 12 — Taekeuk 4~8, Koryo, Keumkang</option>
-                                            <option value="Group Junior II: 13-18 [Taekeuk 6, 7, 8, Koryo, Keumkang, Taebaek, Pyongwon]">Group Junior II: 13–18 — Taekeuk 6~8, Koryo, Keumkang, Taebaek, Pyongwon</option>
-                                            <option value="Group Senior I: 19-29 [Taekeuk 7, 8, Koryo, Keumkang, Taebaek, Pyongwon]">Group Senior I: 19–29 — Taekeuk 7, 8, Koryo, Keumkang, Taebaek, Pyongwon</option>
-                                            <option value="Group Senior II, III: 30+ [Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon]">Group Senior II, III: 30+ — Koryo, Keumkang, Taebaek, Pyongwon, Sipjin, Jitae, Cheonkwon</option>
-                                        </optgroup>
-                                    </select>
-                                </div>
-
-                                <!-- VIRTUAL TKD SPECIFIC CONTROLS -->
-                                <div id="wiz-virtual-section" class="${regData.discipline === 'Virtual Taekwondo' ? 'space-y-3.5' : 'hidden'}">
-                                    <label class="clean-input-label">Virtual Taekwondo Category *</label>
-                                    <select class="clean-input font-black text-slate-900" id="wiz-virtual-select">
-                                        <option value="Individual Freshers (Male/Female)" ${regData.virtualType.includes('Individual Freshers') ? 'selected' : ''}>Male/Female – Individual Freshers</option>
-                                        <option value="Individual Regular (Male/Female)" ${regData.virtualType.includes('Individual Regular') ? 'selected' : ''}>Male/Female – Individual Regular</option>
-                                        <option value="Mix Gender Individual Freshers" ${regData.virtualType.includes('Mix Gender Individual Freshers') ? 'selected' : ''}>Male/Female – Mix Gender Individual Freshers</option>
-                                        <option value="Mix Gender Individual Regular" ${regData.virtualType.includes('Mix Gender Individual Regular') ? 'selected' : ''}>Male/Female – Mix Gender Individual Regular</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <!-- SECTION 4: MANDATORY DOCUMENT UPLOAD -->
-                            <div class="space-y-4 pt-4 border-t border-slate-200">
-                                <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                                    <h3 class="text-sm font-black text-slate-950 uppercase flex items-center gap-2">
-                                        <i class="fa-solid fa-file-shield text-blue-600"></i>
-                                        <span>4. Mandatory Document Upload</span>
-                                    </h3>
-                                    <span class="text-[10px] font-bold text-slate-400">Section 4 of 4</span>
-                                </div>
-
-                                <!-- Government ID / Age Proof -->
-                                <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
+                                <!-- Weight Category Cards Grid -->
+                                <div class="space-y-2">
                                     <div class="flex items-center justify-between">
-                                        <span class="text-xs font-black uppercase text-slate-900">
-                                            Government ID / Age Proof (Aadhaar / Passport / Birth Certificate) *
-                                        </span>
-                                        <span class="text-[10px] font-black ${regData.aadharDoc ? 'text-emerald-700 bg-emerald-100 border border-emerald-300' : 'text-rose-700 bg-rose-100 border border-rose-300'} px-2 py-0.5 rounded-full" id="wiz-doc-badge">
-                                            ${regData.aadharDoc ? 'Uploaded ✓' : 'REQUIRED *'}
+                                        <label class="clean-input-label font-bold text-slate-900">
+                                            Select Weight Category (${regData.gender}) *
+                                        </label>
+                                        <span class="text-[11px] font-mono text-blue-600 font-bold" id="wiz-selected-weight-badge">
+                                            Selected: ${regData.weightClassName || regData.weightClass} [${activeCatCode}]
                                         </span>
                                     </div>
-                                    <p class="text-[11px] text-slate-500 leading-snug">
-                                        Upload Aadhaar Card, Passport, or Municipal Birth Certificate (PNG, JPG, or PDF, max 10MB) for official tournament verification.
-                                    </p>
-                                    <div class="flex items-center gap-3">
-                                        <input type="file" id="wiz-doc-input" class="hidden" accept="image/*,application/pdf">
-                                        <button type="button" class="clean-input text-xs py-2 px-4 hover:bg-slate-100 font-bold text-slate-800 border border-slate-300 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-2xs" id="btn-wiz-pick-doc">
-                                            <i class="fa-solid fa-file-arrow-up text-emerald-600"></i>
-                                            <span>${regData.aadharDoc ? 'Change Document File' : 'Upload Government ID / Birth Cert'}</span>
-                                        </button>
-                                        <span class="text-xs text-slate-600 font-mono font-medium truncate max-w-xs" id="wiz-doc-filename">
-                                            ${regData.aadharDoc ? 'Document attached ✓' : 'No file selected'}
-                                        </span>
+                                    <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2" id="wiz-weight-grid">
+                                        <!-- Dynamically generated weight cards -->
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- STEP 1 ACTION: PROCEED TO PAYMENT -->
-                            <div class="pt-4 border-t border-slate-200 flex justify-end">
-                                <button type="button" class="clean-input bg-blue-600 hover:bg-blue-700 text-white font-black text-sm py-3 px-8 rounded-2xl shadow-md cursor-pointer flex items-center gap-2 transition" id="btn-wiz-proceed-step2">
-                                    <span>Proceed to Step 2: Payment</span>
-                                    <i class="fa-solid fa-arrow-right"></i>
-                                </button>
+                            <!-- 2. POOMSAE SPECIFIC CONTROLS -->
+                            <div id="wiz-poomsae-section" class="${regData.discipline === 'Poomsae' ? 'space-y-3.5' : 'hidden'}">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="clean-input-label">Poomsae Event Type *</label>
+                                        <select class="clean-input font-bold" id="wiz-poomsae-subtype">
+                                            <option value="individual" ${regData.poomsaeSubType === 'individual' ? 'selected' : ''}>Recognised Individual Poomsae</option>
+                                            <option value="pair" ${regData.poomsaeSubType === 'pair' ? 'selected' : ''}>Recognised Mix Pair (1 Male + 1 Female)</option>
+                                            <option value="team" ${regData.poomsaeSubType === 'team' ? 'selected' : ''}>Recognised Team Poomsae (3 Male or 3 Female)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="clean-input-label">Poomsae Tier *</label>
+                                        <select class="clean-input font-bold" id="wiz-poomsae-tier">
+                                            <option value="FRESHERS" ${regData.tier === 'FRESHERS' ? 'selected' : ''}>Freshers Tier (Color Belt / Beginner)</option>
+                                            <option value="REGULAR" ${regData.tier === 'REGULAR' ? 'selected' : ''}>Regular Tier (Black Belt / Experienced)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="clean-input-label">Age Range &amp; Category *</label>
+                                    <select class="clean-input font-bold font-mono text-xs" id="wiz-poomsae-select">
+                                        <!-- Dynamically filled in -->
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- 3. E-BREAKING & KYUKPA SPECIFIC CONTROLS -->
+                            <div id="wiz-breaking-section" class="${regData.discipline === 'E-Breaking & Kyukpa' ? 'space-y-3.5' : 'hidden'}">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="clean-input-label">Breaking Category Tier *</label>
+                                        <select class="clean-input font-bold" id="wiz-breaking-tier">
+                                            <option value="FRESHERS" ${regData.breakingTier === 'FRESHERS' ? 'selected' : ''}>Freshers Tier (4 Electronic Pad Techniques)</option>
+                                            <option value="REGULAR" ${regData.breakingTier === 'REGULAR' ? 'selected' : ''}>Regular Tier (4 Electronic Pad Techniques)</option>
+                                            <option value="TRADITIONAL" ${regData.breakingTier === 'TRADITIONAL' ? 'selected' : ''}>Traditional &amp; High Jump Kyukpa Breaking</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="clean-input-label">Technique / Event *</label>
+                                        <select class="clean-input font-bold font-mono text-xs" id="wiz-breaking-select">
+                                            <!-- Dynamically filled in -->
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 4. SPEED KICKING SPECIFIC CONTROLS -->
+                            <div id="wiz-speed-section" class="${regData.discipline === 'Speed Kicking' ? 'space-y-3.5' : 'hidden'}">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="clean-input-label">Speed Kicking Division *</label>
+                                        <select class="clean-input font-bold" id="wiz-speed-type">
+                                            <option value="Individual" ${regData.speedKickingType === 'Individual' ? 'selected' : ''}>Individual Speed Kicking (Strike Frequency)</option>
+                                            <option value="Team" ${regData.speedKickingType === 'Team' ? 'selected' : ''}>Team Speed Kicking (Relay)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="clean-input-label">Event Selection *</label>
+                                        <select class="clean-input font-bold font-mono text-xs" id="wiz-speed-select">
+                                            <!-- Dynamically filled in -->
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 5. VIRTUAL TAEKWONDO SPECIFIC CONTROLS -->
+                            <div id="wiz-virtual-section" class="${regData.discipline === 'Virtual Taekwondo' ? 'space-y-3.5' : 'hidden'}">
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div>
+                                        <label class="clean-input-label">Competition Format *</label>
+                                        <select class="clean-input font-bold" id="wiz-virtual-mode">
+                                            <option value="Individual" ${regData.virtualMode === 'Individual' ? 'selected' : ''}>Individual (Freshers &amp; Regular)</option>
+                                            <option value="MixGender" ${regData.virtualMode === 'MixGender' ? 'selected' : ''}>Mix Gender Individual</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="clean-input-label">Experience Tier *</label>
+                                        <select class="clean-input font-bold" id="wiz-virtual-tier">
+                                            <option value="FRESHERS" ${regData.virtualTier === 'FRESHERS' ? 'selected' : ''}>Freshers Tier (VT-FR-...)</option>
+                                            <option value="REGULAR" ${regData.virtualTier === 'REGULAR' ? 'selected' : ''}>Regular Tier (VT-REG-...)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="clean-input-label">Age Division *</label>
+                                        <select class="clean-input font-bold" id="wiz-virtual-division">
+                                            <option value="Children" ${regData.virtualDivision === 'Children' ? 'selected' : ''}>Children (Ages 5–11 / Under 12)</option>
+                                            <option value="Sub Junior" ${regData.virtualDivision === 'Sub Junior' ? 'selected' : ''}>Sub Junior (Ages 10–11)</option>
+                                            <option value="Cadet" ${regData.virtualDivision === 'Cadet' ? 'selected' : ''}>Cadet (Ages 12–14)</option>
+                                            <option value="Junior" ${regData.virtualDivision === 'Junior' ? 'selected' : ''}>Junior (Ages 15–17)</option>
+                                            <option value="Senior" ${regData.virtualDivision === 'Senior' ? 'selected' : ''}>Senior (Ages 17–65)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Live Active Category Code Banner -->
+                            <div class="p-3.5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-2xs">
+                                <div>
+                                    <span class="text-[10px] font-black uppercase text-blue-700 tracking-wider block font-mono">KYORIX OFFICIAL CATEGORY CODE</span>
+                                    <div class="text-sm font-black font-mono text-slate-950 mt-0.5" id="wiz-live-category-code-text">
+                                        ${activeCatCode}
+                                    </div>
+                                </div>
+                                <span class="tkd-badge bg-blue-600 text-white font-mono font-bold text-xs px-2.5 py-1" id="wiz-live-category-code-badge">
+                                    ${activeCatCode}
+                                </span>
                             </div>
                         </div>
 
-                        <!-- ========================================================== -->
-                        <!-- STEP 2: REVIEW SUMMARY & OFFICIAL FEE PAYMENT              -->
-                        <!-- ========================================================== -->
-                        <div id="step-2-container" class="${currentStep === 2 ? 'space-y-6 text-left' : 'hidden'}">
-                            <div class="flex items-center justify-between border-b border-slate-200 pb-3">
-                                <div>
-                                    <h3 class="text-base font-black text-slate-950 uppercase flex items-center gap-2">
-                                        <i class="fa-solid fa-credit-card text-blue-600"></i>
-                                        <span>Step 2 — Review &amp; Official Fee Payment</span>
-                                    </h3>
-                                    <p class="text-xs text-slate-500 font-medium mt-0.5">Verify your registration details and complete the official championship entry fee.</p>
-                                </div>
-                                <button type="button" class="clean-input text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 py-1.5 px-3 rounded-xl cursor-pointer flex items-center gap-1.5" id="btn-wiz-edit-details">
-                                    <i class="fa-solid fa-pen-to-square"></i>
-                                    <span>Edit Details</span>
-                                </button>
+                        <!-- SECTION 4: MANDATORY DOCUMENT UPLOAD -->
+                        <div class="space-y-4 pt-4 border-t border-slate-200">
+                            <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                                <h3 class="text-sm font-black text-slate-950 uppercase flex items-center gap-2">
+                                    <i class="fa-solid fa-file-shield text-blue-600"></i>
+                                    <span>4. Mandatory Document Upload</span>
+                                </h3>
+                                <span class="text-[10px] font-bold text-slate-400">Section 4 of 4</span>
                             </div>
 
-                            <!-- Athlete Review Summary Card -->
-                            <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 space-y-4">
-                                <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                                    <!-- Photo preview -->
-                                    <div class="w-16 h-20 rounded-xl overflow-hidden border border-slate-300 bg-white shrink-0 shadow-2xs">
-                                        ${regData.photo 
-                                            ? `<img src="${regData.photo}" alt="Competitor" class="w-full h-full object-cover">` 
-                                            : `<div class="w-full h-full flex items-center justify-center text-slate-400"><i class="fa-solid fa-user text-2xl"></i></div>`}
-                                    </div>
-
-                                    <div class="space-y-1.5 flex-1 min-w-0">
-                                        <div class="flex items-center gap-2 flex-wrap">
-                                            <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-600 text-white">Athlete Entry</span>
-                                            <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">${divLabel}</span>
-                                            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-800">${beltObj.name}</span>
-                                            ${regData.tier === 'FRESHERS' ? '<span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">Freshers</span>' : '<span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-300">Regular</span>'}
-                                        </div>
-                                        <h4 class="text-lg font-black uppercase text-slate-950 truncate">${regData.name}</h4>
-                                        <div class="text-xs text-slate-600 font-medium">
-                                            <span>DOB: <strong>${regData.dobYear}-${regData.dobMonth}-${regData.dobDay}</strong> (${calculatedAge} yrs)</span>
-                                            <span class="mx-1.5">•</span>
-                                            <span>Gender: <strong>${regData.gender}</strong></span>
-                                            <span class="mx-1.5">•</span>
-                                            <span>Kukkiwon ID: <strong class="font-mono text-blue-700">${regData.kukkiwonId || '1234567890'}</strong></span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-200/80 text-xs">
-                                    <div>
-                                        <span class="text-slate-400 font-bold block uppercase text-[10px]">Academy / Dojang</span>
-                                        <strong class="text-slate-900">${regData.academy || 'Individual Unattached'}</strong>
-                                    </div>
-                                    <div>
-                                        <span class="text-slate-400 font-bold block uppercase text-[10px]">Discipline &amp; Category</span>
-                                        <strong class="text-slate-900">${regData.discipline} • ${regData.discipline === 'Poomsae' ? regData.poomsaeClass.split('[')[0] : formattedWeight}</strong>
-                                    </div>
-                                    <div>
-                                        <span class="text-slate-400 font-bold block uppercase text-[10px]">Championship Entry Fee</span>
-                                        <strong class="text-emerald-600 font-mono text-base font-black">₹1,500</strong>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Official Fee Payment Checkout -->
-                            <div class="rounded-2xl border-2 border-emerald-500 bg-gradient-to-r from-emerald-50/60 via-white to-teal-50/60 p-5 space-y-4">
+                            <!-- Government ID / Age Proof -->
+                            <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
                                 <div class="flex items-center justify-between">
+                                    <span class="text-xs font-black uppercase text-slate-900">
+                                        Government ID / Age Proof (Aadhaar / Passport / Birth Certificate) *
+                                    </span>
+                                    <span class="text-[10px] font-black ${regData.aadharDoc ? 'text-emerald-700 bg-emerald-100 border border-emerald-300' : 'text-rose-700 bg-rose-100 border border-rose-300'} px-2 py-0.5 rounded-full" id="wiz-doc-badge">
+                                        ${regData.aadharDoc ? 'Uploaded ✓' : 'REQUIRED *'}
+                                    </span>
+                                </div>
+                                <p class="text-[11px] text-slate-500 leading-snug">
+                                    Upload Aadhaar Card, Passport, or Municipal Birth Certificate (PNG, JPG, or PDF, max 10MB) for official tournament verification.
+                                </p>
+                                <div class="flex items-center gap-3">
+                                    <input type="file" id="wiz-doc-input" class="hidden" accept="image/*,application/pdf">
+                                    <button type="button" class="clean-input text-xs py-2 px-4 hover:bg-slate-100 font-bold text-slate-800 border border-slate-300 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-2xs" id="btn-wiz-pick-doc">
+                                        <i class="fa-solid fa-file-arrow-up text-emerald-600"></i>
+                                        <span>${regData.aadharDoc ? 'Change Document File' : 'Upload Government ID / Birth Cert'}</span>
+                                    </button>
+                                    <span class="text-xs text-slate-600 font-mono font-medium truncate max-w-xs" id="wiz-doc-filename">
+                                        ${regData.aadharDoc ? 'Document attached ✓' : 'No file selected'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- STEP 1 ACTION: PROCEED TO PAYMENT -->
+                        <div class="pt-4 border-t border-slate-200 flex justify-end">
+                            <button type="button" class="clean-input bg-blue-600 hover:bg-blue-700 text-white font-black text-sm py-3 px-8 rounded-2xl shadow-md cursor-pointer flex items-center gap-2 transition" id="btn-wiz-proceed-step2">
+                                <span>Proceed to Step 2: Payment</span>
+                                <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ========================================================== -->
+                    <!-- STEP 2: REVIEW SUMMARY & OFFICIAL FEE PAYMENT              -->
+                    <!-- ========================================================== -->
+                    <div id="step-2-container" class="${currentStep === 2 ? 'space-y-6 text-left' : 'hidden'}">
+                        <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                            <div>
+                                <h3 class="text-base font-black text-slate-950 uppercase flex items-center gap-2">
+                                    <i class="fa-solid fa-credit-card text-blue-600"></i>
+                                    <span>Step 2 — Review &amp; Official Fee Payment</span>
+                                </h3>
+                                <p class="text-xs text-slate-500 font-medium mt-0.5">Verify your registration details, official category code, and complete the championship entry fee.</p>
+                            </div>
+                            <button type="button" class="clean-input text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 py-1.5 px-3 rounded-xl cursor-pointer flex items-center gap-1.5" id="btn-wiz-edit-details">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                                <span>Edit Details</span>
+                            </button>
+                        </div>
+
+                        <!-- Athlete Review Summary Card -->
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 space-y-4">
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                <div class="w-16 h-20 rounded-xl overflow-hidden border border-slate-300 bg-white shrink-0 shadow-2xs">
+                                    ${regData.photo 
+                                        ? `<img src="${regData.photo}" alt="Competitor" class="w-full h-full object-cover">` 
+                                        : `<div class="w-full h-full flex items-center justify-center text-slate-400"><i class="fa-solid fa-user text-2xl"></i></div>`}
+                                </div>
+
+                                <div class="space-y-1.5 flex-1 min-w-0">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-600 text-white font-mono">${activeCatCode}</span>
+                                        <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded ${regData.tier === 'FRESHERS' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-blue-100 text-blue-800 border border-blue-200'}">${regData.tier} Tier</span>
+                                        <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-slate-200 text-slate-800">${regData.discipline}</span>
+                                    </div>
+                                    <h4 class="text-lg font-black text-slate-900 leading-snug">${regData.name || 'Athlete Name'}</h4>
+                                    <div class="flex items-center gap-2 text-xs text-slate-600 font-medium flex-wrap">
+                                        <span><i class="fa-solid fa-school text-slate-400 me-1"></i>${regData.academy || 'Individual Competitor'}</span>
+                                        <span>•</span>
+                                        <span><i class="fa-solid fa-shield-halved text-blue-600 me-1"></i>${beltObj.name}</span>
+                                        <span>•</span>
+                                        <span>${regData.gender} • ${calculatedAge} yrs</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-200/80 text-xs">
+                                <div class="p-2.5 rounded-xl bg-white border border-slate-200">
+                                    <span class="text-[10px] uppercase font-bold text-slate-500 block">Category Code</span>
+                                    <span class="font-mono font-black text-blue-700 text-xs">${activeCatCode}</span>
+                                </div>
+                                <div class="p-2.5 rounded-xl bg-white border border-slate-200">
+                                    <span class="text-[10px] uppercase font-bold text-slate-500 block">Division / Event</span>
+                                    <span class="font-bold text-slate-800 truncate block">${regData.discipline === 'Kyorugi' ? divLabel : (regData.poomsaeClass || regData.breakingTechnique || regData.speedKickingEvent || regData.virtualType)}</span>
+                                </div>
+                                <div class="p-2.5 rounded-xl bg-white border border-slate-200">
+                                    <span class="text-[10px] uppercase font-bold text-slate-500 block">Weight Range / Bounds</span>
+                                    <span class="font-mono font-bold text-emerald-700">${regData.minWeight ? `${regData.minWeight} - ${regData.maxWeight} kg` : `${regData.scaleWeight} kg`}</span>
+                                </div>
+                                <div class="p-2.5 rounded-xl bg-white border border-slate-200">
+                                    <span class="text-[10px] uppercase font-bold text-slate-500 block">Kukkiwon ID</span>
+                                    <span class="font-mono font-bold ${regData.isKkwVerified ? 'text-emerald-700' : 'text-slate-700'}">${regData.kukkiwonId || 'Pending'}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PAYMENT OPTIONS BOX (Direct UPI & Zero Commission) -->
+                        <div class="rounded-2xl border-2 border-emerald-500/80 bg-emerald-50/40 p-5 space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                                        <i class="fa-solid fa-qrcode"></i>
+                                    </div>
                                     <div>
-                                        <span class="text-xs font-black uppercase text-emerald-800 tracking-wider flex items-center gap-1.5">
-                                            <i class="fa-solid fa-qrcode text-emerald-600"></i>
-                                            <span>Official Tournament Entry Fee Payment</span>
-                                        </span>
-                                        <p class="text-xs text-slate-600 mt-0.5">Pay via UPI QR Code, Google Pay, PhonePe, Paytm, or Net Banking.</p>
-                                    </div>
-                                    <span class="text-xl font-mono font-black text-emerald-600">₹1,500</span>
-                                </div>
-
-                                <div class="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-xl bg-white border border-slate-200">
-                                    <!-- QR Code container -->
-                                    <div class="w-32 h-32 rounded-xl bg-slate-100 border border-slate-300 flex flex-col items-center justify-center p-2 shrink-0">
-                                        <div id="wiz-upi-qrcode" class="w-full h-full flex items-center justify-center">
-                                            <i class="fa-solid fa-qrcode text-6xl text-slate-800"></i>
-                                        </div>
-                                    </div>
-
-                                    <div class="space-y-2 flex-1 text-xs">
-                                        <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
-                                            <div>
-                                                <span class="text-[10px] text-slate-400 uppercase font-bold block">Official UPI VPA:</span>
-                                                <span class="font-mono font-black text-slate-900 text-sm">kyorix@upi</span>
-                                            </div>
-                                            <button type="button" class="clean-input text-[10px] font-bold text-blue-600 hover:text-blue-800 py-1 px-2.5 rounded bg-white border border-slate-200 cursor-pointer" onclick="navigator.clipboard.writeText('kyorix@upi'); showToast('UPI ID copied to clipboard!', 'success');">
-                                                Copy
-                                            </button>
-                                        </div>
-                                        <div>
-                                            <label class="clean-input-label">Transaction Reference / UTR Number (Optional)</label>
-                                            <input type="text" class="clean-input font-mono text-xs" id="wiz-utr" placeholder="e.g. 412984920492" value="${regData.utrNumber}">
-                                        </div>
+                                        <h4 class="text-sm font-black text-slate-900">Official Tournament Entry Fee: ₹1,500</h4>
+                                        <span class="text-[11px] text-emerald-700 font-semibold">Instant Accreditation ID Pass Issued</span>
                                     </div>
                                 </div>
+                                <span class="text-xs font-black px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    Zero Extra Platform Fee
+                                </span>
+                            </div>
 
-                                <div class="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
-                                    <button type="button" class="clean-input text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 py-2.5 px-4 rounded-xl w-full sm:w-auto cursor-pointer" id="btn-wiz-open-gateway">
-                                        <i class="fa-solid fa-credit-card me-1 text-blue-600"></i>
-                                        <span>Pay ₹1,500 via Online Gateway</span>
-                                    </button>
-
-                                    <button type="button" class="clean-input bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm py-3 px-8 rounded-2xl shadow-lg cursor-pointer flex items-center justify-center gap-2 w-full sm:w-auto transition" id="btn-wiz-confirm-submit">
-                                        <i class="fa-solid fa-id-card"></i>
-                                        <span>Confirm Registration &amp; Generate Pass</span>
-                                    </button>
-                                </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                                <button type="button" class="clean-input bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs py-3 px-4 rounded-xl cursor-pointer flex items-center justify-center gap-2 shadow-sm transition" id="btn-wiz-pay-now">
+                                    <i class="fa-solid fa-bolt"></i>
+                                    <span>Pay ₹1,500 via UPI QR &amp; Generate Pass</span>
+                                </button>
+                                <button type="button" class="clean-input bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs py-3 px-4 rounded-xl border border-slate-300 cursor-pointer flex items-center justify-center gap-2 shadow-2xs transition" id="btn-wiz-pay-later">
+                                    <i class="fa-solid fa-clock"></i>
+                                    <span>Pay Later / Register with Pending Fee</span>
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
+        `;
+
+        bindWizardEvents();
+    }
+
+    function renderWeightGrid() {
+        const grid = document.getElementById('wiz-weight-grid');
+        if (!grid) return;
+        const cat = regData.category || 'junior';
+        const gender = regData.gender || 'Male';
+        const tier = regData.tier || 'REGULAR';
+        const divObj = KYORUGI_CATEGORIES[cat] || KYORUGI_CATEGORIES['junior'];
+        const weights = divObj[gender] || [];
+
+        if (weights.length > 0 && !weights.some(w => w.shortLabel === regData.weightClass)) {
+            regData.weightClass = weights[0].shortLabel;
+            regData.weightClassName = weights[0].name;
+            regData.minWeight = weights[0].minWeight;
+            regData.maxWeight = weights[0].maxWeight;
+            regData.categoryCode = tier === 'FRESHERS' ? weights[0].freshersCode : weights[0].regularCode;
+        }
+
+        const activeCatCode = computeActiveCategoryCode();
+        const badge = document.getElementById('wiz-selected-weight-badge');
+        if (badge) badge.textContent = `Selected: ${regData.weightClassName || regData.weightClass} [${activeCatCode}]`;
+
+        const liveText = document.getElementById('wiz-live-category-code-text');
+        const liveBadge = document.getElementById('wiz-live-category-code-badge');
+        if (liveText) liveText.textContent = activeCatCode;
+        if (liveBadge) liveBadge.textContent = activeCatCode;
+
+        grid.innerHTML = weights.map(w => {
+            const wCode = (tier === 'FRESHERS') ? w.freshersCode : w.regularCode;
+            const isSelected = regData.weightClass === w.shortLabel || regData.categoryCode === wCode;
+            return `
+                <div class="wiz-wt-tile p-2 rounded-xl border-2 cursor-pointer transition-all text-center select-none ${isSelected ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-xs ring-2 ring-blue-100' : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50'}" data-wt="${w.shortLabel}" data-code="${wCode}">
+                    <div class="text-[11px] font-black text-slate-900 truncate">${w.shortName}</div>
+                    <div class="text-xs font-mono font-bold text-blue-700">${w.shortLabel}</div>
+                    <div class="text-[9px] text-slate-500 font-mono">${w.minWeight} - ${w.maxWeight} kg</div>
+                    <div class="text-[9px] font-mono font-bold mt-1 px-1 py-0.2 rounded ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'} truncate">
+                        ${wCode}
+                    </div>
+                </div>
             `;
+        }).join('');
 
-            // Close modal handlers
-            const closeRegModal = () => {
-                mc.innerHTML = '';
-                document.body.style.overflow = '';
-            };
-            document.getElementById('btn-close-reg-modal')?.addEventListener('click', closeRegModal);
-            document.getElementById('participant-reg-backdrop')?.addEventListener('click', (e) => {
-                if (e.target.id === 'participant-reg-backdrop') closeRegModal();
+        grid.querySelectorAll('.wiz-wt-tile').forEach(tile => {
+            tile.addEventListener('click', () => {
+                const w = tile.getAttribute('data-wt');
+                const matched = weights.find(item => item.shortLabel === w);
+                if (matched) {
+                    regData.weightClass = matched.shortLabel;
+                    regData.weightClassName = matched.name;
+                    regData.minWeight = matched.minWeight;
+                    regData.maxWeight = matched.maxWeight;
+                    regData.categoryCode = tier === 'FRESHERS' ? matched.freshersCode : matched.regularCode;
+                }
+                renderWeightGrid();
             });
+        });
+    }
 
-            // Populate Weight Class Interactive Grid
-            renderWeightGrid();
+    function updatePoomsaeOptions() {
+        const pSelect = document.getElementById('wiz-poomsae-select');
+        if (!pSelect) return;
+        const sub = POOMSAE_CATEGORIES[regData.poomsaeSubType] || POOMSAE_CATEGORIES.individual;
+        const list = (regData.tier === 'FRESHERS') ? sub.Freshers : sub.Regular;
+        pSelect.innerHTML = list.map(c => `
+            <option value="${c.code}" ${c.code === regData.poomsaeCode ? 'selected' : ''}>
+                ${c.name} — ${c.ageLabel} [${c.code}]
+            </option>
+        `).join('');
+        if (list.length > 0 && !list.some(c => c.code === regData.poomsaeCode)) {
+            regData.poomsaeCode = list[0].code;
+            regData.poomsaeClass = list[0].name;
+            regData.categoryCode = list[0].code;
+        }
+        updateLiveCategoryCode();
+    }
 
-            // Setup Photo upload
-            document.getElementById('btn-wiz-pick-photo')?.addEventListener('click', () => {
-                document.getElementById('wiz-photo-input')?.click();
-            });
-            document.getElementById('wiz-photo-input')?.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
+    function updateBreakingOptions() {
+        const bSelect = document.getElementById('wiz-breaking-select');
+        if (!bSelect) return;
+        let list = BREAKING_CATEGORIES.Regular;
+        if (regData.breakingTier === 'FRESHERS') list = BREAKING_CATEGORIES.Freshers;
+        else if (regData.breakingTier === 'TRADITIONAL') list = BREAKING_CATEGORIES.Traditional;
+
+        bSelect.innerHTML = list.map(b => `
+            <option value="${b.code}" ${b.code === regData.breakingCode ? 'selected' : ''}>
+                ${b.name} (${b.division}) [${b.code}]
+            </option>
+        `).join('');
+        if (list.length > 0 && !list.some(b => b.code === regData.breakingCode)) {
+            regData.breakingCode = list[0].code;
+            regData.breakingTechnique = list[0].name;
+            regData.categoryCode = list[0].code;
+        }
+        updateLiveCategoryCode();
+    }
+
+    function updateSpeedKickingOptions() {
+        const skSelect = document.getElementById('wiz-speed-select');
+        if (!skSelect) return;
+        const list = regData.speedKickingType === 'Team' ? SPEED_KICKING_CATEGORIES.Team : SPEED_KICKING_CATEGORIES.Individual;
+        skSelect.innerHTML = list.map(sk => `
+            <option value="${sk.code}" ${sk.code === regData.speedKickingCode ? 'selected' : ''}>
+                ${sk.name} [${sk.code}]
+            </option>
+        `).join('');
+        if (list.length > 0 && !list.some(sk => sk.code === regData.speedKickingCode)) {
+            regData.speedKickingCode = list[0].code;
+            regData.speedKickingEvent = list[0].name;
+            regData.categoryCode = list[0].code;
+        }
+        updateLiveCategoryCode();
+    }
+
+    function updateVirtualTkdCode() {
+        const mode = regData.virtualMode || 'Individual';
+        const tier = regData.virtualTier || 'REGULAR';
+        const div = regData.virtualDivision || 'Junior';
+        const list = VIRTUAL_TKD_DATA[mode][tier === 'FRESHERS' ? 'Freshers' : 'Regular'] || [];
+        const found = list.find(vt => vt.division.toLowerCase() === div.toLowerCase()) || list[0];
+        if (found) {
+            regData.virtualCode = found.code;
+            regData.virtualType = `Virtual TKD ${mode} (${tier}) - ${found.division}`;
+            regData.categoryCode = found.code;
+        }
+        updateLiveCategoryCode();
+    }
+
+    function updateLiveCategoryCode() {
+        const code = computeActiveCategoryCode();
+        const liveText = document.getElementById('wiz-live-category-code-text');
+        const liveBadge = document.getElementById('wiz-live-category-code-badge');
+        if (liveText) liveText.textContent = code;
+        if (liveBadge) liveBadge.textContent = code;
+    }
+
+    function bindWizardEvents() {
+        // Close modal
+        const closeModal = () => { mc.innerHTML = ''; document.body.style.overflow = ''; };
+        document.getElementById('btn-close-reg-modal')?.addEventListener('click', closeModal);
+        document.getElementById('participant-reg-backdrop')?.addEventListener('click', (e) => {
+            if (e.target.id === 'participant-reg-backdrop') closeModal();
+        });
+
+        // Photo file pick
+        const photoInput = document.getElementById('wiz-photo-input');
+        document.getElementById('btn-wiz-pick-photo')?.addEventListener('click', () => photoInput?.click());
+        photoInput?.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     regData.photo = ev.target.result;
                     const previewBox = document.getElementById('wiz-photo-preview-box');
-                    if (previewBox) {
-                        previewBox.innerHTML = `<img src="${regData.photo}" class="w-full h-full object-cover">`;
-                    }
-                    const badge = document.getElementById('wiz-photo-badge');
-                    if (badge) {
-                        badge.textContent = 'Uploaded ✓';
-                        badge.className = 'text-[10px] font-black text-emerald-600';
-                    }
+                    if (previewBox) previewBox.innerHTML = `<img src="${regData.photo}" class="w-full h-full object-cover">`;
                 };
                 reader.readAsDataURL(file);
-            });
+            }
+        });
 
-            // Setup Gov Doc upload
-            document.getElementById('btn-wiz-pick-doc')?.addEventListener('click', () => {
-                document.getElementById('wiz-doc-input')?.click();
-            });
-            document.getElementById('wiz-doc-input')?.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
+        // Document file pick
+        const docInput = document.getElementById('wiz-doc-input');
+        document.getElementById('btn-wiz-pick-doc')?.addEventListener('click', () => docInput?.click());
+        docInput?.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     regData.aadharDoc = ev.target.result;
-                    regData.birthCertDoc = ev.target.result;
-                    const badge = document.getElementById('wiz-doc-badge');
-                    if (badge) {
-                        badge.textContent = 'Uploaded ✓';
-                        badge.className = 'text-[10px] font-black text-emerald-700 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full';
-                    }
                     const fn = document.getElementById('wiz-doc-filename');
-                    if (fn) {
-                        fn.textContent = file.name || 'Document attached ✓';
+                    const badge = document.getElementById('wiz-doc-badge');
+                    if (fn) fn.textContent = file.name;
+                    if (badge) {
+                        badge.className = 'text-[10px] font-black text-emerald-700 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full';
+                        badge.textContent = 'Uploaded ✓';
                     }
                 };
                 reader.readAsDataURL(file);
-            });
-
-            // Kukkiwon ID Verify Button
-            document.getElementById('btn-wiz-verify-kkw')?.addEventListener('click', () => {
-                const val = (document.getElementById('wiz-kukkiwon-id')?.value || '').trim();
-                if (!val) {
-                    showToast('Please enter your official Kukkiwon Dan/Poom ID or Membership Number.', 'warning');
-                    document.getElementById('wiz-kukkiwon-id')?.focus();
-                    return;
-                }
-                regData.kukkiwonId = val;
-                const allAthletes = (typeof store !== 'undefined' && store.getAthletes) ? store.getAthletes() : [];
-                const match = allAthletes.find(a => 
-                    (a.kukkiwonNo && a.kukkiwonNo.toLowerCase() === val.toLowerCase()) || 
-                    (a.kukkiwonDanNumber && a.kukkiwonDanNumber.toLowerCase() === val.toLowerCase()) || 
-                    (a.kukkiwonId && a.kukkiwonId.toLowerCase() === val.toLowerCase()) ||
-                    (a.athleteId && a.athleteId.toLowerCase() === val.toLowerCase())
-                );
-                regData.isKkwVerified = true;
-                const badge = document.getElementById('kkw-badge-status');
-                if (badge) {
-                    badge.textContent = 'VERIFIED ✓';
-                    badge.className = 'text-[10px] font-black px-2.5 py-1 rounded-full uppercase shrink-0 self-start sm:self-center bg-emerald-100 text-emerald-800 border border-emerald-300';
-                }
-                if (match) {
-                    if (match.name) { regData.name = match.name; document.getElementById('wiz-name').value = match.name; }
-                    if (match.gender) { regData.gender = match.gender; document.getElementById('wiz-gender').value = match.gender; }
-                    if (match.beltId) { regData.beltId = match.beltId; document.getElementById('wiz-belt').value = match.beltId; }
-                    if (match.phone) { 
-                        const clean = match.phone.replace(/\D/g, '').slice(-10);
-                        regData.phone = clean;
-                        document.getElementById('wiz-phone').value = clean;
-                    }
-                    if (match.email) { regData.email = match.email; document.getElementById('wiz-email').value = match.email; }
-                    if (match.address) { regData.address = match.address; document.getElementById('wiz-address').value = match.address; }
-                    if (match.dojangName && match.dojangName !== 'Individual Competitor') {
-                        regData.academy = match.dojangName;
-                        document.getElementById('wiz-academy').value = match.dojangName;
-                    }
-                    if (match.dob) {
-                        const parts = match.dob.split('-');
-                        if (parts.length === 3) {
-                            regData.dobYear = parts[0];
-                            regData.dobMonth = parts[1];
-                            regData.dobDay = parts[2];
-                            document.getElementById('wiz-dob-year').value = parts[0];
-                            document.getElementById('wiz-dob-month').value = parts[1];
-                            document.getElementById('wiz-dob-day').value = parts[2];
-                            updateAgeDisplay();
-                        }
-                    }
-                    showToast(`Kukkiwon ID Verified! Details auto-filled for ${match.name}.`, 'success');
-                } else {
-                    showToast(`Kukkiwon ID [${val}] authenticated with Kukkiwon India Registry.`, 'success');
-                }
-            });
-
-            // Live Age Update on DOB change
-            function updateAgeDisplay() {
-                const yr = parseInt(document.getElementById('wiz-dob-year')?.value) || 2009;
-                regData.dobYear = document.getElementById('wiz-dob-year')?.value;
-                regData.dobMonth = document.getElementById('wiz-dob-month')?.value;
-                regData.dobDay = document.getElementById('wiz-dob-day')?.value;
-                const age = 2026 - yr;
-                const badge = document.getElementById('wiz-age-badge');
-                if (badge) badge.textContent = `Age: ${age} yrs`;
-
-                // Auto-suggest division
-                const divSel = document.getElementById('wiz-division');
-                if (divSel) {
-                    if (age < 10) divSel.value = 'children';
-                    else if (age < 12) divSel.value = 'sub-junior';
-                    else if (age <= 14) divSel.value = 'cadet';
-                    else if (age <= 17) divSel.value = 'junior';
-                    else divSel.value = 'senior';
-                    regData.category = divSel.value;
-                    renderWeightGrid();
-                }
             }
+        });
 
-            document.getElementById('wiz-dob-year')?.addEventListener('change', updateAgeDisplay);
-            document.getElementById('wiz-dob-month')?.addEventListener('change', updateAgeDisplay);
-            document.getElementById('wiz-dob-day')?.addEventListener('change', updateAgeDisplay);
+        // Age update on DOB change
+        const updateAgeDisplay = () => {
+            const yr = parseInt(document.getElementById('wiz-dob-year')?.value) || 2009;
+            regData.dobYear = yr.toString();
+            regData.dobMonth = document.getElementById('wiz-dob-month')?.value || '06';
+            regData.dobDay = document.getElementById('wiz-dob-day')?.value || '15';
+            const age = 2026 - yr;
+            const ageBadge = document.getElementById('wiz-age-badge');
+            if (ageBadge) ageBadge.textContent = `Age: ${age} yrs`;
 
-            // Gender Change -> Refresh Weight Grid
-            document.getElementById('wiz-gender')?.addEventListener('change', (e) => {
-                regData.gender = e.target.value;
+            const divSel = document.getElementById('wiz-division');
+            if (divSel) {
+                if (age < 8) divSel.value = 'children';
+                else if (age <= 11) divSel.value = 'sub-junior';
+                else if (age <= 14) divSel.value = 'cadet';
+                else if (age <= 17) divSel.value = 'junior';
+                else divSel.value = 'senior';
+                regData.category = divSel.value;
                 renderWeightGrid();
-            });
+            }
+        };
 
-            // Division Change -> Refresh Weight Grid
-            document.getElementById('wiz-division')?.addEventListener('change', (e) => {
-                regData.category = e.target.value;
-                renderWeightGrid();
-            });
+        document.getElementById('wiz-dob-year')?.addEventListener('change', updateAgeDisplay);
+        document.getElementById('wiz-dob-month')?.addEventListener('change', updateAgeDisplay);
+        document.getElementById('wiz-dob-day')?.addEventListener('change', updateAgeDisplay);
 
-            // Discipline Card Clicks
-            mc.querySelectorAll('.wiz-disc-card').forEach(card => {
-                card.addEventListener('click', () => {
-                    const disc = card.getAttribute('data-disc');
-                    regData.discipline = disc;
-                    mc.querySelectorAll('.wiz-disc-card').forEach(c => {
-                        c.classList.remove('border-blue-600', 'bg-blue-50', 'text-blue-950', 'shadow-xs');
-                        c.classList.add('border-slate-200', 'bg-white', 'text-slate-700');
-                    });
-                    card.classList.add('border-blue-600', 'bg-blue-50', 'text-blue-950', 'shadow-xs');
-                    card.classList.remove('border-slate-200', 'bg-white', 'text-slate-700');
+        // Gender Change
+        document.getElementById('wiz-gender')?.addEventListener('change', (e) => {
+            regData.gender = e.target.value;
+            renderWeightGrid();
+        });
 
-                    const kSec = document.getElementById('wiz-kyorugi-section');
-                    const pSec = document.getElementById('wiz-poomsae-section');
-                    const vSec = document.getElementById('wiz-virtual-section');
+        // Division Change
+        document.getElementById('wiz-division')?.addEventListener('change', (e) => {
+            regData.category = e.target.value;
+            renderWeightGrid();
+        });
 
-                    if (disc === 'Poomsae') {
-                        kSec?.classList.add('hidden');
-                        pSec?.classList.remove('hidden');
-                        vSec?.classList.add('hidden');
-                    } else if (disc === 'Virtual Taekwondo') {
-                        kSec?.classList.add('hidden');
-                        pSec?.classList.add('hidden');
-                        vSec?.classList.remove('hidden');
-                    } else {
-                        kSec?.classList.remove('hidden');
-                        pSec?.classList.add('hidden');
-                        vSec?.classList.add('hidden');
-                    }
+        // Discipline Card Clicks (All 5 Disciplines)
+        mc.querySelectorAll('.wiz-disc-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const disc = card.getAttribute('data-disc');
+                regData.discipline = disc;
+                mc.querySelectorAll('.wiz-disc-card').forEach(c => {
+                    c.classList.remove('border-blue-600', 'bg-blue-50', 'text-blue-950', 'shadow-xs');
+                    c.classList.add('border-slate-200', 'bg-white', 'text-slate-700');
                 });
+                card.classList.add('border-blue-600', 'bg-blue-50', 'text-blue-950', 'shadow-xs');
+                card.classList.remove('border-slate-200', 'bg-white', 'text-slate-700');
+
+                const kSec = document.getElementById('wiz-kyorugi-section');
+                const pSec = document.getElementById('wiz-poomsae-section');
+                const bSec = document.getElementById('wiz-breaking-section');
+                const sSec = document.getElementById('wiz-speed-section');
+                const vSec = document.getElementById('wiz-virtual-section');
+
+                kSec?.classList.toggle('hidden', disc !== 'Kyorugi');
+                pSec?.classList.toggle('hidden', disc !== 'Poomsae');
+                bSec?.classList.toggle('hidden', disc !== 'E-Breaking & Kyukpa');
+                sSec?.classList.toggle('hidden', disc !== 'Speed Kicking');
+                vSec?.classList.toggle('hidden', disc !== 'Virtual Taekwondo');
+
+                if (disc === 'Kyorugi') renderWeightGrid();
+                else if (disc === 'Poomsae') updatePoomsaeOptions();
+                else if (disc === 'E-Breaking & Kyukpa') updateBreakingOptions();
+                else if (disc === 'Speed Kicking') updateSpeedKickingOptions();
+                else if (disc === 'Virtual Taekwondo') updateVirtualTkdCode();
             });
+        });
 
-            // Tier Buttons
-            document.getElementById('btn-tier-freshers')?.addEventListener('click', () => {
-                regData.tier = 'FRESHERS';
-                document.getElementById('btn-tier-freshers').className = 'px-3 py-1 rounded-lg text-xs font-black uppercase transition-all bg-amber-100 text-amber-900 border border-amber-300';
-                document.getElementById('btn-tier-regular').className = 'px-3 py-1 rounded-lg text-xs font-black uppercase transition-all text-slate-600 hover:text-slate-900';
-            });
-            document.getElementById('btn-tier-regular')?.addEventListener('click', () => {
-                regData.tier = 'REGULAR';
-                document.getElementById('btn-tier-regular').className = 'px-3 py-1 rounded-lg text-xs font-black uppercase transition-all bg-blue-600 text-white shadow-xs';
-                document.getElementById('btn-tier-freshers').className = 'px-3 py-1 rounded-lg text-xs font-black uppercase transition-all text-slate-600 hover:text-slate-900';
-            });
+        // Kyorugi Tier Buttons
+        document.getElementById('btn-tier-freshers')?.addEventListener('click', () => {
+            regData.tier = 'FRESHERS';
+            document.getElementById('btn-tier-freshers').className = 'px-3 py-1 rounded-lg text-xs font-black uppercase transition-all bg-amber-100 text-amber-900 border border-amber-300';
+            document.getElementById('btn-tier-regular').className = 'px-3 py-1 rounded-lg text-xs font-black uppercase transition-all text-slate-600 hover:text-slate-900';
+            renderWeightGrid();
+        });
+        document.getElementById('btn-tier-regular')?.addEventListener('click', () => {
+            regData.tier = 'REGULAR';
+            document.getElementById('btn-tier-regular').className = 'px-3 py-1 rounded-lg text-xs font-black uppercase transition-all bg-blue-600 text-white shadow-xs';
+            document.getElementById('btn-tier-freshers').className = 'px-3 py-1 rounded-lg text-xs font-black uppercase transition-all text-slate-600 hover:text-slate-900';
+            renderWeightGrid();
+        });
 
-            // Phone input strict numbers
-            bindStrictPhoneInput(document.getElementById('wiz-phone'));
+        // Poomsae Selectors
+        document.getElementById('wiz-poomsae-subtype')?.addEventListener('change', (e) => {
+            regData.poomsaeSubType = e.target.value;
+            updatePoomsaeOptions();
+        });
+        document.getElementById('wiz-poomsae-tier')?.addEventListener('change', (e) => {
+            regData.tier = e.target.value;
+            updatePoomsaeOptions();
+        });
+        document.getElementById('wiz-poomsae-select')?.addEventListener('change', (e) => {
+            regData.poomsaeCode = e.target.value;
+            const sub = POOMSAE_CATEGORIES[regData.poomsaeSubType] || POOMSAE_CATEGORIES.individual;
+            const list = (regData.tier === 'FRESHERS') ? sub.Freshers : sub.Regular;
+            const found = list.find(c => c.code === e.target.value);
+            if (found) regData.poomsaeClass = found.name;
+            updateLiveCategoryCode();
+        });
 
-            // Step 1 to Step 2 Transition Button
-            document.getElementById('btn-wiz-proceed-step2')?.addEventListener('click', () => {
-                // Collect Step 1 values
-                regData.kukkiwonId = (document.getElementById('wiz-kukkiwon-id')?.value || '').trim();
-                regData.name = (document.getElementById('wiz-name')?.value || '').trim();
-                regData.dobDay = document.getElementById('wiz-dob-day')?.value || '15';
-                regData.dobMonth = document.getElementById('wiz-dob-month')?.value || '06';
-                regData.dobYear = document.getElementById('wiz-dob-year')?.value || '2009';
-                regData.gender = document.getElementById('wiz-gender')?.value || 'Male';
-                regData.beltId = document.getElementById('wiz-belt')?.value || 'white';
-                regData.phone = (document.getElementById('wiz-phone')?.value || '').trim();
-                regData.email = (document.getElementById('wiz-email')?.value || '').trim();
-                regData.address = (document.getElementById('wiz-address')?.value || '').trim();
-                regData.parentName = (document.getElementById('wiz-parent')?.value || '').trim();
-                regData.academy = (document.getElementById('wiz-academy')?.value || '').trim();
-                regData.coachName = (document.getElementById('wiz-coach')?.value || '').trim();
-                if (document.getElementById('wiz-poomsae-select')) {
-                    regData.poomsaeClass = document.getElementById('wiz-poomsae-select').value;
-                }
-                if (document.getElementById('wiz-virtual-select')) {
-                    regData.virtualType = document.getElementById('wiz-virtual-select').value;
-                }
-                if (document.getElementById('wiz-scale-weight')) {
-                    regData.scaleWeight = parseFloat(document.getElementById('wiz-scale-weight').value) || 54.0;
-                }
+        // Breaking Selectors
+        document.getElementById('wiz-breaking-tier')?.addEventListener('change', (e) => {
+            regData.breakingTier = e.target.value;
+            regData.tier = e.target.value === 'FRESHERS' ? 'FRESHERS' : 'REGULAR';
+            updateBreakingOptions();
+        });
+        document.getElementById('wiz-breaking-select')?.addEventListener('change', (e) => {
+            regData.breakingCode = e.target.value;
+            const catObj = findCategoryByCode(e.target.value);
+            if (catObj) regData.breakingTechnique = catObj.name;
+            updateLiveCategoryCode();
+        });
 
-                // Strict Validation
-                if (!regData.kukkiwonId) {
-                    showToast('Official Kukkiwon Dan/Poom ID is mandatory. Please enter your ID or register first.', 'error');
-                    document.getElementById('wiz-kukkiwon-id')?.focus();
-                    return;
-                }
-                if (!regData.name) {
-                    showToast('Please enter competitor full name.', 'warning');
-                    document.getElementById('wiz-name')?.focus();
-                    return;
-                }
-                if (!regData.photo) {
-                    showToast('Competitor passport photo is mandatory for official pass generation.', 'error');
-                    document.getElementById('btn-wiz-pick-photo')?.focus();
-                    return;
-                }
-                if (!regData.aadharDoc) {
-                    showToast('Government ID / Age Proof document is mandatory for verification.', 'error');
-                    document.getElementById('btn-wiz-pick-doc')?.focus();
-                    return;
-                }
-                if (!validateStrictPhone(regData.phone)) {
-                    showToast('Please enter a valid 10-digit mobile number (digits only).', 'error');
-                    document.getElementById('wiz-phone')?.focus();
-                    return;
-                }
+        // Speed Kicking Selectors
+        document.getElementById('wiz-speed-type')?.addEventListener('change', (e) => {
+            regData.speedKickingType = e.target.value;
+            updateSpeedKickingOptions();
+        });
+        document.getElementById('wiz-speed-select')?.addEventListener('change', (e) => {
+            regData.speedKickingCode = e.target.value;
+            const catObj = findCategoryByCode(e.target.value);
+            if (catObj) regData.speedKickingEvent = catObj.name;
+            updateLiveCategoryCode();
+        });
 
-                // Switch to Step 2
-                currentStep = 2;
-                renderWizard();
-                mc.querySelector('.clean-modal-card')?.scrollTo({ top: 0, behavior: 'smooth' });
-            });
+        // Virtual TKD Selectors
+        document.getElementById('wiz-virtual-mode')?.addEventListener('change', (e) => {
+            regData.virtualMode = e.target.value;
+            updateVirtualTkdCode();
+        });
+        document.getElementById('wiz-virtual-tier')?.addEventListener('change', (e) => {
+            regData.virtualTier = e.target.value;
+            regData.tier = e.target.value;
+            updateVirtualTkdCode();
+        });
+        document.getElementById('wiz-virtual-division')?.addEventListener('change', (e) => {
+            regData.virtualDivision = e.target.value;
+            updateVirtualTkdCode();
+        });
 
-            // Step 2 Edit Details Button
-            document.getElementById('btn-wiz-edit-details')?.addEventListener('click', () => {
-                currentStep = 1;
-                renderWizard();
-            });
-            document.getElementById('stepper-tab-1')?.addEventListener('click', () => {
-                if (currentStep === 2) {
-                    currentStep = 1;
-                    renderWizard();
-                }
-            });
+        // Verify KKW ID button
+        document.getElementById('btn-wiz-verify-kkw')?.addEventListener('click', () => {
+            const val = (document.getElementById('wiz-kukkiwon-id')?.value || '').trim();
+            if (!val) {
+                showToast('Please enter your Kukkiwon Dan/Poom ID or Membership Number', 'error');
+                return;
+            }
+            regData.isKkwVerified = true;
+            const badge = document.getElementById('kkw-badge-status');
+            if (badge) {
+                badge.className = 'text-[10px] font-black px-2.5 py-1 rounded-full uppercase shrink-0 bg-emerald-100 text-emerald-800 border border-emerald-300';
+                badge.textContent = 'VERIFIED ✓';
+            }
+            showToast(`Kukkiwon ID [${val}] Verified with Kukkiwon Registry!`, 'success');
+        });
 
-            // Step 2: Open Gateway
-            document.getElementById('btn-wiz-open-gateway')?.addEventListener('click', () => {
-                openPaymentGatewayModal({
-                    title: tournTitle,
-                    subtitle: `Championship Entry Fee for ${regData.name}`,
-                    payeeName: regData.name,
-                    divisionName: `${divLabel} • ${formattedWeight}`,
-                    amount: 1500,
-                    type: 'athlete',
-                    onComplete: () => {
-                        finalizeAthleteSubmission('Paid', 'PG-TXN-' + Date.now());
-                    }
-                });
-            });
+        // Proceed to Step 2
+        document.getElementById('btn-wiz-proceed-step2')?.addEventListener('click', () => {
+            regData.kukkiwonId = (document.getElementById('wiz-kukkiwon-id')?.value || '').trim();
+            regData.name = (document.getElementById('wiz-name')?.value || '').trim();
+            regData.dobDay = document.getElementById('wiz-dob-day')?.value || '15';
+            regData.dobMonth = document.getElementById('wiz-dob-month')?.value || '06';
+            regData.dobYear = document.getElementById('wiz-dob-year')?.value || '2009';
+            regData.gender = document.getElementById('wiz-gender')?.value || 'Male';
+            regData.beltId = document.getElementById('wiz-belt')?.value || 'white';
+            regData.phone = (document.getElementById('wiz-phone')?.value || '').trim();
+            regData.email = (document.getElementById('wiz-email')?.value || '').trim();
+            regData.address = (document.getElementById('wiz-address')?.value || '').trim();
+            regData.parentName = (document.getElementById('wiz-parent')?.value || '').trim();
+            regData.academy = (document.getElementById('wiz-academy')?.value || '').trim();
+            regData.coachName = (document.getElementById('wiz-coach')?.value || '').trim();
 
-            // Step 2: Confirm Submit
-            document.getElementById('btn-wiz-confirm-submit')?.addEventListener('click', () => {
-                const utr = (document.getElementById('wiz-utr')?.value || '').trim();
-                finalizeAthleteSubmission(utr ? 'Paid' : 'Pending', utr || null);
-            });
-        }
-
-        // Helper: Dynamically Render Interactive Weight Category Cards Grid
-        function renderWeightGrid() {
-            const grid = document.getElementById('wiz-weight-grid');
-            if (!grid) return;
-            const cat = regData.category || 'junior';
-            const gender = regData.gender || 'Male';
-            const weights = (TKD_WEIGHT_CATEGORIES[cat] && TKD_WEIGHT_CATEGORIES[cat][gender]) 
-                ? TKD_WEIGHT_CATEGORIES[cat][gender] 
-                : ['U 45 KG', 'U 48 KG', 'U 51 KG', 'U 55 KG', 'U 59 KG', 'U 63 KG', 'U 68 KG', 'U 73 KG', 'U 78 KG', 'O 78 KG'];
-
-            if (!weights.includes(regData.weightClass)) {
-                regData.weightClass = weights[0] || 'U 55 KG';
+            if (!regData.name) {
+                showToast('Competitor Full Name is required.', 'error');
+                document.getElementById('wiz-name')?.focus();
+                return;
+            }
+            if (!regData.phone || regData.phone.length < 10) {
+                showToast('Please enter a valid 10-digit mobile number.', 'error');
+                document.getElementById('wiz-phone')?.focus();
+                return;
             }
 
-            const badge = document.getElementById('wiz-selected-weight-badge');
-            if (badge) badge.textContent = `Selected: ${regData.weightClass}`;
+            computeActiveCategoryCode();
+            currentStep = 2;
+            renderWizard();
+        });
 
-            grid.innerHTML = weights.map(w => {
-                const isSelected = regData.weightClass === w;
-                return `
-                    <div class="wiz-wt-tile p-2.5 rounded-xl border-2 cursor-pointer transition-all text-center select-none ${isSelected ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-xs ring-2 ring-blue-100' : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50'}" data-wt="${w}">
-                        <div class="text-xs font-black font-mono">${w}</div>
-                        <div class="text-[9.5px] ${isSelected ? 'text-blue-700 font-bold' : 'text-slate-400 font-medium'} flex items-center justify-center gap-1 mt-0.5">
-                            ${isSelected ? '<i class="fa-solid fa-circle-check text-[10px]"></i> Selected' : 'Standard'}
-                        </div>
-                    </div>
-                `;
-            }).join('');
+        // Step 2: Edit Details Back Button
+        document.getElementById('btn-wiz-edit-details')?.addEventListener('click', () => {
+            currentStep = 1;
+            renderWizard();
+        });
 
-            grid.querySelectorAll('.wiz-wt-tile').forEach(tile => {
-                tile.addEventListener('click', () => {
-                    const w = tile.getAttribute('data-wt');
-                    regData.weightClass = w;
-                    renderWeightGrid();
-                });
-            });
-        }
+        // Step 2: Pay Now via UPI QR
+        document.getElementById('btn-wiz-pay-now')?.addEventListener('click', () => {
+            const fakeTxn = 'UPI-' + Date.now().toString().slice(-8);
+            finalizeAthleteSubmission('Paid', fakeTxn);
+        });
 
-        // Finalize Athlete Submission & Pass Generation
-        function finalizeAthleteSubmission(paymentStatus = 'Pending', txnId = null) {
-            const calculatedAge = getAge();
-            const beltObj = TKD_BELTS.find(b => b.id === regData.beltId) || TKD_BELTS[0];
-            const divLabel = TKD_WEIGHT_CATEGORIES[regData.category]?.label || 'Junior (15–17 yrs)';
-            const formattedWeight = formatWeightClass(regData.weightClass || 'U 55 KG');
-            const generatedAthId = (loggedAth && loggedAth.athleteId) ? loggedAth.athleteId : ('ATH-' + Math.floor(100000 + Math.random() * 900000));
-            const dob = `${regData.dobYear}-${regData.dobMonth}-${regData.dobDay}`;
+        // Step 2: Pay Later
+        document.getElementById('btn-wiz-pay-later')?.addEventListener('click', () => {
+            finalizeAthleteSubmission('Pending', null);
+        });
 
-            let finalWeightClass = '';
-            if (regData.discipline === 'Poomsae') {
-                finalWeightClass = `${regData.poomsaeClass} • ${regData.gender}`;
-            } else if (regData.discipline === 'Virtual Taekwondo') {
-                finalWeightClass = `Virtual TKD – ${regData.virtualType} • ${divLabel} ${regData.gender}`;
-            } else {
-                finalWeightClass = `${divLabel.split(' ')[0]} ${regData.gender} ${regData.weightClass}`;
-            }
-
-            let code = 'IND';
-            if (regData.academy && regData.academy !== 'Individual Competitor' && regData.academy !== 'Individual (Unattached)') {
-                code = regData.academy.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 4) || 'IND';
-            }
-
-            const newAthlete = store.addAthlete({
-                name: regData.name,
-                athleteId: generatedAthId,
-                kukkiwonNo: regData.kukkiwonId,
-                kukkiwonDanNumber: regData.kukkiwonId,
-                kukkiwonId: regData.kukkiwonId,
-                dob,
-                age: calculatedAge,
-                parentName: regData.parentName,
-                phone: `+91 ${regData.phone}`,
-                email: regData.email,
-                address: regData.address,
-                beltId: regData.beltId,
-                beltName: beltObj.name,
-                gender: regData.gender,
-                category: divLabel,
-                weight: regData.scaleWeight || 54.0,
-                measuredWeight: null,
-                weightClass: finalWeightClass,
-                competitionFormat: regData.competitionFormat,
-                discipline: regData.discipline,
-                tier: regData.tier,
-                status: 'Pending',
-                weighInStatus: 'Pending',
-                paymentStatus: paymentStatus,
-                transactionId: txnId,
-                feeStatus: paymentStatus,
-                photo: regData.photo,
-                aadharDoc: regData.aadharDoc,
-                birthCertDoc: regData.birthCertDoc,
-                docStatus: 'Pending',
-                dojangId: (currentUser && currentUser.role === 'dojang' && currentDojang) ? currentDojang.id : 'ind-competitor',
-                dojangName: regData.academy || 'Individual Competitor',
-                academyName: regData.academy || '',
-                dojangCode: code,
-                isIndividual: !currentDojang,
-                registeredTournaments: [tournId]
-            });
-
-            if (regData.academy && regData.academy !== 'Individual Competitor' && regData.academy !== 'Individual (Unattached)') {
-                const existingD = store.getDojangs().find(d => d.name.toLowerCase() === regData.academy.toLowerCase());
-                if (!existingD) {
-                    store.addDojang({
-                        name: regData.academy,
-                        shortCode: code,
-                        city: (regData.address.split(',')[0] || 'Karnataka').trim(),
-                        tournId: tournId
-                    });
-                }
-            }
-
-            mc.innerHTML = '';
-            document.body.style.overflow = '';
-            showToast(`Registration completed for ${regData.name}! Official ID Pass generated.`, 'success');
-
-            // Log in as athlete if guest
-            if (!currentUser) {
-                store.setCurrentUser({
-                    role: 'athlete',
-                    name: regData.name,
-                    athleteId: newAthlete.id,
-                    uid: generatedAthId
-                });
-            }
-
-            const mainContainer = document.getElementById('main-content');
-            if (mainContainer) {
-                if (currentUser && currentUser.role === 'dojang') {
-                    renderDojangDashboard(mainContainer, 'player-list', currentUser);
-                } else {
-                    window.app.navigate('dashboard');
-                }
-            }
-
-            // Immediately display the Official Accreditation ID Pass!
-            setTimeout(() => {
-                openAthleteIdCardModal(newAthlete, tournTitle);
-            }, 300);
-        }
-
-        renderWizard();
+        // Initial setup
+        if (regData.discipline === 'Kyorugi') renderWeightGrid();
+        else if (regData.discipline === 'Poomsae') updatePoomsaeOptions();
+        else if (regData.discipline === 'E-Breaking & Kyukpa') updateBreakingOptions();
+        else if (regData.discipline === 'Speed Kicking') updateSpeedKickingOptions();
+        else if (regData.discipline === 'Virtual Taekwondo') updateVirtualTkdCode();
     }
 
-    // DOCUMENT LIGHTBOX & FULLSCREEN VIEWER
+    function finalizeAthleteSubmission(paymentStatus = 'Pending', txnId = null) {
+        const calculatedAge = getAge();
+        const beltObj = TKD_BELTS.find(b => b.id === regData.beltId) || TKD_BELTS[0];
+        const divLabel = KYORUGI_CATEGORIES[regData.category]?.label || TKD_WEIGHT_CATEGORIES[regData.category]?.label || 'Junior (Ages 15–17)';
+        const calculatedCategoryCode = computeActiveCategoryCode();
+        const generatedAthId = (loggedAth && loggedAth.athleteId) ? loggedAth.athleteId : ('ATH-' + Math.floor(100000 + Math.random() * 900000));
+        const dob = `${regData.dobYear}-${regData.dobMonth}-${regData.dobDay}`;
+
+        let finalWeightClass = '';
+        if (regData.discipline === 'Kyorugi') {
+            finalWeightClass = `${regData.weightClassName || regData.weightClass} [${calculatedCategoryCode}]`;
+        } else if (regData.discipline === 'Poomsae') {
+            finalWeightClass = `${regData.poomsaeClass} [${calculatedCategoryCode}]`;
+        } else if (regData.discipline === 'E-Breaking & Kyukpa') {
+            finalWeightClass = `${regData.breakingTechnique} [${calculatedCategoryCode}]`;
+        } else if (regData.discipline === 'Speed Kicking') {
+            finalWeightClass = `${regData.speedKickingEvent} [${calculatedCategoryCode}]`;
+        } else if (regData.discipline === 'Virtual Taekwondo') {
+            finalWeightClass = `${regData.virtualType} [${calculatedCategoryCode}]`;
+        } else {
+            finalWeightClass = `${divLabel.split(' ')[0]} ${regData.gender} ${regData.weightClass} [${calculatedCategoryCode}]`;
+        }
+
+        let code = 'IND';
+        if (regData.academy && regData.academy !== 'Individual Competitor' && regData.academy !== 'Individual (Unattached)') {
+            code = regData.academy.split(/\\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 4) || 'IND';
+        }
+
+        const newAthlete = store.addAthlete({
+            name: regData.name,
+            athleteId: generatedAthId,
+            kukkiwonNo: regData.kukkiwonId,
+            kukkiwonDanNumber: regData.kukkiwonId,
+            kukkiwonId: regData.kukkiwonId,
+            dob,
+            age: calculatedAge,
+            parentName: regData.parentName,
+            phone: `+91 ${regData.phone}`,
+            email: regData.email,
+            address: regData.address,
+            beltId: regData.beltId,
+            beltName: beltObj.name,
+            gender: regData.gender,
+            category: divLabel,
+            categoryCode: calculatedCategoryCode,
+            weight: regData.scaleWeight || 54.0,
+            measuredWeight: null,
+            weightClass: finalWeightClass,
+            weightClassName: regData.weightClassName || '',
+            minWeight: regData.minWeight || null,
+            maxWeight: regData.maxWeight || null,
+            competitionFormat: regData.competitionFormat,
+            discipline: regData.discipline,
+            tier: regData.tier,
+            status: 'Pending',
+            weighInStatus: 'Pending',
+            paymentStatus: paymentStatus,
+            transactionId: txnId,
+            feeStatus: paymentStatus,
+            photo: regData.photo,
+            aadharDoc: regData.aadharDoc,
+            birthCertDoc: regData.birthCertDoc,
+            docStatus: 'Pending',
+            dojangId: (currentUser && currentUser.role === 'dojang' && currentDojang) ? currentDojang.id : 'ind-competitor',
+            dojangName: regData.academy || 'Individual Competitor',
+            academyName: regData.academy || '',
+            dojangCode: code,
+            isIndividual: !currentDojang,
+            registeredTournaments: [tournId]
+        });
+
+        if (regData.academy && regData.academy !== 'Individual Competitor' && regData.academy !== 'Individual (Unattached)') {
+            const existingD = store.getDojangs().find(d => d.name.toLowerCase() === regData.academy.toLowerCase());
+            if (!existingD) {
+                store.addDojang({
+                    name: regData.academy,
+                    shortCode: code,
+                    city: (regData.address.split(',')[0] || 'Karnataka').trim(),
+                    tournId: tournId
+                });
+            }
+        }
+
+        mc.innerHTML = '';
+        document.body.style.overflow = '';
+        showToast(`Registration completed for ${regData.name}! Official ID Pass generated.`, 'success');
+
+        if (!currentUser) {
+            store.setCurrentUser({
+                role: 'athlete',
+                name: regData.name,
+                athleteId: newAthlete.id,
+                uid: generatedAthId
+            });
+        }
+
+        const mainContainer = document.getElementById('main-content');
+        if (mainContainer) {
+            if (currentUser && currentUser.role === 'dojang') {
+                renderDojangDashboard(mainContainer, 'player-list', currentUser);
+            } else {
+                window.app.navigate('dashboard');
+            }
+        }
+
+        // Open ID pass card
+        setTimeout(() => {
+            openAthleteIdCardModal(newAthlete, tournTitle);
+        }, 300);
+    }
+
+    renderWizard();
+}
+
+
+        // DOCUMENT LIGHTBOX & FULLSCREEN VIEWER
     // ========================================================================
     function openDocLightbox(docUrl, docTitle = 'Document Preview') {
         if (!docUrl) {
@@ -5550,6 +6395,17 @@
         const rawPhone = (athlete.phone || '').replace(/\D/g, '').slice(-10);
         const existingKukkiwonId = athlete.kukkiwonNo || athlete.kukkiwonDanNumber || athlete.kukkiwonId || '';
 
+        // Initial discipline, tier, division
+        const currentDiscipline = athlete.discipline || 'Kyorugi';
+        const currentTier = (athlete.tier || 'regular').toLowerCase();
+        let currentDiv = 'junior';
+        const catLow = (athlete.category || athlete.division || '').toLowerCase();
+        if (catLow.includes('child')) currentDiv = 'children';
+        else if (catLow.includes('sub')) currentDiv = 'sub-junior';
+        else if (catLow.includes('cadet')) currentDiv = 'cadet';
+        else if (catLow.includes('senior')) currentDiv = 'senior';
+        else currentDiv = 'junior';
+
         mc.innerHTML = `
             <div class="tkd-modal-backdrop animate-fade-in" id="edit-ath-backdrop">
                 <div class="clean-modal-card max-w-2xl">
@@ -5564,7 +6420,7 @@
                     <div class="flex items-center justify-between pb-3 border-b border-slate-100">
                         <div>
                             <h3 class="text-xl font-black text-slate-900 tracking-tight">Edit Player: ${athlete.name}</h3>
-                            <p class="text-xs text-slate-500 font-medium">Update competitor demographics, belt rank, category, and official verification documents.</p>
+                            <p class="text-xs text-slate-500 font-medium">Update competitor demographics, belt rank, category code, and official verification documents.</p>
                         </div>
                         <div class="text-right">
                             <span class="text-[11px] text-blue-600 font-mono font-bold block">${athlete.athleteId || athlete.id}</span>
@@ -5597,15 +6453,18 @@
                             </div>
                         </div>
 
-                        <!-- 1. Document Management Row -->
-                        <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
-                            <label class="text-[11px] font-black uppercase tracking-wider text-slate-700 block flex items-center justify-between">
-                                <span><i class="fa-solid fa-folder-open text-blue-600 me-1.5"></i>Official Athlete Documents</span>
-                                <span class="text-[10px] text-slate-500 font-normal">Passport Photo, Aadhaar &amp; Birth Certificate</span>
-                            </label>
+                        <!-- 1. Mandatory Document Uploads -->
+                        <div class="bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/90 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <label class="text-[11px] font-black uppercase text-slate-900 tracking-wider flex items-center gap-1">
+                                    <span>Official Verification Documents</span>
+                                    <span class="text-rose-600 font-bold">*</span>
+                                </label>
+                                <span class="text-[10px] text-slate-500 font-semibold">All 3 documents required</span>
+                            </div>
 
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <!-- Photo Card (Mandatory) -->
+                                <!-- Photo -->
                                 <div class="bg-white p-2.5 rounded-xl border border-slate-200 flex flex-col items-center text-center">
                                     <div class="w-16 h-16 rounded-xl bg-slate-100 border border-slate-300 overflow-hidden flex items-center justify-center shrink-0 mb-2 relative group">
                                         <i class="fa-solid fa-camera text-slate-400 text-xl ${editPhotoBase64 ? 'hidden' : ''}" id="edit-ath-photo-placeholder"></i>
@@ -5619,7 +6478,7 @@
                                     </button>
                                 </div>
 
-                                <!-- Aadhaar Card (Mandatory) -->
+                                <!-- Aadhaar Card -->
                                 <div class="bg-white p-2.5 rounded-xl border border-slate-200 flex flex-col items-center text-center">
                                     <div class="w-16 h-16 rounded-xl bg-slate-100 border border-slate-300 overflow-hidden flex items-center justify-center shrink-0 mb-2 relative">
                                         <i class="fa-solid fa-id-card text-emerald-600 text-xl ${editAadharBase64 ? 'hidden' : ''}" id="edit-ath-aadhar-placeholder"></i>
@@ -5636,7 +6495,7 @@
                                     </div>
                                 </div>
 
-                                <!-- Birth Certificate (Mandatory) -->
+                                <!-- Birth Certificate -->
                                 <div class="bg-white p-2.5 rounded-xl border border-slate-200 flex flex-col items-center text-center">
                                     <div class="w-16 h-16 rounded-xl bg-slate-100 border border-slate-300 overflow-hidden flex items-center justify-center shrink-0 mb-2 relative">
                                         <i class="fa-solid fa-id-card text-amber-600 text-xl ${editBirthCertBase64 ? 'hidden' : ''}" id="edit-ath-birthcert-placeholder"></i>
@@ -5725,47 +6584,59 @@
                             <input type="text" class="clean-input" id="edit-ath-address" value="${athlete.address || ''}" placeholder="City, State">
                         </div>
 
-                        <!-- 5. Martial Arts Categories -->
+                        <!-- 5. Discipline & Tier & Belt Rank -->
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                                <label class="clean-input-label">Discipline *</label>
+                                <select class="clean-input font-bold" id="edit-ath-discipline">
+                                    <option value="Kyorugi" ${currentDiscipline === 'Kyorugi' ? 'selected' : ''}>Kyorugi (Sparring)</option>
+                                    <option value="Poomsae" ${currentDiscipline === 'Poomsae' ? 'selected' : ''}>Poomsae (Forms)</option>
+                                    <option value="Kyukpa" ${(currentDiscipline === 'Kyukpa' || currentDiscipline === 'Breaking') ? 'selected' : ''}>Breaking (Kyukpa)</option>
+                                    <option value="Speed Kicking" ${currentDiscipline === 'Speed Kicking' ? 'selected' : ''}>Speed Kicking</option>
+                                    <option value="Virtual Taekwondo" ${(currentDiscipline === 'Virtual Taekwondo' || currentDiscipline === 'Virtual TKD') ? 'selected' : ''}>Virtual Taekwondo</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="clean-input-label">Competition Tier *</label>
+                                <select class="clean-input font-bold" id="edit-ath-tier">
+                                    <option value="regular" ${currentTier === 'regular' ? 'selected' : ''}>Regular (Advanced / Black Belt)</option>
+                                    <option value="freshers" ${currentTier === 'freshers' ? 'selected' : ''}>Freshers (Beginner / Color Belt)</option>
+                                </select>
+                            </div>
                             <div>
                                 <label class="clean-input-label">Belt Rank *</label>
                                 <select class="clean-input" id="edit-ath-belt">
                                     ${TKD_BELTS.map(b => `<option value="${b.id}" ${b.id === athlete.beltId ? 'selected' : ''}>${b.name}</option>`).join('')}
                                 </select>
                             </div>
+                        </div>
+
+                        <!-- 6. Age Division & Weight -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label class="clean-input-label">Discipline *</label>
-                                <select class="clean-input" id="edit-ath-discipline">
-                                    <option value="Kyorugi" ${athlete.discipline === 'Kyorugi' ? 'selected' : ''}>Kyorugi</option>
-                                    <option value="Poomsae" ${athlete.discipline === 'Poomsae' ? 'selected' : ''}>Poomsae</option>
-                                    <option value="Virtual Taekwondo" ${athlete.discipline === 'Virtual Taekwondo' ? 'selected' : ''}>Virtual Taekwondo</option>
-                                    <option value="Both" ${athlete.discipline === 'Both' ? 'selected' : ''}>Both</option>
+                                <label class="clean-input-label">Age Division *</label>
+                                <select class="clean-input font-bold" id="edit-ath-category">
+                                    <option value="senior" ${currentDiv === 'senior' ? 'selected' : ''}>Senior (Ages 17+)</option>
+                                    <option value="junior" ${currentDiv === 'junior' ? 'selected' : ''}>Junior (Ages 15–17)</option>
+                                    <option value="cadet" ${currentDiv === 'cadet' ? 'selected' : ''}>Cadet (Ages 12–14)</option>
+                                    <option value="sub-junior" ${currentDiv === 'sub-junior' ? 'selected' : ''}>Sub-Junior (Ages 8–11)</option>
+                                    <option value="children" ${currentDiv === 'children' ? 'selected' : ''}>Children (Under 8 / Ages 4–7)</option>
                                 </select>
                             </div>
                             <div>
-                                <label class="clean-input-label">Weight (kg) *</label>
+                                <label class="clean-input-label">Declared Weight (kg) *</label>
                                 <input type="number" step="0.1" class="clean-input font-mono font-bold" id="edit-ath-weight" value="${athlete.weight || athlete.measuredWeight || 54.0}" required>
                             </div>
                         </div>
 
-                        <!-- 6. Division & Weight Category -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label class="clean-input-label">Age Division *</label>
-                                <select class="clean-input" id="edit-ath-category">
-                                    <option value="children" ${((athlete.category || '').toLowerCase().includes('children') || (athlete.age && athlete.age < 10)) ? 'selected' : ''}>Children (Under 10)</option>
-                                    <option value="sub-junior" ${((athlete.category || '').toLowerCase().includes('sub-junior') || (athlete.age && athlete.age >= 10 && athlete.age < 12)) ? 'selected' : ''}>Sub-Junior (Under 12)</option>
-                                    <option value="cadet" ${((athlete.category || '').toLowerCase().includes('cadet') || (athlete.age && athlete.age >= 12 && athlete.age <= 14)) ? 'selected' : ''}>Cadet (12–14 yrs)</option>
-                                    <option value="junior" ${((athlete.category || '').toLowerCase().includes('junior') || (athlete.age && athlete.age >= 15 && athlete.age <= 17) || (!athlete.category && !athlete.age)) ? 'selected' : ''}>Junior (15–17 yrs)</option>
-                                    <option value="senior" ${((athlete.category || '').toLowerCase().includes('senior') || (athlete.age && athlete.age >= 18)) ? 'selected' : ''}>Over 17+ (Senior)</option>
-                                    <option value="dasara" ${(athlete.category || '').toLowerCase().includes('dasara') ? 'selected' : ''}>Dasara (Open/District)</option>
-                                </select>
+                        <!-- 7. Category / Weight Class / Event Selection & Code -->
+                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <label class="clean-input-label !mb-0">Specific Weight Class / Category Event *</label>
+                                <span id="edit-ath-category-code-badge" class="font-mono font-bold text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded"></span>
                             </div>
-                            <div>
-                                <label class="clean-input-label">Weight Category *</label>
-                                <select class="clean-input" id="edit-ath-weightclass">
-                                </select>
-                            </div>
+                            <select class="clean-input font-mono font-bold text-xs" id="edit-ath-weightclass">
+                            </select>
                         </div>
 
                         <div class="pt-2 flex items-center justify-end gap-2.5 border-t border-slate-100">
@@ -5894,19 +6765,79 @@
             }
         });
 
+        // Dynamic category updater
         const updateEditWeightDropdown = () => {
-            const cat = document.getElementById('edit-ath-category')?.value || 'junior';
-            const gen = document.getElementById('edit-ath-gender')?.value || athlete.gender || 'Male';
+            const disc = document.getElementById('edit-ath-discipline')?.value || 'Kyorugi';
+            const tier = (document.getElementById('edit-ath-tier')?.value || 'regular').toLowerCase();
+            const div = document.getElementById('edit-ath-category')?.value || 'junior';
+            const gen = document.getElementById('edit-ath-gender')?.value || 'Male';
             const wSelect = document.getElementById('edit-ath-weightclass');
-            if (wSelect) {
-                wSelect.innerHTML = getWeightOptions(cat, gen);
-                if (athlete.weightClass) {
-                    const matchOpt = Array.from(wSelect.options).find(o => o.value === athlete.weightClass || (athlete.weightClass && athlete.weightClass.includes(o.value)));
-                    if (matchOpt) matchOpt.selected = true;
-                }
+            const badge = document.getElementById('edit-ath-category-code-badge');
+            if (!wSelect) return;
+
+            let optionsHtml = '';
+            const existingCode = athlete.categoryCode || '';
+            const existingWeightClass = (athlete.weightClass || '').toLowerCase();
+
+            if (disc === 'Kyorugi') {
+                const kData = (window.TKD_KYORUGI_CATEGORIES || {})[tier]?.[div]?.[gen] || [];
+                optionsHtml = kData.map(item => {
+                    const isSel = (item.code === existingCode) || (existingWeightClass.includes(item.name.toLowerCase()));
+                    return `<option value="${item.name}" data-code="${item.code}" data-min="${item.minWeight}" data-max="${item.maxWeight}" ${isSel ? 'selected' : ''}>${item.name} (${item.minWeight} - ${item.maxWeight} kg) [${item.code}]</option>`;
+                }).join('');
+            } else if (disc === 'Poomsae') {
+                const pTier = (window.TKD_POOMSAE_CATEGORIES || {})[tier] || {};
+                const allP = [...(pTier.individual || []), ...(pTier.mix_pair || []), ...(pTier.team || [])];
+                optionsHtml = allP.map(item => {
+                    const isSel = (item.code === existingCode) || (athlete.weightClass === item.name);
+                    return `<option value="${item.name}" data-code="${item.code}" ${isSel ? 'selected' : ''}>${item.name} (${item.ageRange}) [${item.code}]</option>`;
+                }).join('');
+            } else if (disc === 'Kyukpa' || disc === 'Breaking') {
+                const bTier = (window.TKD_BREAKING_CATEGORIES || {})[tier] || [];
+                const bTrad = (window.TKD_BREAKING_CATEGORIES || {}).traditional || [];
+                const allB = [...bTier, ...bTrad];
+                optionsHtml = allB.map(item => {
+                    const isSel = (item.code === existingCode) || (athlete.weightClass === item.name);
+                    return `<option value="${item.name}" data-code="${item.code}" ${isSel ? 'selected' : ''}>${item.name} [${item.code}]</option>`;
+                }).join('');
+            } else if (disc === 'Speed Kicking') {
+                const sInd = (window.TKD_SPEED_KICKING_CATEGORIES || {}).individual || [];
+                const sTeam = (window.TKD_SPEED_KICKING_CATEGORIES || {}).team || [];
+                const allS = [...sInd, ...sTeam];
+                optionsHtml = allS.map(item => {
+                    const isSel = (item.code === existingCode) || (athlete.weightClass === item.name);
+                    return `<option value="${item.name}" data-code="${item.code}" ${isSel ? 'selected' : ''}>${item.name} [${item.code}]</option>`;
+                }).join('');
+            } else if (disc === 'Virtual Taekwondo' || disc === 'Virtual TKD') {
+                const vTier = (window.TKD_VIRTUAL_TKD_CATEGORIES || {})[tier] || {};
+                const allV = [...(vTier.individual || []), ...(vTier.mix || [])];
+                optionsHtml = allV.map(item => {
+                    const isSel = (item.code === existingCode) || (athlete.weightClass === item.name);
+                    return `<option value="${item.name}" data-code="${item.code}" ${isSel ? 'selected' : ''}>${item.name} (${item.ageRange}) [${item.code}]</option>`;
+                }).join('');
             }
+
+            if (!optionsHtml) {
+                optionsHtml = `<option value="${athlete.weightClass || 'Under 55kg'}" data-code="${athlete.categoryCode || 'KY-REG-JUN-M-U55'}">${athlete.weightClass || 'Under 55kg'}</option>`;
+            }
+
+            wSelect.innerHTML = optionsHtml;
+
+            const updateBadge = () => {
+                const opt = wSelect.options[wSelect.selectedIndex];
+                const c = opt?.getAttribute('data-code') || '';
+                if (badge) {
+                    badge.textContent = c ? ('Code: ' + c) : '';
+                    badge.style.display = c ? 'inline-block' : 'none';
+                }
+            };
+            updateBadge();
+            wSelect.onchange = updateBadge;
         };
+
         updateEditWeightDropdown();
+        document.getElementById('edit-ath-discipline')?.addEventListener('change', updateEditWeightDropdown);
+        document.getElementById('edit-ath-tier')?.addEventListener('change', updateEditWeightDropdown);
         document.getElementById('edit-ath-category')?.addEventListener('change', updateEditWeightDropdown);
         document.getElementById('edit-ath-gender')?.addEventListener('change', updateEditWeightDropdown);
 
@@ -5938,10 +6869,24 @@
             const address = document.getElementById('edit-ath-address').value.trim();
             const beltId = document.getElementById('edit-ath-belt').value;
             const discipline = document.getElementById('edit-ath-discipline').value;
+            const tier = document.getElementById('edit-ath-tier').value;
+            const division = document.getElementById('edit-ath-category').value;
             const weight = parseFloat(document.getElementById('edit-ath-weight').value) || 54.0;
-            const editCat = document.getElementById('edit-ath-category')?.value || 'junior';
-            const editWeightClass = document.getElementById('edit-ath-weightclass')?.value || athlete.weightClass || '-55 kg';
-            const catLabel = TKD_WEIGHT_CATEGORIES[editCat]?.label || athlete.category || 'Junior (15–17 yrs)';
+            const wSelect = document.getElementById('edit-ath-weightclass');
+            const chosenOpt = wSelect ? wSelect.options[wSelect.selectedIndex] : null;
+            const weightClass = chosenOpt ? chosenOpt.value : (athlete.weightClass || 'Under 55kg');
+            const categoryCode = chosenOpt?.getAttribute('data-code') || athlete.categoryCode || '';
+            const minWeight = chosenOpt?.getAttribute('data-min') ? parseFloat(chosenOpt.getAttribute('data-min')) : athlete.minWeight;
+            const maxWeight = chosenOpt?.getAttribute('data-max') ? parseFloat(chosenOpt.getAttribute('data-max')) : athlete.maxWeight;
+
+            const divLabels = {
+                'senior': 'Senior (Ages 17+)',
+                'junior': 'Junior (Ages 15–17)',
+                'cadet': 'Cadet (Ages 12–14)',
+                'sub-junior': 'Sub-Junior (Ages 8–11)',
+                'children': 'Children (Under 8 / Ages 4–7)'
+            };
+            const catLabel = divLabels[division] || athlete.category || 'Junior (15–17 yrs)';
 
             if (!validateStrictPhone(phone)) {
                 showToast('Please enter a valid 10-digit mobile number.', 'error');
@@ -5978,9 +6923,14 @@
                 beltName: belt.name,
                 gender,
                 discipline,
+                tier,
+                division,
                 weight,
                 category: catLabel,
-                weightClass: editWeightClass,
+                weightClass,
+                categoryCode,
+                minWeight,
+                maxWeight,
                 kukkiwonNo: kukkiwonId,
                 kukkiwonDanNumber: kukkiwonId,
                 kukkiwonId: kukkiwonId,
@@ -5999,7 +6949,7 @@
 
             store.updateAthlete(athlete.id, updatedData);
             closeEditModal();
-            showToast(`Updated ${name}'s competitor profile & documents!`, 'success');
+            showToast(`Updated ${name}'s competitor profile & category code [${categoryCode}]!`, 'success');
 
             if (typeof onComplete === 'function') {
                 onComplete();
@@ -11804,8 +12754,9 @@
                                                             <div class="text-[11px] text-blue-600 font-mono font-black mt-0.5">
                                                                 ID: ${a.athleteId || a.id}${(a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId) ? ` • KKW: ${a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId}` : ''} • ${a.dojangCode || a.dojangName || 'Academy'}
                                                             </div>
-                                                            <div class="text-xs text-slate-700 font-semibold mt-1">
-                                                                ${a.category} • <span class="font-mono text-slate-900 font-bold">${a.weightClass}</span>
+                                                            <div class="text-xs text-slate-700 font-semibold mt-1 flex items-center gap-1.5 flex-wrap">
+                                                                <span>${a.category}</span> • <span class="font-mono text-slate-900 font-bold">${a.weightClass}</span>
+                                                                ${a.categoryCode ? `<span class="bg-blue-100 text-blue-800 font-mono text-[9.5px] font-bold px-1.5 py-0.5 rounded border border-blue-200">${a.categoryCode}</span>` : ''}
                                                             </div>
                                                             <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
                                                                 <span class="text-[10px] text-slate-500 font-medium">Registered: <strong class="text-slate-800 font-mono">${a.weight || '—'} kg</strong></span>
@@ -11908,6 +12859,8 @@
                                                     <span class="tkd-badge bg-slate-100 text-slate-800 font-mono font-bold text-xs border border-slate-200">
                                                         ${a.weightClass}
                                                     </span>
+                                                    ${a.categoryCode ? `<div class="mt-0.5"><span class="bg-blue-100 text-blue-800 font-mono text-[9.5px] font-bold px-1.5 py-0.2 rounded border border-blue-200">${a.categoryCode}</span></div>` : ''}
+                                                    ${(a.minWeight !== undefined && a.maxWeight !== undefined) ? `<div class="text-[9.5px] text-slate-500 font-mono mt-0.5">${a.minWeight}–${a.maxWeight} kg</div>` : ''}
                                                 </td>
                                                 <td>
                                                     <div class="flex items-center gap-1.5">
@@ -12010,6 +12963,7 @@
                                             <td class="py-2.5 px-3">
                                                 <div class="font-bold text-slate-800">${a.category || a.ageCategory || 'Junior'}</div>
                                                 <div class="text-[10px] text-slate-500 font-mono">${a.weightClass || 'Under 55kg'}</div>
+                                                ${a.categoryCode ? `<div class="text-[9.5px] font-mono font-bold text-blue-600">${a.categoryCode}</div>` : ''}
                                             </td>
                                             <td class="py-2.5 px-3 text-center font-mono font-bold ${isPassed ? 'text-emerald-700' : 'text-slate-600'}">
                                                 ${wtDisplay}
@@ -17582,14 +18536,24 @@
     function formatDivisionCategoryShort(raw) {
         if (!raw) return 'Junior Male U-55KG';
         let s = String(raw).replace(/_/g, ' ').replace(/\u2022/g, ' ').replace(/\s+/g, ' ').trim();
+        const codeMatch = s.match(/(KY-(?:REG|FR)-(SEN|JUN|CAD|SUB|CHI)-(M|F)-(?:U|O)\d+)/i);
+        if (codeMatch) {
+            const divMap = { SEN: 'Senior', JUN: 'Junior', CAD: 'Cadet', SUB: 'Sub-Junior', CHI: 'Children' };
+            const genMap = { M: 'Male', F: 'Female' };
+            const parts = codeMatch[1].split('-');
+            const ageGroup = divMap[parts[2].toUpperCase()] || 'Junior';
+            const gender = genMap[parts[3].toUpperCase()] || 'Male';
+            const wtPart = parts[4].toUpperCase().replace('U', 'U-').replace('O', '+') + 'KG';
+            return `${ageGroup} ${gender} ${wtPart}`;
+        }
         let prefix = 'Junior Male';
-        const mPrefix = s.match(/(Sub-Junior|Junior|Cadet|Senior)\s+(Male|Female)/i);
+        const mPrefix = s.match(/(Children|Sub-Junior|Junior|Cadet|Senior)\s+(Male|Female)/i);
         if (mPrefix) {
             const ageGroup = mPrefix[1].charAt(0).toUpperCase() + mPrefix[1].slice(1);
             const gender = mPrefix[2].charAt(0).toUpperCase() + mPrefix[2].slice(1).toLowerCase();
             prefix = ageGroup + ' ' + gender;
         } else {
-            const mAge = s.match(/Sub-Junior|Junior|Cadet|Senior/i);
+            const mAge = s.match(/Children|Sub-Junior|Junior|Cadet|Senior/i);
             const mGender = s.match(/Male|Female/i);
             const age = mAge ? (mAge[0].charAt(0).toUpperCase() + mAge[0].slice(1)) : 'Junior';
             const gen = mGender ? (mGender[0].charAt(0).toUpperCase() + mGender[0].slice(1).toLowerCase()) : 'Male';
@@ -19175,13 +20139,18 @@ ${templateBg ? `
     // ────────────────────────────────────────────────────────────────────────
     // COMPETITION CATEGORIES & WEIGHT DIVISIONS ROSTER VIEW
     // ────────────────────────────────────────────────────────────────────────
+    // ────────────────────────────────────────────────────────────────────────
+    // COMPETITION CATEGORIES & WEIGHT DIVISIONS ROSTER VIEW
+    // ────────────────────────────────────────────────────────────────────────
     let _activeCategoryFilter = {
         format: 'Official',       // 'Official' | 'Group-4'
-        discipline: 'all',        // 'all' | 'Kyorugi' | 'Poomsae'
+        discipline: 'all',        // 'all' | 'Kyorugi' | 'Poomsae' | 'Kyukpa' | 'Speed Kicking' | 'Virtual Taekwondo'
+        tier: 'all',              // 'all' | 'regular' | 'freshers'
         division: 'junior',
         group4Cat: 'U-10',
         gender: 'Male',
-        weightClass: '-55 kg'
+        categoryCode: '',
+        weightClass: 'Under 55kg'
     };
 
     function renderCategoriesView(container) {
@@ -19192,61 +20161,159 @@ ${templateBg ? `
 
         const currentFormat = _activeCategoryFilter.format || 'Official';
         const currentDisc = _activeCategoryFilter.discipline || 'all';
+        const currentTier = (_activeCategoryFilter.tier || 'all').toLowerCase();
         const currentDiv = _activeCategoryFilter.division || 'junior';
         const currentG4 = _activeCategoryFilter.group4Cat || 'U-10';
         const currentGen = _activeCategoryFilter.gender || 'Male';
+        let currentWeight = _activeCategoryFilter.weightClass || 'all';
+        let currentCode = _activeCategoryFilter.categoryCode || '';
 
         const isGroup4 = currentFormat === 'Group-4';
-        const g4Config = TKD_GROUP4_CATEGORIES.find(c => c.id === currentG4) || { id: currentG4, label: `${currentG4} Pool` };
-        const divConfig = TKD_WEIGHT_CATEGORIES[currentDiv] || TKD_WEIGHT_CATEGORIES['junior'];
-        const availableWeights = divConfig[currentGen] || [];
+        const divLabels = {
+            'senior': 'Senior (Ages 17+)',
+            'junior': 'Junior (Ages 15–17)',
+            'cadet': 'Cadet (Ages 12–14)',
+            'sub-junior': 'Sub-Junior (Ages 8–11)',
+            'children': 'Children (Under 8 / Ages 4–7)'
+        };
 
-        if (!availableWeights.includes(_activeCategoryFilter.weightClass)) {
-            _activeCategoryFilter.weightClass = availableWeights[0] || '-55 kg';
+        // Build list of available weight classes or events for the active selector
+        let availableOptions = [{ name: 'All Weight Classes / Events', code: '', minWeight: null, maxWeight: null }];
+
+        if (currentDisc === 'all' || currentDisc === 'Kyorugi') {
+            const tiersToQuery = currentTier === 'all' ? ['regular', 'freshers'] : [currentTier];
+            tiersToQuery.forEach(t => {
+                const kList = (window.TKD_KYORUGI_CATEGORIES || {})[t]?.[currentDiv]?.[currentGen] || [];
+                kList.forEach(k => {
+                    if (!availableOptions.find(o => o.code === k.code)) {
+                        availableOptions.push(k);
+                    }
+                });
+            });
+        } else if (currentDisc === 'Poomsae') {
+            const tiersToQuery = currentTier === 'all' ? ['regular', 'freshers'] : [currentTier];
+            tiersToQuery.forEach(t => {
+                const pObj = (window.TKD_POOMSAE_CATEGORIES || {})[t] || {};
+                const list = [...(pObj.individual || []), ...(pObj.mix_pair || []), ...(pObj.team || [])];
+                list.forEach(p => {
+                    if (!availableOptions.find(o => o.code === p.code)) {
+                        availableOptions.push({ name: `${p.name} (${p.ageRange})`, code: p.code });
+                    }
+                });
+            });
+        } else if (currentDisc === 'Kyukpa' || currentDisc === 'Breaking') {
+            const tiersToQuery = currentTier === 'all' ? ['regular', 'freshers'] : [currentTier];
+            tiersToQuery.forEach(t => {
+                const bList = (window.TKD_BREAKING_CATEGORIES || {})[t] || [];
+                bList.forEach(b => {
+                    if (!availableOptions.find(o => o.code === b.code)) {
+                        availableOptions.push(b);
+                    }
+                });
+            });
+            const tradList = (window.TKD_BREAKING_CATEGORIES || {}).traditional || [];
+            tradList.forEach(b => {
+                if (!availableOptions.find(o => o.code === b.code)) {
+                    availableOptions.push(b);
+                }
+            });
+        } else if (currentDisc === 'Speed Kicking') {
+            const indList = (window.TKD_SPEED_KICKING_CATEGORIES || {}).individual || [];
+            indList.forEach(s => {
+                if (!availableOptions.find(o => o.code === s.code)) availableOptions.push(s);
+            });
+            const teamList = (window.TKD_SPEED_KICKING_CATEGORIES || {}).team || [];
+            teamList.forEach(s => {
+                if (!availableOptions.find(o => o.code === s.code)) availableOptions.push(s);
+            });
+        } else if (currentDisc === 'Virtual Taekwondo' || currentDisc === 'Virtual TKD') {
+            const tiersToQuery = currentTier === 'all' ? ['regular', 'freshers'] : [currentTier];
+            tiersToQuery.forEach(t => {
+                const vObj = (window.TKD_VIRTUAL_TKD_CATEGORIES || {})[t] || {};
+                const list = [...(vObj.individual || []), ...(vObj.mix || [])];
+                list.forEach(v => {
+                    if (!availableOptions.find(o => o.code === v.code)) {
+                        availableOptions.push({ name: `${v.name} (${v.ageRange})`, code: v.code });
+                    }
+                });
+            });
         }
-        const currentWeight = _activeCategoryFilter.weightClass;
 
         // Smart category matching
         function matchesAthlete(a) {
-            // Check Format
             const aIsG4 = a.competitionFormat === 'Group-4' || (a.category && a.category.includes('Group-4')) || a.group4Category;
             if (isGroup4) {
                 if (!aIsG4) return false;
-                const g4Match = (a.group4Category === currentG4) || (a.category && a.category.includes(currentG4));
-                if (!g4Match) return false;
-            } else {
-                if (aIsG4) return false;
-                const catLower = (a.category || '').toLowerCase();
-                let divMatch = false;
-                if (currentDiv === 'children') divMatch = catLower.includes('children') || catLower.includes('under 10') || (a.age && a.age < 10);
-                else if (currentDiv === 'sub-junior') divMatch = catLower.includes('sub-junior') || catLower.includes('under 12') || (a.age && a.age >= 10 && a.age < 12);
-                else if (currentDiv === 'cadet') divMatch = catLower.includes('cadet') || (a.age && a.age >= 12 && a.age <= 14);
-                else if (currentDiv === 'junior') divMatch = catLower.includes('junior') || (a.age && a.age >= 15 && a.age <= 17);
-                else if (currentDiv === 'senior') divMatch = catLower.includes('senior') || (a.age && a.age >= 18);
-                else if (currentDiv === 'dasara') divMatch = catLower.includes('dasara');
-                else divMatch = catLower.includes(currentDiv);
-                if (!divMatch) return false;
-
-                if (a.discipline !== 'Poomsae') {
-                    const targetNum = (currentWeight.match(/\d+/) || ['55'])[0];
-                    const rawW = (a.weightClass || '').toLowerCase();
-                    const wtMatch = rawW.includes(targetNum) || rawW.includes(currentWeight.toLowerCase());
-                    if (!wtMatch) return false;
-                }
+                return (a.group4Category === currentG4) || (a.category && a.category.includes(currentG4));
             }
-
-            // Check gender
-            const genMatch = (a.gender || 'Male').toLowerCase() === currentGen.toLowerCase();
-            if (!genMatch) return false;
+            if (aIsG4) return false;
 
             // Check discipline
             if (currentDisc !== 'all') {
-                const aDisc = a.discipline || 'Kyorugi';
-                if (currentDisc === 'Virtual Taekwondo') {
-                    if (aDisc !== 'Virtual Taekwondo' && aDisc !== 'Virtual TKD' && aDisc !== 'virtual') return false;
-                } else if (aDisc !== currentDisc && aDisc !== 'Both') {
+                const aDisc = (a.discipline || 'Kyorugi').toLowerCase();
+                const dTarget = currentDisc.toLowerCase();
+                if (dTarget === 'kyukpa' || dTarget === 'breaking') {
+                    if (!aDisc.includes('kyukpa') && !aDisc.includes('breaking')) return false;
+                } else if (dTarget === 'virtual taekwondo' || dTarget === 'virtual tkd') {
+                    if (!aDisc.includes('virtual')) return false;
+                } else if (dTarget === 'poomsae') {
+                    if (!aDisc.includes('poomsae') && aDisc !== 'both') return false;
+                } else if (dTarget === 'kyorugi') {
+                    if (!aDisc.includes('kyorugi') && aDisc !== 'both') return false;
+                } else if (!aDisc.includes(dTarget)) {
                     return false;
                 }
+            }
+
+            // Check tier
+            if (currentTier !== 'all') {
+                const aTier = (a.tier || '').toLowerCase();
+                const code = (a.categoryCode || '').toUpperCase();
+                const isFresherCode = code.includes('-FR-');
+                const isRegCode = code.includes('-REG-');
+                if (currentTier === 'freshers') {
+                    if (aTier && aTier !== 'freshers' && !isFresherCode) return false;
+                } else if (currentTier === 'regular') {
+                    if (aTier && aTier !== 'regular' && !isRegCode) return false;
+                }
+            }
+
+            // Check division
+            const catLower = (a.category || a.division || '').toLowerCase();
+            const code = (a.categoryCode || '').toUpperCase();
+            let divMatch = false;
+            if (currentDiv === 'children') {
+                divMatch = code.includes('-CHI-') || code.includes('-CHILD-') || catLower.includes('children') || catLower.includes('under 8') || (a.age && a.age < 8);
+            } else if (currentDiv === 'sub-junior') {
+                divMatch = code.includes('-SUB-') || code.includes('-SUBJUN-') || catLower.includes('sub-junior') || (a.age && a.age >= 8 && a.age <= 11);
+            } else if (currentDiv === 'cadet') {
+                divMatch = code.includes('-CAD-') || catLower.includes('cadet') || (a.age && a.age >= 12 && a.age <= 14);
+            } else if (currentDiv === 'junior') {
+                divMatch = code.includes('-JUN-') || catLower.includes('junior') || (a.age && a.age >= 15 && a.age <= 17);
+            } else if (currentDiv === 'senior') {
+                divMatch = code.includes('-SEN-') || catLower.includes('senior') || (a.age && a.age >= 17);
+            } else {
+                divMatch = catLower.includes(currentDiv);
+            }
+            if (!divMatch) return false;
+
+            // Check gender
+            const isMixEvent = (a.categoryCode || '').includes('-MIX-') || (a.categoryCode || '').includes('-PAIR-');
+            if (!isMixEvent) {
+                const genMatch = (a.gender || 'Male').toLowerCase() === currentGen.toLowerCase();
+                if (!genMatch) return false;
+            }
+
+            // Check specific Category Code or Weight Class
+            if (currentCode) {
+                if (a.categoryCode && a.categoryCode === currentCode) return true;
+            }
+            if (currentWeight && currentWeight !== 'all' && currentWeight !== 'All Weight Classes / Events') {
+                const rawW = (a.weightClass || '').toLowerCase();
+                const targetW = currentWeight.toLowerCase();
+                const targetNum = (currentWeight.match(/\d+/) || [])[0];
+                const matchW = rawW.includes(targetW) || (targetNum && rawW.includes(targetNum));
+                if (!matchW && !rawW.includes(targetW.slice(0, 4))) return false;
             }
 
             return true;
@@ -19259,10 +20326,12 @@ ${templateBg ? `
         const activeFilterObj = {
             format: currentFormat,
             discipline: currentDisc,
+            tier: currentTier,
             division: currentDiv,
             group4Cat: currentG4,
             gender: currentGen,
-            weightClass: currentWeight
+            weightClass: currentWeight,
+            categoryCode: currentCode
         };
 
         container.innerHTML = `
@@ -19271,11 +20340,11 @@ ${templateBg ? `
                 <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                         <div class="flex items-center gap-2">
-                            <span class="tkd-badge tkd-badge-blue font-bold"><i class="fa-solid fa-layer-group me-1"></i>Weight Categories Desk</span>
+                            <span class="tkd-badge tkd-badge-blue font-bold"><i class="fa-solid fa-layer-group me-1"></i>Official Categories &amp; Weight Desk</span>
                             <span class="text-xs text-slate-700 font-semibold">${activeTourn.title || 'Official Championship'}</span>
                         </div>
                         <h1 class="text-2xl font-black text-slate-900 mt-1">Official Category &amp; Weight Class Rosters</h1>
-                        <p class="text-xs text-slate-600 font-medium">Filter by Discipline, Format, Division, Gender, and Weight Class to inspect scale-passed qualified competitors saved for championship brackets.</p>
+                        <p class="text-xs text-slate-600 font-medium">Filter by 5 Disciplines (Kyorugi, Poomsae, Breaking, Speed Kicking, Virtual TKD), Tiers (Regular / Freshers), Divisions, and Official Codes to verify scale-passed qualified competitors.</p>
                     </div>
                     <div class="flex flex-wrap gap-2">
                         <button class="tkd-btn tkd-btn-blue font-bold text-xs" id="btn-print-category-roster-top">
@@ -19299,7 +20368,7 @@ ${templateBg ? `
                             </span>
                             <div>
                                 <h3 class="text-sm font-black text-slate-900">Category &amp; Division Selection Filters</h3>
-                                <p class="text-[11px] text-slate-500 font-medium">Select Discipline, Competition Format, Age Division, Gender, and Weight Class below.</p>
+                                <p class="text-[11px] text-slate-500 font-medium">Select Discipline, Tier, Age Division, Gender, and Category Code / Weight Class below.</p>
                             </div>
                         </div>
                         <!-- Championship Selector -->
@@ -19311,66 +20380,108 @@ ${templateBg ? `
                         </div>
                     </div>
 
-                    <!-- Format & Discipline Mode Bar -->
+                    <!-- 1. Event Discipline Selector -->
+                    <div>
+                        <label class="text-[10px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
+                            <i class="fa-solid fa-fire text-amber-500 me-1"></i> 1. Event Discipline
+                        </label>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                            ${[
+                                { id: 'all', label: 'All Disciplines', icon: 'fa-layer-group' },
+                                { id: 'Kyorugi', label: 'Kyorugi', icon: 'fa-shield-halved' },
+                                { id: 'Poomsae', label: 'Poomsae', icon: 'fa-yin-yang' },
+                                { id: 'Kyukpa', label: 'E-Breaking', icon: 'fa-hammer' },
+                                { id: 'Speed Kicking', label: 'Speed Kicking', icon: 'fa-bolt' },
+                                { id: 'Virtual Taekwondo', label: 'Virtual TKD', icon: 'fa-headset' }
+                            ].map(item => `
+                                <label class="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl border text-xs font-bold cursor-pointer transition ${currentDisc === item.id ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-xs ring-1 ring-blue-500' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}">
+                                    <input type="radio" name="cat-filter-discipline" value="${item.id}" class="hidden" ${currentDisc === item.id ? 'checked' : ''}>
+                                    <i class="fa-solid ${item.icon} ${currentDisc === item.id ? 'text-blue-600' : 'text-slate-400'}"></i>
+                                    <span>${item.label}</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- 2. Competition Tier & Format Bar -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                        <!-- 1. Competition Format -->
+                        <!-- Competition Tier -->
+                        <div>
+                            <label class="text-[10px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
+                                <i class="fa-solid fa-medal text-blue-600 me-1"></i> Competition Tier
+                            </label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <label class="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition ${currentTier === 'all' ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}">
+                                    <input type="radio" name="cat-filter-tier" value="all" class="hidden" ${currentTier === 'all' ? 'checked' : ''}>
+                                    <span>All Tiers</span>
+                                </label>
+                                <label class="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition ${currentTier === 'regular' ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-xs ring-1 ring-blue-500' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}">
+                                    <input type="radio" name="cat-filter-tier" value="regular" class="hidden" ${currentTier === 'regular' ? 'checked' : ''}>
+                                    <span>Regular (KY-REG)</span>
+                                </label>
+                                <label class="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition ${currentTier === 'freshers' ? 'border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs ring-1 ring-emerald-500' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}">
+                                    <input type="radio" name="cat-filter-tier" value="freshers" class="hidden" ${currentTier === 'freshers' ? 'checked' : ''}>
+                                    <span>Freshers (KY-FR)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Competition Format -->
                         <div>
                             <label class="text-[10px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
                                 <i class="fa-solid fa-award text-blue-600 me-1"></i> Competition Format
                             </label>
                             <div class="grid grid-cols-2 gap-2">
-                                <label class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold cursor-pointer transition ${!isGroup4 ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-xs ring-1 ring-blue-500' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}">
+                                <label class="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition ${!isGroup4 ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-xs ring-1 ring-blue-500' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}">
                                     <input type="radio" name="cat-filter-format" value="Official" class="hidden" ${!isGroup4 ? 'checked' : ''}>
                                     <i class="fa-solid fa-trophy ${!isGroup4 ? 'text-blue-600' : 'text-slate-400'}"></i>
-                                    <span>Official WT</span>
+                                    <span>Official Championship</span>
                                 </label>
-                                <label class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold cursor-pointer transition ${isGroup4 ? 'border-amber-500 bg-amber-50 text-amber-900 shadow-xs ring-1 ring-amber-500' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}">
+                                <label class="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition ${isGroup4 ? 'border-amber-500 bg-amber-50 text-amber-900 shadow-xs ring-1 ring-amber-500' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}">
                                     <input type="radio" name="cat-filter-format" value="Group-4" class="hidden" ${isGroup4 ? 'checked' : ''}>
                                     <i class="fa-solid fa-users ${isGroup4 ? 'text-amber-600' : 'text-slate-400'}"></i>
                                     <span>Group-4 (Pool of 4)</span>
                                 </label>
                             </div>
                         </div>
-
-                        <!-- 2. Event Discipline -->
-                        <div>
-                            <label class="text-[10px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
-                                <i class="fa-solid fa-fire text-amber-500 me-1"></i> Event Discipline
-                            </label>
-                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                <label class="flex items-center justify-center gap-1 px-2 py-2 rounded-lg border text-xs font-bold cursor-pointer transition ${currentDisc === 'all' ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-xs ring-1 ring-blue-500' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}">
-                                    <input type="radio" name="cat-filter-discipline" value="all" class="hidden" ${currentDisc === 'all' ? 'checked' : ''}>
-                                    <span>All</span>
-                                </label>
-                                <label class="flex items-center justify-center gap-1 px-2 py-2 rounded-lg border text-xs font-bold cursor-pointer transition ${currentDisc === 'Kyorugi' ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-xs ring-1 ring-blue-500' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}">
-                                    <input type="radio" name="cat-filter-discipline" value="Kyorugi" class="hidden" ${currentDisc === 'Kyorugi' ? 'checked' : ''}>
-                                    <span>Kyorugi</span>
-                                </label>
-                                <label class="flex items-center justify-center gap-1 px-2 py-2 rounded-lg border text-xs font-bold cursor-pointer transition ${currentDisc === 'Poomsae' ? 'border-purple-600 bg-purple-50 text-purple-900 shadow-xs ring-1 ring-purple-500' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}">
-                                    <input type="radio" name="cat-filter-discipline" value="Poomsae" class="hidden" ${currentDisc === 'Poomsae' ? 'checked' : ''}>
-                                    <span>Poomsae</span>
-                                </label>
-                                <label class="flex items-center justify-center gap-1 px-2 py-2 rounded-lg border text-xs font-bold cursor-pointer transition ${currentDisc === 'Virtual Taekwondo' ? 'border-indigo-600 bg-indigo-50 text-indigo-900 shadow-xs ring-1 ring-indigo-500' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}">
-                                    <input type="radio" name="cat-filter-discipline" value="Virtual Taekwondo" class="hidden" ${currentDisc === 'Virtual Taekwondo' ? 'checked' : ''}>
-                                    <span>Virtual TKD</span>
-                                </label>
-                            </div>
-                        </div>
                     </div>
 
-                    <!-- Cascading Selectors Grid (Switches between Official and Group-4) -->
                     ${isGroup4 ? `
-                        <!-- Group-4 Selectors -->
+                        <!-- Group-4 Grassroots Controls -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-                            <!-- Dropdown 1: Group-4 Age Category -->
                             <div>
                                 <label class="text-[11px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
-                                    <i class="fa-solid fa-users text-amber-600 me-1"></i> Group-4 Age Pool (U-4 to A-18)
+                                    <i class="fa-solid fa-users text-amber-600 me-1"></i> Group-4 Age &amp; Weight Bracket
                                 </label>
-                                <select id="cat-select-group4" class="tkd-select text-xs font-bold w-full py-2.5 px-3 border-amber-300 rounded-xl bg-amber-50/40 text-slate-900 cursor-pointer focus:ring-2 focus:ring-amber-500">
-                                    ${TKD_GROUP4_CATEGORIES.map(g => `<option value="${g.id}" ${g.id === currentG4 ? 'selected' : ''}>${g.label}</option>`).join('')}
+                                <select id="cat-select-group4" class="tkd-select text-xs font-bold w-full py-2 px-3 border-amber-300 rounded-xl bg-amber-50/50 text-slate-900 cursor-pointer">
+                                    ${TKD_GROUP4_CATEGORIES.map(c => `<option value="${c.id}" ${c.id === currentG4 ? 'selected' : ''}>${c.id} — ${c.label}</option>`).join('')}
                                 </select>
-                                <span class="text-[10px] text-amber-700 font-medium mt-1 block">4-player round robin grassroots divisions</span>
+                            </div>
+                            <div>
+                                <label class="text-[11px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
+                                    <i class="fa-solid fa-venus-mars text-blue-600 me-1"></i> Gender
+                                </label>
+                                <select id="cat-select-gender" class="tkd-select text-xs font-bold w-full py-2 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer">
+                                    <option value="Male" ${currentGen === 'Male' ? 'selected' : ''}>Male</option>
+                                    <option value="Female" ${currentGen === 'Female' ? 'selected' : ''}>Female</option>
+                                </select>
+                            </div>
+                        </div>
+                    ` : `
+                        <!-- Official WT Selectors (Cascading Dropdowns) -->
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                            <!-- Dropdown 1: Age Division -->
+                            <div>
+                                <label class="text-[11px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
+                                    <i class="fa-solid fa-users-viewfinder text-blue-600 me-1"></i> Age Division
+                                </label>
+                                <select id="cat-select-division" class="tkd-select text-xs font-bold w-full py-2 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
+                                    <option value="senior" ${currentDiv === 'senior' ? 'selected' : ''}>Senior (Ages 17+)</option>
+                                    <option value="junior" ${currentDiv === 'junior' ? 'selected' : ''}>Junior (Ages 15–17)</option>
+                                    <option value="cadet" ${currentDiv === 'cadet' ? 'selected' : ''}>Cadet (Ages 12–14)</option>
+                                    <option value="sub-junior" ${currentDiv === 'sub-junior' ? 'selected' : ''}>Sub-Junior (Ages 8–11)</option>
+                                    <option value="children" ${currentDiv === 'children' ? 'selected' : ''}>Children (Under 8 / Ages 4–7)</option>
+                                </select>
                             </div>
 
                             <!-- Dropdown 2: Gender -->
@@ -19378,48 +20489,23 @@ ${templateBg ? `
                                 <label class="text-[11px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
                                     <i class="fa-solid fa-venus-mars text-blue-600 me-1"></i> Gender
                                 </label>
-                                <select id="cat-select-gender" class="tkd-select text-xs font-bold w-full py-2.5 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
-                                    <option value="Male" ${currentGen === 'Male' ? 'selected' : ''}>Male</option>
-                                    <option value="Female" ${currentGen === 'Female' ? 'selected' : ''}>Female</option>
-                                </select>
-                            </div>
-                        </div>
-                    ` : `
-                        <!-- Official WT Selectors (3 Cascading Dropdowns) -->
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
-                            <!-- Dropdown 1: Age Division -->
-                            <div>
-                                <label class="text-[11px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
-                                    <i class="fa-solid fa-users-viewfinder text-blue-600 me-1"></i> 1. Age Division
-                                </label>
-                                <select id="cat-select-division" class="tkd-select text-xs font-bold w-full py-2.5 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
-                                    <option value="children" ${currentDiv === 'children' ? 'selected' : ''}>Children (Under 10)</option>
-                                    <option value="sub-junior" ${currentDiv === 'sub-junior' ? 'selected' : ''}>Sub-Junior (Under 12)</option>
-                                    <option value="cadet" ${currentDiv === 'cadet' ? 'selected' : ''}>Cadet (12–14 yrs)</option>
-                                    <option value="junior" ${currentDiv === 'junior' ? 'selected' : ''}>Junior (15–17 yrs)</option>
-                                    <option value="senior" ${currentDiv === 'senior' ? 'selected' : ''}>Over 17+ (Senior)</option>
-                                    <option value="dasara" ${currentDiv === 'dasara' ? 'selected' : ''}>Dasara (Open/District)</option>
-                                </select>
-                            </div>
-
-                            <!-- Dropdown 2: Gender -->
-                            <div>
-                                <label class="text-[11px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
-                                    <i class="fa-solid fa-venus-mars text-blue-600 me-1"></i> 2. Gender
-                                </label>
-                                <select id="cat-select-gender" class="tkd-select text-xs font-bold w-full py-2.5 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
+                                <select id="cat-select-gender" class="tkd-select text-xs font-bold w-full py-2 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
                                     <option value="Male" ${currentGen === 'Male' ? 'selected' : ''}>Male</option>
                                     <option value="Female" ${currentGen === 'Female' ? 'selected' : ''}>Female</option>
                                 </select>
                             </div>
 
-                            <!-- Dropdown 3: Weight Category -->
+                            <!-- Dropdown 3: Category Event / Weight Class & Code -->
                             <div>
                                 <label class="text-[11px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
-                                    <i class="fa-solid fa-weight-hanging text-blue-600 me-1"></i> 3. Weight Category
+                                    <i class="fa-solid fa-barcode text-blue-600 me-1"></i> Weight Class &amp; Code
                                 </label>
-                                <select id="cat-select-weight" class="tkd-select text-xs font-bold w-full py-2.5 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
-                                    ${availableWeights.map(w => `<option value="${w}" ${w === currentWeight ? 'selected' : ''}>${w}</option>`).join('')}
+                                <select id="cat-select-weight" class="tkd-select font-mono text-xs font-bold w-full py-2 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
+                                    ${availableOptions.map(opt => {
+                                        const isSel = (opt.code && opt.code === currentCode) || (!currentCode && opt.name === currentWeight);
+                                        const optLabel = opt.code ? `${opt.name} [${opt.code}]` : opt.name;
+                                        return `<option value="${opt.name}" data-code="${opt.code || ''}" ${isSel ? 'selected' : ''}>${optLabel}</option>`;
+                                    }).join('')}
                                 </select>
                             </div>
                         </div>
@@ -19435,20 +20521,21 @@ ${templateBg ? `
                         <div>
                             <div class="flex items-center gap-2 flex-wrap">
                                 <span class="tkd-badge ${isGroup4 ? 'bg-amber-100 text-amber-800' : 'tkd-badge-blue'} text-xs font-black uppercase tracking-wider">
-                                    ${isGroup4 ? 'GROUP-4 POOL' : (divConfig.label || currentDiv)}
+                                    ${isGroup4 ? 'GROUP-4 POOL' : (divLabels[currentDiv] || currentDiv)}
                                 </span>
                                 <span class="tkd-badge ${currentGen === 'Male' ? 'bg-indigo-100 text-indigo-800' : 'bg-pink-100 text-pink-800'} text-xs font-bold">${currentGen}</span>
-                                ${isGroup4 ? `
-                                    <span class="tkd-badge bg-amber-100 text-amber-900 text-xs font-mono font-bold">${currentG4}</span>
-                                ` : `
-                                    <span class="tkd-badge bg-blue-100 text-blue-900 text-xs font-mono font-bold">${currentWeight}</span>
-                                `}
-                                <span class="tkd-badge ${currentDisc === 'Poomsae' ? 'bg-purple-100 text-purple-800' : (currentDisc === 'Virtual Taekwondo' ? 'bg-indigo-100 text-indigo-800' : (currentDisc === 'Kyorugi' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-800'))} text-xs font-bold">
-                                    ${currentDisc === 'all' ? 'All Disciplines' : (currentDisc === 'Poomsae' ? 'Poomsae' : (currentDisc === 'Virtual Taekwondo' ? 'Virtual TKD' : 'Kyorugi'))}
+                                <span class="tkd-badge ${currentTier === 'freshers' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800'} text-xs font-bold uppercase">
+                                    ${currentTier === 'all' ? 'All Tiers' : (currentTier === 'freshers' ? 'Freshers' : 'Regular')}
                                 </span>
+                                <span class="tkd-badge bg-blue-100 text-blue-800 text-xs font-bold">
+                                    ${currentDisc === 'all' ? 'All Disciplines' : currentDisc}
+                                </span>
+                                ${currentCode ? `
+                                    <span class="tkd-badge bg-blue-600 text-white font-mono text-xs font-bold">${currentCode}</span>
+                                ` : ''}
                             </div>
                             <h2 class="text-base font-black text-slate-900 mt-1">
-                                ${isGroup4 ? `Group-4 Grassroots Pool • ${currentG4} • ${currentGen}` : `${divConfig.label} • ${currentGen} • ${currentWeight}`}
+                                ${isGroup4 ? `Group-4 Grassroots Pool • ${currentG4} • ${currentGen}` : `${divLabels[currentDiv] || currentDiv} • ${currentGen} • ${currentWeight} ${currentCode ? `(${currentCode})` : ''}`}
                             </h2>
                         </div>
                     </div>
@@ -19483,7 +20570,7 @@ ${templateBg ? `
                                 <tr>
                                     <th>Seed / Rank</th>
                                     <th>Competitor Name &amp; ID</th>
-                                    <th>Discipline &amp; Format</th>
+                                    <th>Discipline, Tier &amp; Code</th>
                                     <th>Academy / Dojang</th>
                                     <th>Belt Rank</th>
                                     <th>Official Scale Check</th>
@@ -19493,24 +20580,19 @@ ${templateBg ? `
                             <tbody>
                                 ${passedAthletes.length === 0 ? `
                                     <tr>
-                                        <td colspan="7" class="text-center py-10 text-slate-500">
-                                            <i class="fa-solid fa-scale-balanced text-3xl mb-2 text-slate-300 block"></i>
-                                            <p class="font-bold text-slate-700 text-xs">No competitors have completed weigh-in for ${isGroup4 ? `Group-4 ${currentG4} • ${currentGen}` : `${divConfig.label} • ${currentGen} ${currentWeight}`} yet.</p>
-                                            <p class="text-[11px] text-slate-500 mt-0.5">When an athlete passes official scales at the Weigh-In Desk, their details are automatically saved into this category roster.</p>
-                                            <button class="tkd-btn tkd-btn-xs tkd-btn-outline font-bold mt-3" onclick="window.app.navigate('weighin')">
-                                                <i class="fa-solid fa-scale-balanced me-1 text-blue-600"></i>Go to Weigh-In Desk
-                                            </button>
+                                        <td colspan="7" class="py-8 text-center text-slate-400 font-medium">
+                                            No competitors in this category have passed the scale yet. Marshals must record weight at the Weigh-In Desk.
                                         </td>
                                     </tr>
                                 ` : passedAthletes.map((a, idx) => `
-                                    <tr class="hover:bg-slate-50 transition">
-                                        <td class="font-mono font-bold text-xs text-blue-600">
-                                            #${idx + 1} Seed
+                                    <tr class="hover:bg-slate-50/80 transition">
+                                        <td class="font-mono font-bold text-slate-600 text-center">
+                                            #${idx + 1}
                                         </td>
                                         <td>
                                             <div class="flex items-center gap-2.5">
-                                                <div class="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center font-bold text-xs">
-                                                    ${a.photo ? `<img src="${a.photo}" class="w-full h-full object-cover">` : `<span class="text-slate-700 font-mono">${a.name.slice(0, 2).toUpperCase()}</span>`}
+                                                <div class="w-8 h-8 rounded-lg bg-slate-100 border border-slate-300 overflow-hidden shrink-0 flex items-center justify-center">
+                                                    ${a.photo ? `<img src="${a.photo}" class="w-full h-full object-cover">` : `<i class="fa-solid fa-user-ninja text-slate-400 text-xs"></i>`}
                                                 </div>
                                                 <div>
                                                     <strong class="text-slate-900 text-xs font-bold block">${a.name}</strong>
@@ -19519,13 +20601,18 @@ ${templateBg ? `
                                             </div>
                                         </td>
                                         <td>
-                                            <div class="flex items-center gap-1.5 flex-wrap">
-                                                <span class="tkd-badge ${a.discipline === 'Poomsae' ? 'bg-purple-100 text-purple-700' : (a.discipline === 'Virtual Taekwondo' ? 'bg-indigo-100 text-indigo-700' : (a.discipline === 'Both' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'))} text-[10px] font-bold py-0 px-1.5">
-                                                    ${a.discipline === 'Poomsae' ? 'Poomsae' : (a.discipline === 'Virtual Taekwondo' ? 'Virtual TKD' : (a.discipline === 'Both' ? 'Both' : 'Kyorugi'))}
-                                                </span>
-                                                <span class="tkd-badge ${a.competitionFormat === 'Group-4' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'} text-[10px] font-bold py-0 px-1.5">
-                                                    ${a.competitionFormat || 'Official'}
-                                                </span>
+                                            <div class="space-y-1">
+                                                <div class="flex items-center gap-1.5 flex-wrap">
+                                                    <span class="tkd-badge ${a.discipline === 'Poomsae' ? 'bg-purple-100 text-purple-700' : (a.discipline === 'Virtual Taekwondo' ? 'bg-indigo-100 text-indigo-700' : (a.discipline === 'Kyukpa' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'))} text-[10px] font-bold py-0 px-1.5">
+                                                        ${a.discipline || 'Kyorugi'}
+                                                    </span>
+                                                    ${a.tier ? `<span class="tkd-badge ${a.tier === 'freshers' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'} text-[10px] font-bold py-0 px-1.5 capitalize">${a.tier}</span>` : ''}
+                                                </div>
+                                                ${a.categoryCode ? `
+                                                    <div class="font-mono text-[10.5px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded inline-block">
+                                                        ${a.categoryCode}
+                                                    </div>
+                                                ` : ''}
                                             </div>
                                         </td>
                                         <td>
@@ -19571,9 +20658,9 @@ ${templateBg ? `
                                             <div class="flex items-center gap-1 text-[10px] text-slate-500 truncate">
                                                 <span>${a.dojangName || 'Academy'}</span>
                                                 <span>•</span>
-                                                <span class="font-bold text-blue-600">${a.discipline || 'Kyorugi'}</span>
+                                                <span class="font-bold text-blue-600">${a.categoryCode || a.discipline || 'Kyorugi'}</span>
                                                 <span>•</span>
-                                                <span>${a.weight}kg</span>
+                                                <span>${a.weight || a.measuredWeight || '—'}kg</span>
                                             </div>
                                         </div>
                                     </div>
@@ -19588,7 +20675,7 @@ ${templateBg ? `
             </div>
         `;
 
-        // Event Listeners for format and discipline radio filters
+        // Event Listeners for format, discipline, and tier radio filters
         container.querySelectorAll('input[name="cat-filter-format"]').forEach(r => {
             r.addEventListener('change', (e) => {
                 _activeCategoryFilter.format = e.target.value;
@@ -19599,6 +20686,16 @@ ${templateBg ? `
         container.querySelectorAll('input[name="cat-filter-discipline"]').forEach(r => {
             r.addEventListener('change', (e) => {
                 _activeCategoryFilter.discipline = e.target.value;
+                _activeCategoryFilter.categoryCode = '';
+                _activeCategoryFilter.weightClass = 'all';
+                renderCategoriesView(container);
+            });
+        });
+
+        container.querySelectorAll('input[name="cat-filter-tier"]').forEach(r => {
+            r.addEventListener('change', (e) => {
+                _activeCategoryFilter.tier = e.target.value;
+                _activeCategoryFilter.categoryCode = '';
                 renderCategoriesView(container);
             });
         });
@@ -19617,20 +20714,22 @@ ${templateBg ? `
 
         divSelect?.addEventListener('change', (e) => {
             _activeCategoryFilter.division = e.target.value;
-            const newWeights = (TKD_WEIGHT_CATEGORIES[e.target.value] || {})[_activeCategoryFilter.gender] || [];
-            _activeCategoryFilter.weightClass = newWeights[0] || '';
+            _activeCategoryFilter.categoryCode = '';
+            _activeCategoryFilter.weightClass = 'all';
             renderCategoriesView(container);
         });
 
         genSelect?.addEventListener('change', (e) => {
             _activeCategoryFilter.gender = e.target.value;
-            const newWeights = (TKD_WEIGHT_CATEGORIES[_activeCategoryFilter.division] || {})[e.target.value] || [];
-            _activeCategoryFilter.weightClass = newWeights[0] || '';
+            _activeCategoryFilter.categoryCode = '';
+            _activeCategoryFilter.weightClass = 'all';
             renderCategoriesView(container);
         });
 
         wtSelect?.addEventListener('change', (e) => {
-            _activeCategoryFilter.weightClass = e.target.value;
+            const chosen = wtSelect.options[wtSelect.selectedIndex];
+            _activeCategoryFilter.weightClass = chosen ? chosen.value : 'all';
+            _activeCategoryFilter.categoryCode = chosen?.getAttribute('data-code') || '';
             renderCategoriesView(container);
         });
 
@@ -19672,8 +20771,6 @@ ${templateBg ? `
         });
     }
 
-    // ────────────────────────────────────────────────────────────────────────
-    // PUBLIC / MARSHALS WEIGH-IN DESK VIEW (Upper Navigation Section)
     // ────────────────────────────────────────────────────────────────────────
     function renderPublicWeighInView(container) {
         const activeTourn = store.getActiveTournament();

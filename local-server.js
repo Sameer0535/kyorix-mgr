@@ -316,7 +316,8 @@ function deduceCategoryFromDob(dobStr, gender) {
                 if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) {
                     age--;
                 }
-                if (age < 10) division = 'Sub-Junior';
+                if (age < 8) division = 'Children';
+                else if (age <= 11) division = 'Sub-Junior';
                 else if (age <= 14) division = 'Cadet';
                 else if (age <= 17) division = 'Junior';
                 else division = 'Senior';
@@ -334,7 +335,7 @@ function formatBeltRank(beltRank) {
 }
 
 function normalizePodiumForKukkiwon(pod, athletes = null) {
-    if (!athletes) athletes = getAthletesServer();
+    if (!athletes) athletes = typeof getAthletesServer === 'function' ? getAthletesServer() : [];
 
     if (pod.discipline && pod.category_name && pod.gold && pod.gold.athlete_name) {
         return pod;
@@ -342,19 +343,28 @@ function normalizePodiumForKukkiwon(pod, athletes = null) {
 
     const catName = pod.category_name || pod.division || pod.category || 'Senior Male Kyorugi';
     const lowerCat = catName.toLowerCase();
+    const catCode = pod.category_code || pod.categoryCode || '';
 
     let discipline = 'KYORUGI';
-    if (lowerCat.includes('poomsae')) discipline = 'POOMSAE';
-    else if (lowerCat.includes('kyukpa') || lowerCat.includes('breaking')) discipline = 'KYUKPA';
+    if (lowerCat.includes('poomsae') || lowerCat.startsWith('po-') || catCode.startsWith('PO-')) discipline = 'POOMSAE';
+    else if (lowerCat.includes('kyukpa') || lowerCat.includes('breaking') || lowerCat.startsWith('brk-') || catCode.startsWith('BRK-')) discipline = 'KYUKPA';
+    else if (lowerCat.includes('speed') || lowerCat.startsWith('sk-') || catCode.startsWith('SK-')) discipline = 'SPEED_KICKING';
+    else if (lowerCat.includes('virtual') || lowerCat.startsWith('vt-') || catCode.startsWith('VT-')) discipline = 'VIRTUAL_TKD';
 
     let division = 'SENIOR';
-    if (lowerCat.includes('junior') && !lowerCat.includes('sub-junior')) division = 'JUNIOR';
-    else if (lowerCat.includes('cadet') || lowerCat.includes('sub-junior')) division = 'CADET';
+    if (lowerCat.includes('child') || lowerCat.includes('under 8') || lowerCat.includes('-chi-') || catCode.includes('-CHI-')) division = 'CHILDREN';
+    else if (lowerCat.includes('sub-junior') || lowerCat.includes('sub junior') || lowerCat.includes('-sub-') || lowerCat.includes('subjun') || catCode.includes('-SUB-')) division = 'SUB-JUNIOR';
+    else if (lowerCat.includes('cadet') || lowerCat.includes('-cad-') || catCode.includes('-CAD-')) division = 'CADET';
+    else if (lowerCat.includes('junior') || lowerCat.includes('-jun-') || catCode.includes('-JUN-')) division = 'JUNIOR';
+    else if (lowerCat.includes('senior') || lowerCat.includes('-sen-') || catCode.includes('-SEN-')) division = 'SENIOR';
     else if (lowerCat.includes('master')) division = 'MASTERS';
-    else if (lowerCat.includes('peewee')) division = 'PEEWEE';
+    else if (lowerCat.includes('peewee')) division = 'CHILDREN';
+
+    let tier = 'REGULAR';
+    if (lowerCat.includes('fresh') || lowerCat.includes('-fr-') || catCode.includes('-FR-')) tier = 'FRESHERS';
 
     let gender = 'MALE';
-    if (lowerCat.includes('female') || lowerCat.includes('women') || lowerCat.includes('girl')) {
+    if (lowerCat.includes('female') || lowerCat.includes('women') || lowerCat.includes('girl') || lowerCat.includes('-f-') || catCode.includes('-F-')) {
         gender = 'FEMALE';
     }
 
@@ -401,7 +411,9 @@ function normalizePodiumForKukkiwon(pod, athletes = null) {
     const result = {
         discipline,
         division,
+        tier,
         category_name: catName,
+        category_code: catCode,
         gender,
         gold,
         silver
