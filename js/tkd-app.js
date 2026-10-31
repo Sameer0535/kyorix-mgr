@@ -12625,14 +12625,16 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
         });
     }
 
-        window._weighInQueue = window._weighInQueue || [];
+        
+    window._weighInQueue = window._weighInQueue || [];
     window._weighInSearchQuery = window._weighInSearchQuery || '';
     window._weighInFilter = window._weighInFilter || {
         discipline: 'Kyorugi',
         tier: 'all',
         division: 'senior',
         gender: 'Male',
-        weightClass: 'all'
+        weightClass: 'all',
+        categoryCode: ''
     };
 
     function refreshWeighInDesk() {
@@ -12663,35 +12665,63 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
         const tournTitle = activeTourn.title || 'State Level Open Taekwondo Championship 2026';
 
         const demoAthletes = [
-            // Senior Male Finweight & Flyweight
+            // Senior Male Finweight - REGULAR
             {
-                id: 'ath-demo-sen-1', athleteId: 'ATH-SEN-101', name: 'Arjun Verma', gender: 'Male', age: 19,
+                id: 'ath-demo-sen-1-reg', athleteId: 'ATH-SEN-101', name: 'Arjun Verma', gender: 'Male', age: 19,
                 dob: '2007-04-12', weight: 52.8, measuredWeight: 52.8, weighInStatus: 'Passed', status: 'Passed',
                 discipline: 'Kyorugi', tier: 'regular', category: 'Senior (Ages 17+)', division: 'senior',
                 weightClass: 'Finweight (Under 54kg)', categoryCode: 'KY-REG-SEN-M-U54', minWeight: 45.0, maxWeight: 54.0,
                 beltId: 'dan-1', beltName: '1st Dan Black Belt', dojangName: 'Dragon Fist Taekwondo', dojangCode: 'DFTKD',
                 kukkiwonNo: 'KKW-05829104', registeredTournaments: [tournId], tournament: tournTitle
             },
+            // Senior Male Finweight - FRESHERS (Separate Copy!)
             {
-                id: 'ath-demo-sen-2', athleteId: 'ATH-SEN-102', name: 'Rohan Sharma', gender: 'Male', age: 21,
+                id: 'ath-demo-sen-1-fr', athleteId: 'ATH-SEN-102', name: 'Nikhil Kumar', gender: 'Male', age: 18,
+                dob: '2008-01-15', weight: 51.5, measuredWeight: 51.5, weighInStatus: 'Passed', status: 'Passed',
+                discipline: 'Kyorugi', tier: 'freshers', category: 'Senior (Ages 17+)', division: 'senior',
+                weightClass: 'Finweight (Under 54kg)', categoryCode: 'KY-FR-SEN-M-U54', minWeight: 45.0, maxWeight: 54.0,
+                beltId: 'green', beltName: 'Green Belt', dojangName: 'Warriors Academy', dojangCode: 'WTKD',
+                kukkiwonNo: '', registeredTournaments: [tournId], tournament: tournTitle
+            },
+            // Senior Male Flyweight - REGULAR
+            {
+                id: 'ath-demo-sen-2-reg', athleteId: 'ATH-SEN-103', name: 'Rohan Sharma', gender: 'Male', age: 21,
                 dob: '2005-08-22', weight: 56.5, measuredWeight: null, weighInStatus: 'Pending', status: 'Pending',
                 discipline: 'Kyorugi', tier: 'regular', category: 'Senior (Ages 17+)', division: 'senior',
                 weightClass: 'Flyweight (Under 58kg)', categoryCode: 'KY-REG-SEN-M-U58', minWeight: 54.1, maxWeight: 58.0,
                 beltId: 'dan-2', beltName: '2nd Dan Black Belt', dojangName: 'Tigers TKD Academy', dojangCode: 'TTKD',
                 kukkiwonNo: 'KKW-05918233', registeredTournaments: [tournId], tournament: tournTitle
             },
-            // Senior Female Finweight
+            // Senior Male Flyweight - FRESHERS (Separate Copy!)
             {
-                id: 'ath-demo-sen-3', athleteId: 'ATH-SEN-103', name: 'Pooja Hegde', gender: 'Female', age: 20,
+                id: 'ath-demo-sen-2-fr', athleteId: 'ATH-SEN-104', name: 'Manish Rawat', gender: 'Male', age: 20,
+                dob: '2006-11-09', weight: 57.2, measuredWeight: null, weighInStatus: 'Pending', status: 'Pending',
+                discipline: 'Kyorugi', tier: 'freshers', category: 'Senior (Ages 17+)', division: 'senior',
+                weightClass: 'Flyweight (Under 58kg)', categoryCode: 'KY-FR-SEN-M-U58', minWeight: 54.1, maxWeight: 58.0,
+                beltId: 'blue', beltName: 'Blue Belt', dojangName: 'Apex TKD', dojangCode: 'ATKD',
+                kukkiwonNo: '', registeredTournaments: [tournId], tournament: tournTitle
+            },
+            // Senior Female Finweight - REGULAR
+            {
+                id: 'ath-demo-sen-3-reg', athleteId: 'ATH-SEN-105', name: 'Pooja Hegde', gender: 'Female', age: 20,
                 dob: '2006-02-15', weight: 44.5, measuredWeight: 44.5, weighInStatus: 'Passed', status: 'Passed',
                 discipline: 'Kyorugi', tier: 'regular', category: 'Senior (Ages 17+)', division: 'senior',
                 weightClass: 'Finweight (Under 46kg)', categoryCode: 'KY-REG-SEN-F-U46', minWeight: 38.0, maxWeight: 46.0,
                 beltId: 'dan-1', beltName: '1st Dan Black Belt', dojangName: 'Bangalore Elite TKD', dojangCode: 'BETKD',
                 kukkiwonNo: 'KKW-06109284', registeredTournaments: [tournId], tournament: tournTitle
             },
-            // Junior Male U45 & U55
+            // Senior Female Finweight - FRESHERS (Separate Copy!)
             {
-                id: 'ath-demo-jun-1', athleteId: 'ATH-JUN-201', name: 'Vikramaditya Rao', gender: 'Male', age: 16,
+                id: 'ath-demo-sen-3-fr', athleteId: 'ATH-SEN-106', name: 'Sneha Patel', gender: 'Female', age: 19,
+                dob: '2007-06-30', weight: 43.8, measuredWeight: null, weighInStatus: 'Pending', status: 'Pending',
+                discipline: 'Kyorugi', tier: 'freshers', category: 'Senior (Ages 17+)', division: 'senior',
+                weightClass: 'Finweight (Under 46kg)', categoryCode: 'KY-FR-SEN-F-U46', minWeight: 38.0, maxWeight: 46.0,
+                beltId: 'yellow', beltName: 'Yellow Belt', dojangName: 'Bangalore Elite TKD', dojangCode: 'BETKD',
+                kukkiwonNo: '', registeredTournaments: [tournId], tournament: tournTitle
+            },
+            // Junior Male U45 - REGULAR & FRESHERS
+            {
+                id: 'ath-demo-jun-1-reg', athleteId: 'ATH-JUN-201', name: 'Vikramaditya Rao', gender: 'Male', age: 16,
                 dob: '2010-06-18', weight: 43.5, measuredWeight: null, weighInStatus: 'Pending', status: 'Pending',
                 discipline: 'Kyorugi', tier: 'regular', category: 'Junior (Ages 15–17)', division: 'junior',
                 weightClass: 'Finweight (Under 45kg)', categoryCode: 'KY-REG-JUN-M-U45', minWeight: 35.0, maxWeight: 45.0,
@@ -12699,39 +12729,63 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                 kukkiwonNo: 'KKW-07198244', registeredTournaments: [tournId], tournament: tournTitle
             },
             {
-                id: 'ath-demo-jun-2', athleteId: 'ATH-JUN-202', name: 'Aditya Nair', gender: 'Male', age: 17,
-                dob: '2009-09-05', weight: 53.8, measuredWeight: 53.8, weighInStatus: 'Passed', status: 'Passed',
+                id: 'ath-demo-jun-1-fr', athleteId: 'ATH-JUN-202', name: 'Aditya Nair', gender: 'Male', age: 15,
+                dob: '2011-09-05', weight: 42.0, measuredWeight: 42.0, weighInStatus: 'Passed', status: 'Passed',
                 discipline: 'Kyorugi', tier: 'freshers', category: 'Junior (Ages 15–17)', division: 'junior',
-                weightClass: 'Featherweight (Under 55kg)', categoryCode: 'KY-FR-JUN-M-U55', minWeight: 51.1, maxWeight: 55.0,
+                weightClass: 'Finweight (Under 45kg)', categoryCode: 'KY-FR-JUN-M-U45', minWeight: 35.0, maxWeight: 45.0,
                 beltId: 'red', beltName: 'Red Belt', dojangName: 'Dragon Fist Taekwondo', dojangCode: 'DFTKD',
-                kukkiwonNo: 'KKW-07384912', registeredTournaments: [tournId], tournament: tournTitle
+                kukkiwonNo: '', registeredTournaments: [tournId], tournament: tournTitle
             },
-            // Cadet Male U33
+            // Cadet Male U33 - REGULAR & FRESHERS
             {
-                id: 'ath-demo-cad-1', athleteId: 'ATH-CAD-301', name: 'Kabir Patel', gender: 'Male', age: 13,
+                id: 'ath-demo-cad-1-reg', athleteId: 'ATH-CAD-301', name: 'Kabir Patel', gender: 'Male', age: 13,
                 dob: '2013-03-24', weight: 31.5, measuredWeight: null, weighInStatus: 'Pending', status: 'Pending',
                 discipline: 'Kyorugi', tier: 'regular', category: 'Cadet (Ages 12–14)', division: 'cadet',
                 weightClass: 'Finweight (Under 33kg)', categoryCode: 'KY-REG-CAD-M-U33', minWeight: 25.0, maxWeight: 33.0,
                 beltId: 'poom-1', beltName: '1st Poom', dojangName: 'Apex TKD Warriors', dojangCode: 'ATKD',
                 kukkiwonNo: 'KKW-08291033', registeredTournaments: [tournId], tournament: tournTitle
             },
-            // Sub-Junior Male Under 18kg & Under 23kg
             {
-                id: 'ath-demo-sub-1', athleteId: 'ATH-SUB-401', name: 'Aarav Gupta', gender: 'Male', age: 10,
+                id: 'ath-demo-cad-1-fr', athleteId: 'ATH-CAD-302', name: 'Reyansh Deshmukh', gender: 'Male', age: 12,
+                dob: '2014-08-14', weight: 30.8, measuredWeight: 30.8, weighInStatus: 'Passed', status: 'Passed',
+                discipline: 'Kyorugi', tier: 'freshers', category: 'Cadet (Ages 12–14)', division: 'cadet',
+                weightClass: 'Finweight (Under 33kg)', categoryCode: 'KY-FR-CAD-M-U33', minWeight: 25.0, maxWeight: 33.0,
+                beltId: 'green-blue', beltName: 'Green-Blue Belt', dojangName: 'Apex TKD Warriors', dojangCode: 'ATKD',
+                kukkiwonNo: '', registeredTournaments: [tournId], tournament: tournTitle
+            },
+            // Sub-Junior Male Under 18kg - REGULAR & FRESHERS
+            {
+                id: 'ath-demo-sub-1-reg', athleteId: 'ATH-SUB-401', name: 'Aarav Gupta', gender: 'Male', age: 10,
                 dob: '2016-07-11', weight: 17.2, measuredWeight: 17.2, weighInStatus: 'Passed', status: 'Passed',
                 discipline: 'Kyorugi', tier: 'regular', category: 'Sub-Junior (Ages 8–11)', division: 'sub-junior',
                 weightClass: 'Under 18kg', categoryCode: 'KY-REG-SUB-M-U18', minWeight: 12.0, maxWeight: 18.0,
                 beltId: 'blue', beltName: 'Blue Belt', dojangName: 'Little Dragons TKD', dojangCode: 'LDTKD',
                 kukkiwonNo: 'KKW-09182390', registeredTournaments: [tournId], tournament: tournTitle
             },
-            // Children Division Male Under 16kg
             {
-                id: 'ath-demo-chi-1', athleteId: 'ATH-CHI-501', name: 'Vihaan Reddy', gender: 'Male', age: 6,
-                dob: '2020-01-20', weight: 14.8, measuredWeight: null, weighInStatus: 'Pending', status: 'Pending',
+                id: 'ath-demo-sub-1-fr', athleteId: 'ATH-SUB-402', name: 'Ishaan Joshi', gender: 'Male', age: 9,
+                dob: '2017-02-19', weight: 16.8, measuredWeight: 16.8, weighInStatus: 'Passed', status: 'Passed',
+                discipline: 'Kyorugi', tier: 'freshers', category: 'Sub-Junior (Ages 8–11)', division: 'sub-junior',
+                weightClass: 'Under 18kg', categoryCode: 'KY-FR-SUB-M-U18', minWeight: 12.0, maxWeight: 18.0,
+                beltId: 'yellow', beltName: 'Yellow Belt', dojangName: 'Little Dragons TKD', dojangCode: 'LDTKD',
+                kukkiwonNo: '', registeredTournaments: [tournId], tournament: tournTitle
+            },
+            // Children Division Male Under 16kg - REGULAR & FRESHERS
+            {
+                id: 'ath-demo-chi-1-reg', athleteId: 'ATH-CHI-501', name: 'Vihaan Reddy', gender: 'Male', age: 7,
+                dob: '2019-01-20', weight: 15.2, measuredWeight: 15.2, weighInStatus: 'Passed', status: 'Passed',
+                discipline: 'Kyorugi', tier: 'regular', category: 'Children (Under 8 / Ages 4–7)', division: 'children',
+                weightClass: 'Under 16kg', categoryCode: 'KY-REG-CHI-M-U16', minWeight: 10.0, maxWeight: 16.0,
+                beltId: 'green', beltName: 'Green Belt', dojangName: 'Little Dragons TKD', dojangCode: 'LDTKD',
+                kukkiwonNo: '', registeredTournaments: [tournId], tournament: tournTitle
+            },
+            {
+                id: 'ath-demo-chi-1-fr', athleteId: 'ATH-CHI-502', name: 'Dhruv Singhal', gender: 'Male', age: 6,
+                dob: '2020-04-10', weight: 14.5, measuredWeight: null, weighInStatus: 'Pending', status: 'Pending',
                 discipline: 'Kyorugi', tier: 'freshers', category: 'Children (Under 8 / Ages 4–7)', division: 'children',
                 weightClass: 'Under 16kg', categoryCode: 'KY-FR-CHI-M-U16', minWeight: 10.0, maxWeight: 16.0,
                 beltId: 'yellow', beltName: 'Yellow Belt', dojangName: 'Little Dragons TKD', dojangCode: 'LDTKD',
-                kukkiwonNo: 'KKW-09823411', registeredTournaments: [tournId], tournament: tournTitle
+                kukkiwonNo: '', registeredTournaments: [tournId], tournament: tournTitle
             }
         ];
 
@@ -12743,7 +12797,7 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
             }
         });
         localStorage.setItem('tkd_athletes', JSON.stringify(merged));
-        showToast('Successfully loaded official demo competitors across weight categories!', 'success');
+        showToast('Successfully loaded official demo competitors across Regular & Freshers categories!', 'success');
         refreshWeighInDesk();
     }
     window.seedDemoWeighInCompetitors = seedDemoWeighInCompetitors;
@@ -12751,7 +12805,7 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
     function renderAdminWeighInDesk(athletes) {
         athletes = athletes || (store.getActiveTournament() ? store.getAthletesForTournament(store.getActiveTournament().id) : store.getAthletes());
         const query = (window._weighInSearchQuery || '').trim().toLowerCase();
-        const activeFilter = window._weighInFilter || { discipline: 'Kyorugi', tier: 'all', division: 'senior', gender: 'Male', weightClass: 'all' };
+        const activeFilter = window._weighInFilter || { discipline: 'Kyorugi', tier: 'all', division: 'senior', gender: 'Male', weightClass: 'all', categoryCode: '' };
 
         const divLabels = {
             'senior': 'Senior Division (Ages 17+)',
@@ -12761,88 +12815,177 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
             'children': 'Children Division (Under 8 / Ages 4–7)'
         };
 
-        // Get weight categories for the currently selected discipline, division, and gender
-        let activeCategoryList = [];
         const currentDisc = activeFilter.discipline || 'Kyorugi';
         const currentDiv = activeFilter.division || 'senior';
         const currentGen = activeFilter.gender || 'Male';
         const currentTier = (activeFilter.tier || 'all').toLowerCase();
 
+        // ────────────────────────────────────────────────────────────────────────
+        // BUILD SEPARATE COPIES OF CATEGORIES FOR REGULAR AND FRESHERS
+        // ────────────────────────────────────────────────────────────────────────
+        let regularCategories = [];
+        let freshersCategories = [];
+
         if (currentDisc === 'Kyorugi' || currentDisc === 'all') {
             const rawKList = (window.TKD_KYORUGI_CATEGORIES || {})[currentDiv]?.[currentGen] || [];
-            activeCategoryList = rawKList.map(item => {
+            
+            // 1. REGULAR COPY of each weight class
+            regularCategories = rawKList.map(item => {
                 const regCode = item.regularCode;
-                const frCode = item.freshersCode;
-                const activeCode = (currentTier === 'freshers') ? frCode : regCode;
-                // Count athletes registered in this class
                 const athCount = athletes.filter(a => {
-                    if (a.categoryCode && (a.categoryCode === regCode || a.categoryCode === frCode)) return true;
+                    if (a.categoryCode && a.categoryCode === regCode) return true;
+                    const aTier = (a.tier || '').toLowerCase();
+                    const aCode = (a.categoryCode || '').toUpperCase();
+                    if (aTier === 'freshers' || aCode.includes('-FR-')) return false;
                     const wLow = (a.weightClass || '').toLowerCase();
                     return wLow.includes(item.name.toLowerCase()) || wLow.includes(item.shortLabel.toLowerCase());
                 }).length;
 
                 return {
-                    id: item.id,
+                    id: item.id + '-reg',
                     name: item.name,
                     shortName: item.shortName,
                     shortLabel: item.shortLabel,
+                    tier: 'Regular',
+                    tierBadge: 'REGULAR',
+                    tierLabel: 'Advanced / Black Belt',
                     minWeight: item.minWeight,
                     maxWeight: item.maxWeight,
-                    regularCode: regCode,
-                    freshersCode: frCode,
-                    activeCode: activeCode,
+                    code: regCode,
+                    athleteCount: athCount
+                };
+            });
+
+            // 2. FRESHERS COPY of each weight class (The exact separate copy requested!)
+            freshersCategories = rawKList.map(item => {
+                const frCode = item.freshersCode;
+                const athCount = athletes.filter(a => {
+                    if (a.categoryCode && a.categoryCode === frCode) return true;
+                    const aTier = (a.tier || '').toLowerCase();
+                    const aCode = (a.categoryCode || '').toUpperCase();
+                    if (aTier !== 'freshers' && !aCode.includes('-FR-')) return false;
+                    const wLow = (a.weightClass || '').toLowerCase();
+                    return wLow.includes(item.name.toLowerCase()) || wLow.includes(item.shortLabel.toLowerCase());
+                }).length;
+
+                return {
+                    id: item.id + '-fr',
+                    name: item.name,
+                    shortName: item.shortName,
+                    shortLabel: item.shortLabel,
+                    tier: 'Freshers',
+                    tierBadge: 'FRESHERS',
+                    tierLabel: 'Beginner / Color Belt',
+                    minWeight: item.minWeight,
+                    maxWeight: item.maxWeight,
+                    code: frCode,
                     athleteCount: athCount
                 };
             });
         } else if (currentDisc === 'Poomsae') {
             const pObj = (window.TKD_POOMSAE_CATEGORIES || {});
-            const tierList = currentTier === 'freshers' ? (pObj.freshers || {}) : (pObj.regular || {});
-            const list = [...(tierList.individual || []), ...(tierList.mix_pair || []), ...(tierList.team || [])];
-            activeCategoryList = list.map(item => ({
+            const regList = [...((pObj.regular && pObj.regular.individual) || []), ...((pObj.regular && pObj.regular.mix_pair) || []), ...((pObj.regular && pObj.regular.team) || [])];
+            const frList = [...((pObj.freshers && pObj.freshers.individual) || []), ...((pObj.freshers && pObj.freshers.mix_pair) || []), ...((pObj.freshers && pObj.freshers.team) || [])];
+
+            regularCategories = regList.map(item => ({
                 id: item.code,
                 name: item.name,
                 shortName: item.name,
                 shortLabel: item.ageRange || '',
-                activeCode: item.code,
-                athleteCount: athletes.filter(a => a.categoryCode === item.code || a.weightClass === item.name).length
+                tier: 'Regular',
+                tierBadge: 'REGULAR',
+                tierLabel: 'Advanced / Black Belt',
+                code: item.code,
+                athleteCount: athletes.filter(a => a.categoryCode === item.code).length
+            }));
+
+            freshersCategories = frList.map(item => ({
+                id: item.code,
+                name: item.name,
+                shortName: item.name,
+                shortLabel: item.ageRange || '',
+                tier: 'Freshers',
+                tierBadge: 'FRESHERS',
+                tierLabel: 'Beginner / Color Belt',
+                code: item.code,
+                athleteCount: athletes.filter(a => a.categoryCode === item.code).length
             }));
         } else if (currentDisc === 'Kyukpa' || currentDisc === 'Breaking') {
             const bObj = (window.TKD_BREAKING_CATEGORIES || {});
-            const bTier = (bObj[currentTier] || bObj.regular || []);
-            const bTrad = bObj.traditional || [];
-            const list = [...bTier, ...bTrad];
-            activeCategoryList = list.map(item => ({
+            const regList = [...(bObj.regular || []), ...(bObj.traditional || [])];
+            const frList = [...(bObj.freshers || [])];
+
+            regularCategories = regList.map(item => ({
                 id: item.code,
                 name: item.name,
                 shortName: item.technique || item.name,
                 shortLabel: item.division || '',
-                activeCode: item.code,
-                athleteCount: athletes.filter(a => a.categoryCode === item.code || a.weightClass === item.name).length
+                tier: 'Regular',
+                tierBadge: 'REGULAR',
+                tierLabel: 'Advanced / Black Belt',
+                code: item.code,
+                athleteCount: athletes.filter(a => a.categoryCode === item.code).length
+            }));
+
+            freshersCategories = frList.map(item => ({
+                id: item.code,
+                name: item.name,
+                shortName: item.technique || item.name,
+                shortLabel: item.division || '',
+                tier: 'Freshers',
+                tierBadge: 'FRESHERS',
+                tierLabel: 'Beginner / Color Belt',
+                code: item.code,
+                athleteCount: athletes.filter(a => a.categoryCode === item.code).length
             }));
         } else if (currentDisc === 'Speed Kicking') {
             const sObj = (window.TKD_SPEED_KICKING_CATEGORIES || {});
             const list = [...(sObj.individual || []), ...(sObj.team || [])];
-            activeCategoryList = list.map(item => ({
+            regularCategories = list.map(item => ({
                 id: item.code,
                 name: item.name,
                 shortName: item.name,
                 shortLabel: item.division || item.ageLimit || '',
-                activeCode: item.code,
-                athleteCount: athletes.filter(a => a.categoryCode === item.code || a.weightClass === item.name).length
+                tier: 'Regular',
+                tierBadge: 'REGULAR',
+                tierLabel: 'Official Contest',
+                code: item.code,
+                athleteCount: athletes.filter(a => a.categoryCode === item.code).length
             }));
+            freshersCategories = [];
         } else if (currentDisc === 'Virtual Taekwondo' || currentDisc === 'Virtual TKD') {
             const vObj = (window.TKD_VIRTUAL_TKD_CATEGORIES || {});
-            const vTier = vObj[currentTier] || vObj.regular || {};
-            const list = [...(vTier.individual || []), ...(vTier.mix || [])];
-            activeCategoryList = list.map(item => ({
+            const regList = [...((vObj.regular && vObj.regular.individual) || []), ...((vObj.regular && vObj.regular.mix) || [])];
+            const frList = [...((vObj.freshers && vObj.freshers.individual) || []), ...((vObj.freshers && vObj.freshers.mix) || [])];
+
+            regularCategories = regList.map(item => ({
                 id: item.code,
                 name: `${item.name || item.division} (${item.ageRange})`,
                 shortName: item.division,
                 shortLabel: item.ageRange,
-                activeCode: item.code,
-                athleteCount: athletes.filter(a => a.categoryCode === item.code || a.weightClass === item.name).length
+                tier: 'Regular',
+                tierBadge: 'REGULAR',
+                tierLabel: 'Advanced',
+                code: item.code,
+                athleteCount: athletes.filter(a => a.categoryCode === item.code).length
+            }));
+
+            freshersCategories = frList.map(item => ({
+                id: item.code,
+                name: `${item.name || item.division} (${item.ageRange})`,
+                shortName: item.division,
+                shortLabel: item.ageRange,
+                tier: 'Freshers',
+                tierBadge: 'FRESHERS',
+                tierLabel: 'Novice',
+                code: item.code,
+                athleteCount: athletes.filter(a => a.categoryCode === item.code).length
             }));
         }
+
+        // Active selected category code or weightClass
+        const selectedCode = activeFilter.categoryCode || '';
+        const selectedWeightClass = activeFilter.weightClass || 'all';
 
         // Search matching
         let searchResults = [];
@@ -12862,23 +13005,111 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
         // Active Queue Athletes
         const queuedAthletes = (window._weighInQueue || []).map(id => athletes.find(a => String(a.id) === String(id))).filter(Boolean);
 
-        // Filter registered athletes by selected category filter
-        const selectedWeightClass = activeFilter.weightClass || 'all';
+        // Filter registered athletes by selected category code or tier
         let filteredAthletes = athletes;
         let selectedCategoryMeta = null;
 
-        if (selectedWeightClass !== 'all') {
-            selectedCategoryMeta = activeCategoryList.find(c => c.name === selectedWeightClass || c.activeCode === selectedWeightClass || c.regularCode === selectedWeightClass || c.freshersCode === selectedWeightClass);
+        if (selectedCode) {
+            const allCats = [...regularCategories, ...freshersCategories];
+            selectedCategoryMeta = allCats.find(c => c.code === selectedCode);
             filteredAthletes = athletes.filter(a => {
-                if (selectedCategoryMeta) {
-                    if (a.categoryCode && (a.categoryCode === selectedCategoryMeta.regularCode || a.categoryCode === selectedCategoryMeta.freshersCode || a.categoryCode === selectedCategoryMeta.activeCode)) return true;
+                if (a.categoryCode && a.categoryCode === selectedCode) return true;
+                if (!a.categoryCode && selectedCategoryMeta) {
+                    const aTier = (a.tier || '').toLowerCase();
+                    const targetTier = selectedCategoryMeta.tier.toLowerCase();
+                    if (aTier !== targetTier) return false;
+                    const aWt = (a.weightClass || '').toLowerCase();
+                    return aWt.includes(selectedCategoryMeta.name.toLowerCase()) || aWt.includes(selectedCategoryMeta.shortLabel.toLowerCase());
                 }
+                return false;
+            });
+        } else if (selectedWeightClass !== 'all') {
+            const allCats = [...regularCategories, ...freshersCategories];
+            selectedCategoryMeta = allCats.find(c => c.name === selectedWeightClass || c.code === selectedWeightClass);
+            filteredAthletes = athletes.filter(a => {
+                if (selectedCategoryMeta && a.categoryCode && a.categoryCode === selectedCategoryMeta.code) return true;
                 const aWt = (a.weightClass || '').toLowerCase();
                 return aWt.includes(selectedWeightClass.toLowerCase());
+            });
+        } else {
+            // Filter by selected division, discipline, gender, tier
+            filteredAthletes = athletes.filter(a => {
+                if (currentDisc !== 'all') {
+                    const aDisc = (a.discipline || 'Kyorugi').toLowerCase();
+                    if (!aDisc.includes(currentDisc.toLowerCase()) && aDisc !== 'both') return false;
+                }
+                if (currentDiv) {
+                    const aDiv = (a.division || a.category || '').toLowerCase();
+                    const code = (a.categoryCode || '').toUpperCase();
+                    let divMatch = false;
+                    if (currentDiv === 'children') divMatch = code.includes('-CHI-') || code.includes('-CHILD-') || aDiv.includes('children') || (a.age && a.age < 8);
+                    else if (currentDiv === 'sub-junior') divMatch = code.includes('-SUB-') || code.includes('-SUBJUN-') || aDiv.includes('sub-junior') || (a.age && a.age >= 8 && a.age <= 11);
+                    else if (currentDiv === 'cadet') divMatch = code.includes('-CAD-') || aDiv.includes('cadet') || (a.age && a.age >= 12 && a.age <= 14);
+                    else if (currentDiv === 'junior') divMatch = code.includes('-JUN-') || aDiv.includes('junior') || (a.age && a.age >= 15 && a.age <= 17);
+                    else if (currentDiv === 'senior') divMatch = code.includes('-SEN-') || aDiv.includes('senior') || (a.age && a.age >= 17);
+                    if (!divMatch && !aDiv.includes(currentDiv)) return false;
+                }
+                if (currentGen) {
+                    const isMix = (a.categoryCode || '').includes('-MIX-') || (a.categoryCode || '').includes('-PAIR-');
+                    if (!isMix && a.gender && a.gender.toLowerCase() !== currentGen.toLowerCase()) return false;
+                }
+                if (currentTier !== 'all') {
+                    const aTier = (a.tier || '').toLowerCase();
+                    const aCode = (a.categoryCode || '').toUpperCase();
+                    if (currentTier === 'freshers') {
+                        if (aTier && aTier !== 'freshers' && !aCode.includes('-FR-')) return false;
+                    } else if (currentTier === 'regular') {
+                        if (aTier && aTier !== 'regular' && !aCode.includes('-REG-')) return false;
+                    }
+                }
+                return true;
             });
         }
 
         const activeTourn = store.getActiveTournament() || {};
+
+        // Helper to render Category Tile Cards for a given tier
+        function renderCategoryTiles(catList, tierType) {
+            const isReg = tierType === 'regular';
+            const badgeBg = isReg ? 'bg-indigo-100 text-indigo-800 border-indigo-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200';
+            const activeCardBorder = isReg ? 'border-indigo-600 bg-indigo-50/95 ring-2 ring-indigo-200 shadow-sm' : 'border-emerald-600 bg-emerald-50/95 ring-2 ring-emerald-200 shadow-sm';
+            const codeBadgeStyle = isReg ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+
+            return catList.map(cat => {
+                const isSelected = selectedCode === cat.code || (selectedWeightClass === cat.name && (!selectedCategoryMeta || selectedCategoryMeta.tier.toLowerCase() === tierType));
+                return `
+                    <div class="weighin-category-tile p-3 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between gap-1.5 select-none ${isSelected ? activeCardBorder : 'border-slate-200 bg-white hover:border-slate-400 hover:bg-slate-50/80 text-slate-800'}" data-cat-name="${cat.name}" data-cat-code="${cat.code}" data-cat-tier="${cat.tier}">
+                        <div>
+                            <div class="flex items-center justify-between gap-1">
+                                <span class="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded border ${badgeBg}">
+                                    ${cat.tierBadge}
+                                </span>
+                                <span class="text-[10px] font-bold px-1.5 py-0.2 rounded-full ${cat.athleteCount > 0 ? (isReg ? 'bg-indigo-200 text-indigo-900 font-black' : 'bg-emerald-200 text-emerald-900 font-black') : 'bg-slate-100 text-slate-500'}">
+                                    ${cat.athleteCount} ${cat.athleteCount === 1 ? 'ath' : 'aths'}
+                                </span>
+                            </div>
+                            <div class="mt-1">
+                                <strong class="text-xs font-black text-slate-900 truncate block">${cat.shortName || cat.name}</strong>
+                                <div class="text-[11px] font-mono font-bold ${isReg ? 'text-indigo-700' : 'text-emerald-700'} mt-0.5">${cat.shortLabel}</div>
+                            </div>
+                            ${(cat.minWeight !== undefined && cat.maxWeight !== undefined) ? `
+                                <div class="text-[10px] text-slate-500 font-mono mt-0.5 font-semibold">
+                                    ${cat.minWeight} kg – ${cat.maxWeight} kg
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="pt-1.5 border-t border-slate-100 flex items-center justify-between gap-1">
+                            <span class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${codeBadgeStyle} truncate">
+                                ${cat.code}
+                            </span>
+                            <span class="text-[10px] font-bold ${isSelected ? (isReg ? 'text-indigo-800 font-black' : 'text-emerald-800 font-black') : 'text-blue-600 hover:underline'}">
+                                ${isSelected ? '● Active' : 'Select &rarr;'}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
 
         return `
             <div id="weighin-desk-root" class="space-y-6">
@@ -12886,302 +13117,239 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                     <div>
                         <div class="flex items-center gap-2">
-                            <span class="tkd-badge tkd-badge-blue font-bold"><i class="fa-solid fa-scale-balanced me-1"></i>Official Scale Desk</span>
-                            <span class="text-xs text-slate-700 font-semibold">${activeTourn.title || 'Official Championship'}</span>
+                            <span class="tkd-badge tkd-badge-blue font-bold"><i class="fa-solid fa-scale-balanced me-1"></i>Official Weigh-In Marshall Desk</span>
+                            <span class="text-xs text-slate-700 font-semibold">${activeTourn.title || 'Official Championship 2026'}</span>
                         </div>
-                        <h3 class="text-xl font-black text-slate-900 mt-1 flex items-center gap-2">
-                            Official Weigh-In Marshall Desk
-                        </h3>
-                        <p class="text-xs text-slate-600 font-medium mt-0.5">Live scale measurement station, real-time weight limits validation across all 5 disciplines &amp; 102 WT weight classes.</p>
+                        <h2 class="text-xl font-black text-slate-900 mt-1">Official Scale &amp; Category Limits Desk</h2>
+                        <p class="text-xs text-slate-600">Standardized Scale Verification &amp; Passbooks for All Divisions with Separate Regular (Black Belt) &amp; Freshers (Color Belt) Categories.</p>
                     </div>
-                    <div class="flex flex-wrap items-center gap-2 self-end sm:self-center">
-                        <button type="button" class="tkd-btn tkd-btn-sm tkd-btn-blue font-bold text-xs" onclick="openParticipantRegistrationModal('${activeTourn.id || ''}', '${activeTourn.title || ''}')">
-                            <i class="fa-solid fa-user-plus me-1.5"></i>+ Register Fighter
-                        </button>
+                    <div class="flex flex-wrap items-center gap-2">
                         <button type="button" id="btn-weighin-seed-demo" class="tkd-btn tkd-btn-sm tkd-btn-outline font-bold text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50" onclick="seedDemoWeighInCompetitors()" title="Seed demo competitors across official weight categories">
-        <i class="fa-solid fa-users-viewfinder me-1.5"></i>+ Demo Fighters
-    </button>
+                            <i class="fa-solid fa-users-viewfinder me-1.5"></i>+ Demo Fighters
+                        </button>
                         <button type="button" class="tkd-btn tkd-btn-sm tkd-btn-outline font-bold text-xs" onclick="window.app.printAllAthleteCards()">
-                            <i class="fa-solid fa-id-card-clip me-1.5"></i>Print ID Passes
+                            <i class="fa-solid fa-id-card-clip me-1.5 text-blue-600"></i>Print Passes
                         </button>
                         <button type="button" class="tkd-btn tkd-btn-sm tkd-btn-outline font-bold text-xs" onclick="window.app.printWeighInScaleSheet()">
-                            <i class="fa-solid fa-print me-1.5 text-blue-600"></i>Print Scale Sheet
+                            <i class="fa-solid fa-print me-1.5 text-blue-600"></i>Scale Sheet
+                        </button>
+                        <button type="button" class="tkd-btn tkd-btn-sm tkd-btn-blue font-bold text-xs" onclick="refreshWeighInDesk()">
+                            <i class="fa-solid fa-rotate me-1.5"></i>Refresh Scales
                         </button>
                     </div>
                 </div>
 
-                <!-- 1. Search Bar Section -->
+                <!-- 1. CATEGORY NAVIGATOR & SCALE STANDARDS CATALOG (SEPARATE FRESHERS & REGULAR COPIES) -->
                 <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">
+                                <i class="fa-solid fa-layer-group"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-black text-slate-900 tracking-wide uppercase">Weight Categories &amp; Official Scale Standards</h3>
+                                <div class="text-[11px] text-slate-500 font-medium">Both Regular &amp; Freshers category copies are available for all divisions</div>
+                            </div>
+                        </div>
+
+                        <!-- Discipline Filter Tabs -->
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <label class="text-xs font-bold text-slate-700">Discipline:</label>
+                            <select id="weighin-select-discipline" class="tkd-select text-xs font-bold py-1 px-2.5 border-slate-300 rounded-lg bg-slate-50">
+                                <option value="Kyorugi" ${currentDisc === 'Kyorugi' ? 'selected' : ''}>Kyorugi (Sparring)</option>
+                                <option value="Poomsae" ${currentDisc === 'Poomsae' ? 'selected' : ''}>Poomsae (Forms)</option>
+                                <option value="Kyukpa" ${currentDisc === 'Kyukpa' || currentDisc === 'Breaking' ? 'selected' : ''}>Kyukpa (Breaking)</option>
+                                <option value="Speed Kicking" ${currentDisc === 'Speed Kicking' ? 'selected' : ''}>Speed Kicking</option>
+                                <option value="Virtual Taekwondo" ${currentDisc === 'Virtual Taekwondo' ? 'selected' : ''}>Virtual Taekwondo</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Division, Gender & Tier Filters -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50/70 p-3 rounded-xl border border-slate-200/80">
+                        <div>
+                            <label class="text-[11px] font-black uppercase text-slate-700 tracking-wider block mb-1">Division:</label>
+                            <select id="weighin-select-division" class="tkd-select text-xs font-bold py-1.5 px-3 border-slate-300 rounded-lg w-full bg-white">
+                                <option value="senior" ${currentDiv === 'senior' ? 'selected' : ''}>Senior Division (Ages 17+)</option>
+                                <option value="junior" ${currentDiv === 'junior' ? 'selected' : ''}>Junior Division (Ages 15–17)</option>
+                                <option value="cadet" ${currentDiv === 'cadet' ? 'selected' : ''}>Cadet Division (Ages 12–14)</option>
+                                <option value="sub-junior" ${currentDiv === 'sub-junior' ? 'selected' : ''}>Sub-Junior Division (Ages 8–11)</option>
+                                <option value="children" ${currentDiv === 'children' ? 'selected' : ''}>Children Division (Under 8 / Ages 4–7)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-black uppercase text-slate-700 tracking-wider block mb-1">Gender:</label>
+                            <select id="weighin-select-gender" class="tkd-select text-xs font-bold py-1.5 px-3 border-slate-300 rounded-lg w-full bg-white">
+                                <option value="Male" ${currentGen === 'Male' ? 'selected' : ''}>Male Categories</option>
+                                <option value="Female" ${currentGen === 'Female' ? 'selected' : ''}>Female Categories</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-black uppercase text-slate-700 tracking-wider block mb-1">Tier / Experience Filter:</label>
+                            <select id="weighin-select-tier" class="tkd-select text-xs font-bold py-1.5 px-3 border-slate-300 rounded-lg w-full bg-white">
+                                <option value="all" ${currentTier === 'all' ? 'selected' : ''}>All Tiers (Show Both Regular &amp; Freshers Copies)</option>
+                                <option value="regular" ${currentTier === 'regular' ? 'selected' : ''}>Regular Tier Only (Advanced / Black Belt)</option>
+                                <option value="freshers" ${currentTier === 'freshers' ? 'selected' : ''}>Freshers Tier Only (Beginner / Color Belt)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Active Filter Notice Banner if category tile clicked -->
+                    ${selectedCategoryMeta ? `
+                        <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center justify-between gap-3 text-xs">
+                            <div class="flex items-center gap-2">
+                                <span class="tkd-badge ${selectedCategoryMeta.tier === 'Regular' ? 'tkd-badge-blue' : 'tkd-badge-green'} font-bold">
+                                    ${selectedCategoryMeta.tierBadge}
+                                </span>
+                                <div>
+                                    <span class="text-slate-600 font-semibold">Active Category Filter:</span>
+                                    <strong class="text-blue-950 font-black text-sm ms-1">${selectedCategoryMeta.name}</strong>
+                                    <span class="font-mono text-blue-700 font-bold ms-1">[${selectedCategoryMeta.code}]</span>
+                                    ${(selectedCategoryMeta.minWeight != null && selectedCategoryMeta.maxWeight != null) ? `
+                                        <span class="text-slate-500 font-mono ms-1">(${selectedCategoryMeta.minWeight} – ${selectedCategoryMeta.maxWeight} kg)</span>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            <button type="button" id="btn-weighin-clear-category" class="tkd-btn tkd-btn-xs tkd-btn-outline font-bold text-blue-700 border-blue-300 hover:bg-blue-100">
+                                <i class="fa-solid fa-xmark me-1"></i>Clear Filter (Show All)
+                            </button>
+                        </div>
+                    ` : ''}
+
+                    <!-- DISTINCT CATEGORY COPIES: REGULAR DIVISION & FRESHERS DIVISION -->
+                    <div class="space-y-6 pt-2">
+                        ${(currentTier === 'all' || currentTier === 'regular') && regularCategories.length > 0 ? `
+                            <!-- 1. REGULAR CATEGORIES SECTION (Advanced / Black Belt) -->
+                            <div class="space-y-2.5">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-black">🥋</span>
+                                        <h4 class="text-xs font-black text-indigo-950 tracking-wider uppercase">
+                                            Regular Division &bull; Advanced / Black Belt (${regularCategories.length} Categories)
+                                        </h4>
+                                        <span class="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded">
+                                            KY-REG-...
+                                        </span>
+                                    </div>
+                                    <span class="text-[11px] text-slate-500 font-medium">World Taekwondo Official Scale Limits</span>
+                                </div>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2.5">
+                                    ${renderCategoryTiles(regularCategories, 'regular')}
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        ${(currentTier === 'all' || currentTier === 'freshers') && freshersCategories.length > 0 ? `
+                            <!-- 2. FRESHERS CATEGORIES SECTION (Beginner / Color Belt) - SEPARATE COPY! -->
+                            <div class="space-y-2.5 ${(currentTier === 'all' && regularCategories.length > 0) ? 'pt-4 border-t border-slate-200' : ''}">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-black">🔰</span>
+                                        <h4 class="text-xs font-black text-emerald-950 tracking-wider uppercase">
+                                            Freshers Division &bull; Beginner / Color Belt (${freshersCategories.length} Categories)
+                                        </h4>
+                                        <span class="text-[10px] font-mono font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
+                                            KY-FR-...
+                                        </span>
+                                    </div>
+                                    <span class="text-[11px] text-slate-500 font-medium">Color Belt &amp; Novice Championship Categories</span>
+                                </div>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2.5">
+                                    ${renderCategoryTiles(freshersCategories, 'freshers')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+
+                <!-- 2. SEARCH & DIRECT SCALE CALL BAR -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
                     <div class="flex items-center justify-between">
                         <label for="input-weighin-search" class="text-xs font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
                             <i class="fa-solid fa-magnifying-glass text-blue-600"></i> Search Athlete for Weigh-In
                         </label>
-                        ${window._weighInSearchQuery ? `
-                            <span class="text-[11px] font-bold text-slate-500">
-                                Results for: <span class="text-blue-600 font-mono font-black">&quot;${window._weighInSearchQuery}&quot;</span> (${searchResults.length} found)
-                            </span>
-                        ` : `
-                            <span class="text-[11px] font-medium text-slate-500">Search by ID Number (e.g. ATH-SEN-101), Kukkiwon ID, or Athlete Name</span>
-                        `}
+                        <span class="text-[11px] text-slate-500">Search by Athlete ID, Name, Category Code, or Dojang</span>
                     </div>
-                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                    <div class="flex flex-col sm:flex-row gap-2">
                         <div class="relative flex-1">
-                            <i class="fa-solid fa-id-card absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-                            <input type="text" id="input-weighin-search" class="tkd-input text-xs font-semibold py-2.5 ps-10 pe-4 border-slate-300 rounded-xl w-full bg-slate-50/70 focus:bg-white transition" placeholder="Enter Athlete ID Number, Kukkiwon ID or Name..." value="${window._weighInSearchQuery || ''}">
+                            <i class="fa-solid fa-id-badge absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                            <input type="text" id="input-weighin-search" class="tkd-input text-xs font-semibold py-2.5 ps-10 pe-4 border-slate-300 rounded-xl w-full bg-slate-50/70 focus:bg-white transition" placeholder="Enter Athlete ID (e.g. ATH-SEN-101), Name, or Category Code..." value="${window._weighInSearchQuery || ''}">
                         </div>
-                        <button type="button" class="tkd-btn tkd-btn-blue font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs shrink-0" id="btn-weighin-search">
-                            <i class="fa-solid fa-magnifying-glass me-1.5"></i>Search
+                        <button type="button" id="btn-weighin-search" class="tkd-btn tkd-btn-blue font-bold text-xs px-5 py-2.5 shadow-xs">
+                            <i class="fa-solid fa-search me-1.5"></i>Search
                         </button>
-                        ${window._weighInSearchQuery ? `
-                            <button type="button" class="tkd-btn tkd-btn-outline font-bold text-xs px-3.5 py-2.5 rounded-xl text-slate-600 hover:text-slate-900 shrink-0" id="btn-weighin-clear" title="Clear Search">
-                                <i class="fa-solid fa-rotate-left me-1"></i>Reset
+                        ${query ? `
+                            <button type="button" id="btn-weighin-clear" class="tkd-btn tkd-btn-outline font-bold text-xs px-4 py-2.5">
+                                <i class="fa-solid fa-xmark me-1"></i>Clear
                             </button>
                         ` : ''}
                     </div>
 
-                    <!-- Search Results -->
+                    <!-- Search Results Box -->
                     ${query ? `
-                        <div class="pt-2">
+                        <div class="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                            <div class="text-xs font-bold text-slate-700 mb-2">Search Results (${searchResults.length} athletes found):</div>
                             ${searchResults.length === 0 ? `
-                                <div class="p-6 text-center bg-amber-50/70 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold">
-                                    <i class="fa-solid fa-triangle-exclamation text-2xl mb-1.5 text-amber-600 block"></i>
-                                    No athlete registered under &quot;<span class="font-mono font-bold">${window._weighInSearchQuery}</span>&quot; in this championship event.
-                                    <div class="text-[11px] text-amber-700 font-normal mt-1">Please verify the athlete ID number or check spelling.</div>
-                                </div>
+                                <div class="text-xs text-slate-500 py-2">No matching athlete found for "${query}". Check spelling or ID number.</div>
                             ` : `
-                                <div class="space-y-3">
-                                    <div class="text-[11px] font-black uppercase tracking-wider text-slate-500">Matching Athlete Records (${searchResults.length})</div>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        ${searchResults.map(a => {
-                                            const isQueued = (window._weighInQueue || []).includes(a.id);
-                                            const status = a.weighInStatus || a.status || 'Pending';
-                                            return `
-                                                <div class="bg-gradient-to-br from-white to-slate-50/70 p-4 rounded-xl border-2 ${isQueued ? 'border-emerald-400/80 bg-emerald-50/20' : 'border-blue-200 hover:border-blue-400'} shadow-sm flex flex-col justify-between gap-3 transition">
-                                                    <div class="flex items-start gap-3">
-                                                        <div class="w-14 h-14 rounded-xl bg-slate-100 border border-slate-300 overflow-hidden shrink-0 flex items-center justify-center">
-                                                            ${a.photo ? `<img src="${a.photo}" class="w-full h-full object-cover" alt="${a.name}">` : `<i class="fa-solid fa-user-ninja text-slate-400 text-2xl"></i>`}
-                                                        </div>
-                                                        <div class="flex-1 min-w-0">
-                                                            <div class="flex items-center gap-2 flex-wrap">
-                                                                <h4 class="text-sm font-black text-slate-900 truncate">${a.name}</h4>
-                                                                <span class="tkd-badge ${a.gender === 'Female' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'} text-[9px] font-black px-1.5 py-0.2">${a.gender}</span>
-                                                            </div>
-                                                            <div class="text-[11px] text-blue-600 font-mono font-black mt-0.5">
-                                                                ID: ${a.athleteId || a.id}${(a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId) ? ` • KKW: ${a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId}` : ''} • ${a.dojangCode || a.dojangName || 'Academy'}
-                                                            </div>
-                                                            <div class="text-xs text-slate-700 font-semibold mt-1 flex items-center gap-1.5 flex-wrap">
-                                                                <span>${a.category || 'Junior'}</span> • <span class="font-mono text-slate-900 font-bold">${a.weightClass}</span>
-                                                                ${a.categoryCode ? `<span class="bg-blue-100 text-blue-800 font-mono text-[9.5px] font-bold px-1.5 py-0.5 rounded border border-blue-200">${a.categoryCode}</span>` : ''}
-                                                            </div>
-                                                            <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                                                                <span class="text-[10px] text-slate-500 font-medium">Registered: <strong class="text-slate-800 font-mono">${a.weight || '—'} kg</strong></span>
-                                                                <span class="text-slate-300">•</span>
-                                                                ${getWeighInStatusBadge(status, a.measuredWeight || a.weight)}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div class="pt-3 border-t border-slate-200/80 flex items-center justify-between gap-2">
-                                                        <button type="button" class="tkd-btn tkd-btn-2xs tkd-btn-outline font-bold text-slate-600 btn-weigh-ath-pass" data-ath-id="${a.id}">
-                                                            <i class="fa-solid fa-id-card me-1 text-blue-600"></i>View ID Card
-                                                        </button>
-                                                        ${isQueued ? `
-                                                            <span class="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-300">
-                                                                <i class="fa-solid fa-check-double"></i> Added to Weigh-In Desk
-                                                            </span>
-                                                        ` : `
-                                                            <button type="button" class="tkd-btn tkd-btn-sm tkd-btn-green font-bold text-xs px-4 py-1.5 shadow-xs btn-weighin-add-athlete" data-ath-id="${a.id}">
-                                                                <i class="fa-solid fa-plus-circle me-1.5"></i>Add to Weigh-In
-                                                            </button>
-                                                        `}
-                                                    </div>
-                                                </div>
-                                            `;
-                                        }).join('')}
-                                    </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                    ${searchResults.map(a => `
+                                        <div class="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between gap-2 shadow-2xs">
+                                            <div class="truncate">
+                                                <div class="font-bold text-slate-900 text-xs truncate">${a.name}</div>
+                                                <div class="text-[10px] text-slate-500 font-mono">${a.athleteId || a.id} &bull; ${a.tier ? a.tier.toUpperCase() : 'REGULAR'} &bull; ${a.categoryCode || a.weightClass || 'Finweight'}</div>
+                                            </div>
+                                            <button type="button" class="tkd-btn tkd-btn-xs tkd-btn-blue font-bold shrink-0 btn-weighin-add-athlete" data-ath-id="${a.id}">
+                                                <i class="fa-solid fa-scale-balanced me-1"></i>+ Scale
+                                            </button>
+                                        </div>
+                                    `).join('')}
                                 </div>
                             `}
                         </div>
                     ` : ''}
                 </div>
 
-                <!-- 2. OFFICIAL TOURNAMENT WEIGHT CATEGORIES INSPECTION & QUICK-SELECTION DESK -->
+                <!-- 3. ACTIVE SCALE STATION (QUEUED COMPETITORS) -->
                 <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                        <div>
-                            <h3 class="text-sm font-black text-slate-900 flex items-center gap-2">
-                                <i class="fa-solid fa-layer-group text-blue-600"></i> Championship Weight Categories &amp; Official Scale Standards
-                            </h3>
-                            <p class="text-[11px] text-slate-500 font-medium">Select Discipline, Age Division, Gender, and Tier below to inspect official weight limits, codes, and filter competitors ready for scales.</p>
-                        </div>
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                         <div class="flex items-center gap-2">
-                            ${selectedWeightClass !== 'all' ? `
-                                <button type="button" class="tkd-btn tkd-btn-2xs tkd-btn-outline font-bold text-blue-600 border-blue-300 bg-blue-50/50" id="btn-weighin-clear-category">
-                                    <i class="fa-solid fa-rotate-left me-1"></i>Show All Classes
-                                </button>
-                            ` : ''}
-                            <span class="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">
-                                ${activeCategoryList.length} Classes in Division
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Category Selector Controls -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200">
-                        <!-- Discipline -->
-                        <div>
-                            <label class="text-[10px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1">
-                                <i class="fa-solid fa-fire text-amber-500 me-1"></i> Discipline
-                            </label>
-                            <select id="weighin-select-discipline" class="tkd-select text-xs font-bold w-full py-2 px-2.5 bg-white border-slate-300 rounded-lg">
-                                <option value="Kyorugi" ${currentDisc === 'Kyorugi' ? 'selected' : ''}>Kyorugi (Sparring)</option>
-                                <option value="Poomsae" ${currentDisc === 'Poomsae' ? 'selected' : ''}>Poomsae (Forms)</option>
-                                <option value="Kyukpa" ${(currentDisc === 'Kyukpa' || currentDisc === 'Breaking') ? 'selected' : ''}>E-Breaking &amp; Kyukpa</option>
-                                <option value="Speed Kicking" ${currentDisc === 'Speed Kicking' ? 'selected' : ''}>Speed Kicking</option>
-                                <option value="Virtual Taekwondo" ${(currentDisc === 'Virtual Taekwondo' || currentDisc === 'Virtual TKD') ? 'selected' : ''}>Virtual Taekwondo</option>
-                            </select>
-                        </div>
-
-                        <!-- Division -->
-                        <div>
-                            <label class="text-[10px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1">
-                                <i class="fa-solid fa-users-viewfinder text-blue-600 me-1"></i> Age Division
-                            </label>
-                            <select id="weighin-select-division" class="tkd-select text-xs font-bold w-full py-2 px-2.5 bg-white border-slate-300 rounded-lg">
-                                <option value="senior" ${currentDiv === 'senior' ? 'selected' : ''}>Senior (Ages 17+)</option>
-                                <option value="junior" ${currentDiv === 'junior' ? 'selected' : ''}>Junior (Ages 15–17)</option>
-                                <option value="cadet" ${currentDiv === 'cadet' ? 'selected' : ''}>Cadet (Ages 12–14)</option>
-                                <option value="sub-junior" ${currentDiv === 'sub-junior' ? 'selected' : ''}>Sub-Junior (Ages 8–11)</option>
-                                <option value="children" ${currentDiv === 'children' ? 'selected' : ''}>Children (Under 8 / 4–7)</option>
-                            </select>
-                        </div>
-
-                        <!-- Gender -->
-                        <div>
-                            <label class="text-[10px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1">
-                                <i class="fa-solid fa-venus-mars text-indigo-600 me-1"></i> Gender
-                            </label>
-                            <select id="weighin-select-gender" class="tkd-select text-xs font-bold w-full py-2 px-2.5 bg-white border-slate-300 rounded-lg">
-                                <option value="Male" ${currentGen === 'Male' ? 'selected' : ''}>Male</option>
-                                <option value="Female" ${currentGen === 'Female' ? 'selected' : ''}>Female</option>
-                            </select>
-                        </div>
-
-                        <!-- Tier -->
-                        <div>
-                            <label class="text-[10px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1">
-                                <i class="fa-solid fa-medal text-emerald-600 me-1"></i> Competition Tier
-                            </label>
-                            <select id="weighin-select-tier" class="tkd-select text-xs font-bold w-full py-2 px-2.5 bg-white border-slate-300 rounded-lg">
-                                <option value="all" ${currentTier === 'all' ? 'selected' : ''}>All Tiers (Regular &amp; Freshers)</option>
-                                <option value="regular" ${currentTier === 'regular' ? 'selected' : ''}>Regular (KY-REG-...)</option>
-                                <option value="freshers" ${currentTier === 'freshers' ? 'selected' : ''}>Freshers (KY-FR-...)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Interactive Weight Category Cards Grid -->
-                    <div class="space-y-2">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[11px] font-black uppercase text-slate-600 tracking-wider">
-                                Click a Weight Class to Filter Weigh-In Roster (${activeCategoryList.length} Categories):
-                            </span>
-                            ${selectedCategoryMeta ? `
-                                <span class="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                                    Active: ${selectedCategoryMeta.name} [${selectedCategoryMeta.activeCode || selectedCategoryMeta.regularCode}]
-                                </span>
-                            ` : ''}
-                        </div>
-
-                        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-2.5">
-                            ${activeCategoryList.map(cat => {
-                                const isSelected = selectedWeightClass === cat.name || selectedWeightClass === cat.activeCode || selectedWeightClass === cat.regularCode || selectedWeightClass === cat.freshersCode;
-                                return `
-                                    <div class="weighin-category-tile p-3 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between gap-1.5 select-none ${isSelected ? 'border-blue-600 bg-blue-50/90 text-blue-950 shadow-xs ring-2 ring-blue-200' : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50/80 text-slate-800'}" data-cat-name="${cat.name}" data-cat-code="${cat.activeCode || cat.regularCode}">
-                                        <div>
-                                            <div class="flex items-center justify-between gap-1">
-                                                <strong class="text-xs font-black truncate">${cat.shortName || cat.name}</strong>
-                                                <span class="text-[10px] font-bold px-1.5 py-0.2 rounded-full ${cat.athleteCount > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}">
-                                                    ${cat.athleteCount}
-                                                </span>
-                                            </div>
-                                            <div class="text-[11px] font-mono font-bold text-blue-700 mt-0.5">${cat.shortLabel}</div>
-                                            ${(cat.minWeight !== undefined && cat.maxWeight !== undefined) ? `
-                                                <div class="text-[10px] text-slate-500 font-mono mt-0.5 font-semibold">
-                                                    ${cat.minWeight} kg – ${cat.maxWeight} kg
-                                                </div>
-                                            ` : ''}
-                                        </div>
-                                        <div class="pt-1.5 border-t border-slate-100 space-y-1">
-                                            ${cat.regularCode && cat.freshersCode ? `
-                                                <div class="flex items-center gap-1 flex-wrap text-[8.5px] font-mono font-bold">
-                                                    <span class="px-1 py-0.5 rounded ${currentTier === 'regular' || currentTier === 'all' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-slate-50 text-slate-400'}" title="Regular Code">${cat.regularCode}</span>
-                                                    <span class="px-1 py-0.5 rounded ${currentTier === 'freshers' || currentTier === 'all' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-50 text-slate-400'}" title="Freshers Code">${cat.freshersCode}</span>
-                                                </div>
-                                            ` : `
-                                                <div class="flex items-center justify-between gap-1">
-                                                    <span class="text-[9px] font-mono font-bold ${isSelected ? 'text-blue-800 bg-blue-100' : 'text-slate-600 bg-slate-100'} px-1.5 py-0.5 rounded truncate">
-                                                        ${cat.activeCode || cat.regularCode || ''}
-                                                    </span>
-                                                </div>
-                                            `}
-                                            <div class="flex items-center justify-between text-[10px] font-bold pt-0.5">
-                                                <span class="${isSelected ? 'text-blue-700 font-black' : 'text-slate-400'}">${isSelected ? '● Active Class' : 'Filter &rarr;'}</span>
-                                                <span class="text-blue-600 hover:underline">Select</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                `;
-                            }).join('')}
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 3. Active Scale Weigh-In Station (Competitors on scale) -->
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center px-1">
-                        <div>
-                            <h4 class="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                                <i class="fa-solid fa-clipboard-check text-emerald-600"></i> Active Scale Weigh-In Station
-                                ${queuedAthletes.length > 0 ? `<span class="tkd-badge tkd-badge-blue text-[10px] font-black ms-1">${queuedAthletes.length} In Scale Queue</span>` : ''}
-                            </h4>
-                            <p class="text-[11px] text-slate-500 font-medium">Competitors currently loaded onto the scale station. Record measured weight and record official Marshall decision.</p>
+                            <span class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm">
+                                <i class="fa-solid fa-scale-unbalanced-flip"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-black text-slate-900 tracking-wide uppercase">Active Scale Station</h3>
+                                <div class="text-[11px] text-slate-500 font-medium">Competitors currently stepping on official scale (${queuedAthletes.length} queued)</div>
+                            </div>
                         </div>
                         ${queuedAthletes.length > 0 ? `
-                            <button type="button" class="tkd-btn tkd-btn-2xs tkd-btn-outline text-slate-500 hover:text-rose-600 border-slate-300 hover:border-rose-300 font-bold" id="btn-weighin-clear-queue">
-                                <i class="fa-solid fa-trash-can me-1"></i>Clear Station
+                            <button type="button" id="btn-weighin-clear-queue" class="tkd-btn tkd-btn-xs tkd-btn-outline font-bold text-rose-600 border-rose-300 hover:bg-rose-50">
+                                <i class="fa-solid fa-trash-can me-1"></i>Clear Scale Station
                             </button>
                         ` : ''}
                     </div>
 
                     ${queuedAthletes.length === 0 ? `
-                        <!-- Empty Station Placeholder -->
-                        <div class="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center shadow-2xs">
-                            <div class="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 mx-auto flex items-center justify-center text-2xl mb-3 shadow-inner">
-                                <i class="fa-solid fa-scale-balanced"></i>
-                            </div>
-                            <h4 class="text-sm font-black text-slate-800">Official Scale Station is Empty</h4>
-                            <p class="text-xs text-slate-500 max-w-md mx-auto mt-1">
-                                Click <span class="font-bold text-slate-800">&quot;+ Add to Scale&quot;</span> on any competitor in the roster below or search an athlete above to load them here for scale measurement.
-                            </p>
+                        <div class="py-8 text-center bg-slate-50/70 rounded-xl border border-dashed border-slate-200">
+                            <i class="fa-solid fa-scale-balanced text-3xl text-slate-300 mb-2 block"></i>
+                            <p class="text-xs font-bold text-slate-600">The Scale Station is currently clear.</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Click &ldquo;+ Scale&rdquo; on any competitor below or search an athlete above to put them on the scale.</p>
                         </div>
                     ` : `
-                        <!-- Active Weigh-In Scale Table -->
-                        <div class="tkd-table-container bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                            <table class="tkd-table">
+                        <div class="overflow-x-auto">
+                            <table class="tkd-table w-full text-left">
                                 <thead>
                                     <tr>
-                                        <th>Competitor Details</th>
-                                        <th>Division &amp; Gender</th>
-                                        <th>Target Weight Class &amp; Limits</th>
-                                        <th style="min-width: 140px;">Official Scale (kg)</th>
-                                        <th>Live Limits Check</th>
-                                        <th style="min-width: 220px;">Marshall Decision</th>
-                                        <th class="text-center">ID Pass</th>
-                                        <th class="text-center">Action</th>
+                                        <th>Competitor</th>
+                                        <th>Division &amp; Tier</th>
+                                        <th>Weight Class (Regular / Freshers)</th>
+                                        <th>Scale Input (kg)</th>
+                                        <th>Limits Check</th>
+                                        <th>Marshall Scale Decision</th>
+                                        <th class="text-right">Action</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody class="divide-y divide-slate-100">
                                     ${queuedAthletes.map(a => {
                                         const status = a.weighInStatus || a.status || 'Pending';
                                         const currentScaleVal = a.measuredWeight || a.weight || '';
@@ -13189,8 +13357,8 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                                         const athGen = a.gender || 'Male';
                                         const rawClasses = (window.TKD_KYORUGI_CATEGORIES || {})[athDiv]?.[athGen] || [];
                                         const valRes = (typeof window.validateAthleteWeight === 'function') 
-        ? window.validateAthleteWeight(a, currentScaleVal) 
-        : (typeof validateAthleteWeight === 'function' ? validateAthleteWeight(a, currentScaleVal) : { valid: true, status: 'Checked', message: 'Scale OK' });
+                                            ? window.validateAthleteWeight(a, currentScaleVal) 
+                                            : (typeof validateAthleteWeight === 'function' ? validateAthleteWeight(a, currentScaleVal) : { valid: true, status: 'Checked', message: 'Scale OK' });
 
                                         return `
                                             <tr class="hover:bg-slate-50/80 transition" data-ath-id="${a.id}">
@@ -13201,22 +13369,36 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                                                         </div>
                                                         <div>
                                                             <div class="font-black text-slate-900 text-xs">${a.name}</div>
-                                                            <div class="text-[10px] text-blue-600 font-mono font-bold">ID: ${a.athleteId || a.id}${(a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId) ? ` • KKW: ${a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId}` : ''} • ${a.dojangCode || 'TKD'}</div>
+                                                            <div class="text-[10px] text-blue-600 font-mono font-bold">ID: ${a.athleteId || a.id}${(a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId) ? ` &bull; KKW: ${a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId}` : ''} &bull; ${a.dojangCode || 'TKD'}</div>
                                                         </div>
                                                     </div>
                                                 </td>
                                                 <td>
                                                     <div class="text-xs text-slate-900 font-bold">${a.category || divLabels[athDiv] || 'Senior'}</div>
-                                                    <div class="text-[10px] text-slate-500 font-medium">${a.gender} • ${a.discipline || 'Kyorugi'}</div>
+                                                    <div class="flex items-center gap-1 mt-0.5">
+                                                        <span class="text-[9.5px] font-bold px-1.5 py-0.2 rounded ${(a.tier || '').toLowerCase() === 'freshers' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-indigo-100 text-indigo-800 border border-indigo-200'}">
+                                                            ${(a.tier || 'regular').toUpperCase()}
+                                                        </span>
+                                                        <span class="text-[10px] text-slate-500 font-medium">${a.gender} &bull; ${a.discipline || 'Kyorugi'}</span>
+                                                    </div>
                                                 </td>
                                                 <td>
-                                                    <!-- Weight Class Selector Dropdown -->
+                                                    <!-- BOTH REGULAR AND FRESHERS COPIES IN DROPDOWN -->
                                                     <select class="tkd-select font-mono font-bold text-xs py-1 px-2 border-slate-300 rounded-lg select-weighin-change-class" data-ath-id="${a.id}">
-                                                        ${rawClasses.length > 0 ? rawClasses.map(w => {
-                                                            const isSel = (a.categoryCode && (a.categoryCode === w.regularCode || a.categoryCode === w.freshersCode)) || (a.weightClass && a.weightClass.includes(w.shortLabel));
-                                                            const wCode = (a.tier === 'freshers') ? w.freshersCode : w.regularCode;
-                                                            return `<option value="${w.name}" data-code="${wCode}" data-min="${w.minWeight}" data-max="${w.maxWeight}" ${isSel ? 'selected' : ''}>${w.name} (${w.minWeight}–${w.maxWeight} kg) [${wCode}]</option>`;
-                                                        }).join('') : `<option value="${a.weightClass || 'Under 55kg'}">${a.weightClass || 'Under 55kg'}</option>`}
+                                                        ${rawClasses.length > 0 ? `
+                                                            <optgroup label="🥋 Regular Tier (Advanced / Black Belt)">
+                                                                ${rawClasses.map(w => {
+                                                                    const isSel = (a.categoryCode === w.regularCode) || ((a.tier || '').toLowerCase() !== 'freshers' && a.weightClass && a.weightClass.includes(w.shortLabel));
+                                                                    return `<option value="${w.name}" data-tier="regular" data-code="${w.regularCode}" data-min="${w.minWeight}" data-max="${w.maxWeight}" ${isSel ? 'selected' : ''}>[REG] ${w.name} (${w.minWeight}–${w.maxWeight} kg) [${w.regularCode}]</option>`;
+                                                                }).join('')}
+                                                            </optgroup>
+                                                            <optgroup label="🔰 Freshers Tier (Beginner / Color Belt)">
+                                                                ${rawClasses.map(w => {
+                                                                    const isSel = (a.categoryCode === w.freshersCode) || ((a.tier || '').toLowerCase() === 'freshers' && a.weightClass && a.weightClass.includes(w.shortLabel));
+                                                                    return `<option value="${w.name}" data-tier="freshers" data-code="${w.freshersCode}" data-min="${w.minWeight}" data-max="${w.maxWeight}" ${isSel ? 'selected' : ''}>[FR] ${w.name} (${w.minWeight}–${w.maxWeight} kg) [${w.freshersCode}]</option>`;
+                                                                }).join('')}
+                                                            </optgroup>
+                                                        ` : `<option value="${a.weightClass || 'Under 55kg'}">${a.weightClass || 'Under 55kg'}</option>`}
                                                     </select>
                                                     ${a.categoryCode ? `<div class="mt-1"><span class="bg-blue-100 text-blue-800 font-mono text-[9.5px] font-bold px-1.5 py-0.2 rounded border border-blue-200">${a.categoryCode}</span></div>` : ''}
                                                 </td>
@@ -13233,27 +13415,19 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                                                 </td>
                                                 <td>
                                                     <div class="flex items-center gap-1.5 flex-wrap">
-                                                        <!-- Pass Button -->
                                                         <button type="button" class="tkd-btn tkd-btn-xs ${status === 'Passed' ? 'tkd-btn-green shadow-xs' : 'tkd-btn-outline text-emerald-600 border-emerald-300 hover:bg-emerald-50'} font-bold btn-weigh-status" data-ath-id="${a.id}" data-status="Passed" title="Approve athlete weight and pass weigh-in">
                                                             <i class="fa-solid fa-check me-0.5"></i> Pass
                                                         </button>
-                                                        <!-- Hold Button -->
                                                         <button type="button" class="tkd-btn tkd-btn-xs ${status === 'Hold' ? 'tkd-btn-amber shadow-xs' : 'tkd-btn-outline text-amber-600 border-amber-300 hover:bg-amber-50'} font-bold btn-weigh-status" data-ath-id="${a.id}" data-status="Hold" title="Put athlete on weight hold for re-weigh">
                                                             <i class="fa-solid fa-pause me-0.5"></i> Hold
                                                         </button>
-                                                        <!-- Reject Button -->
-                                                        <button type="button" class="tkd-btn tkd-btn-xs ${status === 'Overweight' || status === 'Rejected' ? 'tkd-btn-red shadow-xs' : 'tkd-btn-outline text-rose-600 border-rose-300 hover:bg-rose-50'} font-bold btn-weigh-status" data-ath-id="${a.id}" data-status="Overweight" title="Reject athlete as overweight">
+                                                        <button type="button" class="tkd-btn tkd-btn-xs ${status === 'Overweight' ? 'tkd-btn-red shadow-xs' : 'tkd-btn-outline text-rose-600 border-rose-300 hover:bg-rose-50'} font-bold btn-weigh-status" data-ath-id="${a.id}" data-status="Overweight" title="Reject weight out of limits">
                                                             <i class="fa-solid fa-xmark me-0.5"></i> Reject
                                                         </button>
                                                     </div>
                                                 </td>
-                                                <td class="text-center">
-                                                    <button type="button" class="tkd-btn tkd-btn-xs tkd-btn-outline text-blue-600 border-slate-200 hover:bg-slate-100 font-bold btn-weigh-ath-pass" data-ath-id="${a.id}" title="View Official Accreditation ID Pass">
-                                                        <i class="fa-solid fa-id-card"></i> ID
-                                                    </button>
-                                                </td>
-                                                <td class="text-center">
-                                                    <button type="button" class="tkd-btn tkd-btn-xs tkd-btn-outline text-slate-400 hover:text-rose-600 border-slate-200 hover:border-rose-300 font-bold btn-weighin-remove" data-ath-id="${a.id}" title="Remove competitor from scale station">
+                                                <td class="text-right">
+                                                    <button type="button" class="tkd-btn tkd-btn-xs tkd-btn-ghost text-slate-400 hover:text-rose-600 p-1 btn-weighin-remove" data-ath-id="${a.id}" title="Remove from active scale station">
                                                         <i class="fa-solid fa-xmark"></i>
                                                     </button>
                                                 </td>
@@ -13266,98 +13440,112 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                     `}
                 </div>
 
-                <!-- 4. Registered Championship Scale Roster Table -->
+                <!-- 4. COMPETITOR ROSTER TABLE (FILTERED BY CATEGORY / TIER) -->
                 <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                         <div>
-                            <h4 class="text-sm font-black text-slate-900 flex items-center gap-2">
-                                <i class="fa-solid fa-list-check text-blue-600"></i> Registered Championship Scale Roster (${filteredAthletes.length})
-                                ${selectedWeightClass !== 'all' ? `<span class="tkd-badge tkd-badge-blue text-xs font-bold font-mono">Filtered: ${selectedWeightClass}</span>` : ''}
-                            </h4>
-                            <p class="text-[11px] text-slate-500 font-medium">Competitors registered in this event. Click &quot;Add to Scale&quot; to load a fighter onto the official scale station.</p>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <div class="text-[11px] font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
-                                Scale Passed: <span class="text-emerald-700 font-black">${filteredAthletes.filter(a => (a.status||'').toLowerCase() === 'passed' || (a.weighInStatus||'').toLowerCase() === 'passed').length}</span> / ${filteredAthletes.length}
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-sm font-black text-slate-900 tracking-wide uppercase">
+                                    ${selectedCategoryMeta ? `Competitors in: ${selectedCategoryMeta.name} [${selectedCategoryMeta.code}]` : 'Registered Competitors Roster'}
+                                </h3>
+                                <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                                    ${filteredAthletes.length} Total
+                                </span>
                             </div>
+                            <div class="text-[11px] text-slate-500 font-medium">Official scale check, digital passbook activation, and draws qualification status</div>
+                        </div>
+
+                        <div class="flex items-center gap-2 flex-wrap">
                             ${filteredAthletes.length > 0 ? `
-                                <button type="button" class="tkd-btn tkd-btn-2xs tkd-btn-outline text-emerald-700 border-emerald-300 font-bold" id="btn-weighin-queue-all-filtered">
-                                    <i class="fa-solid fa-check-double me-1"></i>Queue All to Scale
+                                <button type="button" id="btn-weighin-queue-all-filtered" class="tkd-btn tkd-btn-xs tkd-btn-outline font-bold text-blue-700 border-blue-300 hover:bg-blue-50">
+                                    <i class="fa-solid fa-list-check me-1"></i>Queue All (${filteredAthletes.length}) to Scale
                                 </button>
                             ` : ''}
                         </div>
                     </div>
 
-                    <div class="overflow-x-auto rounded-xl border border-slate-200">
-                        <table class="tkd-table">
+                    <div class="overflow-x-auto">
+                        <table class="tkd-table w-full text-left">
                             <thead>
                                 <tr>
-                                    <th>Competitor Details</th>
-                                    <th>Academy / Dojang</th>
-                                    <th>Division &amp; Target Weight Class</th>
-                                    <th class="text-center">Recorded Scale</th>
-                                    <th class="text-center">Scale Status</th>
-                                    <th class="text-right">Action</th>
+                                    <th>Competitor</th>
+                                    <th>Division &amp; Tier</th>
+                                    <th>Category Code &amp; Weight Class</th>
+                                    <th>Weight Limits</th>
+                                    <th>Measured Weight</th>
+                                    <th>Scale Status</th>
+                                    <th class="text-right">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-100 text-slate-700">
+                            <tbody class="divide-y divide-slate-100">
                                 ${filteredAthletes.length === 0 ? `
                                     <tr>
-                                        <td colspan="6" class="py-10 text-center text-slate-400 font-medium">
-                                            <div class="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 mx-auto flex items-center justify-center text-slate-400 text-xl mb-2">
-                                                <i class="fa-solid fa-user-ninja"></i>
-                                            </div>
-                                            <div class="text-slate-800 font-bold text-xs">No competitors found in this weight category.</div>
-                                            <div class="text-[11px] text-slate-500 mt-0.5">Click &quot;+ Register Fighter&quot; above to register an athlete or click &quot;Show All Classes&quot; to view all fighters.</div>
+                                        <td colspan="7" class="py-12 text-center text-slate-400">
+                                            <i class="fa-solid fa-user-group text-3xl mb-2 text-slate-300 block"></i>
+                                            <p class="text-xs font-bold text-slate-600">No competitors found matching this category filter.</p>
+                                            <p class="text-[11px] text-slate-400 mt-0.5">Click &ldquo;+ Demo Fighters&rdquo; at the top to populate test competitors or clear your filter.</p>
                                         </td>
                                     </tr>
                                 ` : filteredAthletes.map(a => {
-                                    const isQueued = (window._weighInQueue || []).includes(a.id);
-                                    const st = a.weighInStatus || a.status || 'Pending';
-                                    const stLower = String(st).toLowerCase();
-                                    const isPassed = stLower === 'passed';
-                                    const wtDisplay = (a.measuredWeight || a.weight) ? `${a.measuredWeight || a.weight} kg` : '—';
+                                    const isPassed = (a.status === 'Passed' || a.weighInStatus === 'Passed');
+                                    const isHold = (a.status === 'Hold' || a.weighInStatus === 'Hold');
+                                    const isOverweight = (a.status === 'Overweight' || a.weighInStatus === 'Overweight');
+                                    const statusLabel = isPassed ? 'Passed' : (isHold ? 'Hold' : (isOverweight ? 'Overweight' : 'Pending'));
+                                    const statusBadge = isPassed ? 'tkd-badge-green' : (isHold ? 'tkd-badge-amber' : (isOverweight ? 'tkd-badge-red' : 'tkd-badge-slate'));
+                                    const athDiv = (a.division || a.category || 'senior').toLowerCase();
+                                    const aTier = (a.tier || 'regular').toLowerCase();
+                                    const isReg = aTier !== 'freshers';
+
                                     return `
-                                        <tr class="hover:bg-slate-50/80 transition">
-                                            <td class="py-2.5 px-3">
-                                                <div class="flex items-center gap-2">
-                                                    <div class="w-7 h-7 rounded-lg bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-400 text-xs shrink-0 overflow-hidden">
-                                                        ${a.photo ? `<img src="${a.photo}" class="w-full h-full object-cover">` : `<i class="fa-solid fa-user-ninja"></i>`}
+                                        <tr class="hover:bg-slate-50/80 transition tr-ath-roster-row" data-ath-id="${a.id}">
+                                            <td>
+                                                <div class="flex items-center gap-2.5">
+                                                    <div class="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                                                        ${a.photo ? `<img src="${a.photo}" class="w-full h-full object-cover" alt="${a.name}">` : `<i class="fa-solid fa-user-ninja text-slate-400 text-xs"></i>`}
                                                     </div>
                                                     <div>
-                                                        <div class="font-bold text-slate-900">${a.name}</div>
-                                                        <div class="text-[10px] font-mono text-blue-600 font-bold">${a.athleteId || a.id}${(a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId) ? ` • KKW: ${a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId}` : ''}</div>
+                                                        <div class="font-bold text-slate-900 text-xs">${a.name}</div>
+                                                        <div class="text-[10px] text-blue-600 font-mono font-bold">ID: ${a.athleteId || a.id}${(a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId) ? ` &bull; KKW: ${a.kukkiwonNo || a.kukkiwonDanNumber || a.kukkiwonId}` : ''} &bull; ${a.dojangCode || 'TKD'}</div>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td class="py-2.5 px-3">
-                                                <div class="font-semibold text-slate-800">${a.dojangName || 'Independent'}</div>
-                                                <div class="text-[10px] text-slate-500 font-mono">${a.dojangCode || 'IND'}</div>
-                                            </td>
-                                            <td class="py-2.5 px-3">
-                                                <div class="font-bold text-slate-800">${a.category || a.ageCategory || 'Junior'}</div>
-                                                <div class="text-[11px] text-slate-700 font-semibold">${a.weightClass || 'Under 55kg'}</div>
-                                                <div class="flex items-center gap-1.5 mt-0.5">
-                                                    ${a.categoryCode ? `<span class="text-[9.5px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded">${a.categoryCode}</span>` : ''}
-                                                    ${(a.minWeight !== undefined && a.maxWeight !== undefined) ? `<span class="text-[9px] font-mono text-slate-500">${a.minWeight}–${a.maxWeight}kg</span>` : ''}
+                                            <td>
+                                                <div class="text-xs text-slate-800 font-bold">${divLabels[athDiv] || a.category || 'Senior'}</div>
+                                                <div class="flex items-center gap-1 mt-0.5">
+                                                    <span class="text-[9.5px] font-bold px-1.5 py-0.2 rounded ${isReg ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}">
+                                                        ${aTier.toUpperCase()}
+                                                    </span>
+                                                    <span class="text-[10px] text-slate-500 font-medium">${a.gender} &bull; ${a.discipline || 'Kyorugi'}</span>
                                                 </div>
                                             </td>
-                                            <td class="py-2.5 px-3 text-center font-mono font-bold ${isPassed ? 'text-emerald-700' : 'text-slate-600'}">
-                                                ${wtDisplay}
+                                            <td>
+                                                <div class="font-bold text-xs text-slate-900">${a.weightClass || 'Under 54kg'}</div>
+                                                ${a.categoryCode ? `<span class="font-mono text-[9.5px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">${a.categoryCode}</span>` : ''}
                                             </td>
-                                            <td class="py-2.5 px-3 text-center">
-                                                ${getWeighInStatusBadge(st, a.measuredWeight || a.weight)}
+                                            <td>
+                                                ${(a.minWeight != null && a.maxWeight != null) ? `
+                                                    <span class="font-mono text-xs text-slate-700 font-semibold">${a.minWeight} – ${a.maxWeight} kg</span>
+                                                ` : '<span class="text-xs text-slate-400 font-mono">&mdash;</span>'}
                                             </td>
-                                            <td class="py-2.5 px-3 text-right">
-                                                ${isQueued ? `
-                                                    <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 px-2.5 py-1 rounded-lg">
-                                                        <i class="fa-solid fa-check"></i> On Scale
-                                                    </span>
-                                                ` : `
-                                                    <button type="button" class="tkd-btn tkd-btn-xs tkd-btn-green font-bold px-2.5 py-1 rounded-lg shadow-2xs btn-weighin-add-athlete" data-ath-id="${a.id}">
-                                                        <i class="fa-solid fa-plus me-1"></i>Add to Scale
+                                            <td>
+                                                <span class="font-mono text-xs font-black ${a.measuredWeight ? 'text-slate-900' : 'text-slate-400'}">
+                                                    ${a.measuredWeight ? `${a.measuredWeight} kg` : (a.weight ? `${a.weight} kg (est)` : '&mdash;')}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="tkd-badge ${statusBadge} text-[10px] font-bold py-0.5 px-2">
+                                                    ${statusLabel}
+                                                </span>
+                                            </td>
+                                            <td class="text-right">
+                                                <div class="flex items-center justify-end gap-1.5">
+                                                    <button type="button" class="tkd-btn tkd-btn-xs tkd-btn-outline font-bold text-blue-600 border-blue-200 hover:bg-blue-50 btn-weighin-add-athlete" data-ath-id="${a.id}" title="Send athlete to active scale station">
+                                                        <i class="fa-solid fa-scale-balanced me-1"></i>+ Scale
                                                     </button>
-                                                `}
+                                                    <button type="button" class="tkd-btn tkd-btn-xs tkd-btn-ghost text-slate-600 hover:text-blue-700 btn-weigh-ath-pass" data-ath-id="${a.id}" title="View and print weigh-in passbook / credential ID">
+                                                        <i class="fa-solid fa-id-card-clip"></i> Pass
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     `;
@@ -13370,6 +13558,7 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
         `;
     }
     window.renderAdminWeighInDesk = renderAdminWeighInDesk;
+
 
     // ────────────────────────────────────────────────────────────────────────
     // 4B-2. TOURNAMENT ORGANIZING COMMITTEE PORTAL
@@ -19993,13 +20182,22 @@ ${templateBg ? `
                 }
 
                 // Official Weigh-In Desk Actions (Admin & Organizer Portals & Standalone View)
-                // Weight Category Tile Click (Filter Competitor Roster by Class)
+                // Weight Category Tile Click (Filter Competitor Roster by Class & Tier)
                 const catTile = e.target.closest('.weighin-category-tile');
                 if (catTile) {
                     e.preventDefault();
                     const catName = catTile.getAttribute('data-cat-name');
+                    const catCode = catTile.getAttribute('data-cat-code');
+                    const catTier = catTile.getAttribute('data-cat-tier');
                     window._weighInFilter = window._weighInFilter || {};
-                    window._weighInFilter.weightClass = (window._weighInFilter.weightClass === catName) ? 'all' : catName;
+                    if (window._weighInFilter.categoryCode === catCode) {
+                        window._weighInFilter.categoryCode = '';
+                        window._weighInFilter.weightClass = 'all';
+                    } else {
+                        window._weighInFilter.categoryCode = catCode;
+                        window._weighInFilter.weightClass = catName;
+                        window._weighInFilter.selectedTier = catTier;
+                    }
                     if (typeof window.refreshWeighInDesk === 'function') window.refreshWeighInDesk();
                     return;
                 }
@@ -20009,6 +20207,7 @@ ${templateBg ? `
                 if (clearCatBtn) {
                     e.preventDefault();
                     window._weighInFilter = window._weighInFilter || {};
+                    window._weighInFilter.categoryCode = '';
                     window._weighInFilter.weightClass = 'all';
                     if (typeof window.refreshWeighInDesk === 'function') window.refreshWeighInDesk();
                     return;
@@ -20209,12 +20408,14 @@ ${templateBg ? `
                     const athId = target.getAttribute('data-ath-id');
                     const selOpt = target.options[target.selectedIndex];
                     const newWeightClass = target.value;
+                    const newTier = selOpt ? (selOpt.getAttribute('data-tier') || 'regular') : 'regular';
                     const newCode = selOpt ? selOpt.getAttribute('data-code') : null;
                     const newMin = selOpt ? parseFloat(selOpt.getAttribute('data-min')) : NaN;
                     const newMax = selOpt ? parseFloat(selOpt.getAttribute('data-max')) : NaN;
                     const ath = store.getAthlete(athId);
                     if (ath) {
                         ath.weightClass = newWeightClass;
+                        ath.tier = newTier;
                         if (newCode) ath.categoryCode = newCode;
                         if (!isNaN(newMin)) ath.minWeight = newMin;
                         if (!isNaN(newMax)) ath.maxWeight = newMax;
@@ -20224,7 +20425,7 @@ ${templateBg ? `
                             athletes[idx] = ath;
                             localStorage.setItem('tkd_athletes', JSON.stringify(athletes));
                         }
-                        showToast(`Re-assigned ${ath.name} to ${newWeightClass} [${newCode || ''}]!`, 'success');
+                        showToast(`Re-assigned ${ath.name} to [${newTier.toUpperCase()}] ${newWeightClass} [${newCode || ''}]!`, 'success');
                         if (typeof window.refreshWeighInDesk === 'function') window.refreshWeighInDesk();
                     }
                     return;
