@@ -65,6 +65,28 @@ const DISCIPLINES = [
 // 1. KYORUGI FULL CATEGORIES & WEIGHT CLASSES
 // Tiers: Freshers (KY-FR-...) | Regular (KY-REG-...)
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Format Kyorugi Weight Category strictly as weight limit (e.g. "U 54 KG", "O 87 KG")
+function formatKyorugiWeight(item) {
+    if (!item) return '';
+    if (typeof item === 'string') {
+        const mU = item.match(/under\s*(\d+(\.\d+)?)\s*kg/i) || item.match(/u\s*(\d+(\.\d+)?)\s*kg/i) || item.match(/-(\d+)\s*kg/i);
+        if (mU) return 'U ' + mU[1] + ' KG';
+        const mO = item.match(/over\s*(\d+(\.\d+)?)\s*kg/i) || item.match(/o\s*(\d+(\.\d+)?)\s*kg/i) || item.match(/\+(\d+)\s*kg/i);
+        if (mO) return 'O ' + mO[1] + ' KG';
+        return item.toUpperCase();
+    }
+    if (item.weightLimit) return item.weightLimit.toUpperCase();
+    const str = item.shortLabel || item.name || '';
+    const mU = str.match(/under\s*(\d+(\.\d+)?)\s*kg/i) || str.match(/u\s*(\d+(\.\d+)?)\s*kg/i) || str.match(/-(\d+)\s*kg/i);
+    if (mU) return 'U ' + mU[1] + ' KG';
+    const mO = str.match(/over\s*(\d+(\.\d+)?)\s*kg/i) || str.match(/o\s*(\d+(\.\d+)?)\s*kg/i) || str.match(/\+(\d+)\s*kg/i);
+    if (mO) return 'O ' + mO[1] + ' KG';
+    if (item.maxWeight && item.maxWeight < 100) return 'U ' + item.maxWeight + ' KG';
+    if (item.minWeight) return 'O ' + Math.floor(item.minWeight) + ' KG';
+    return str.toUpperCase();
+}
+
 const KYORUGI_CATEGORIES = {
     senior: {
         id: 'senior',
@@ -470,6 +492,7 @@ Object.keys(KYORUGI_CATEGORIES).forEach(divKey => {
                 gender,
                 weightClassName: wt.name,
                 shortLabel: wt.shortLabel,
+                weightLimit: formatKyorugiWeight(wt),
                 minWeight: wt.minWeight,
                 maxWeight: wt.maxWeight
             };
@@ -482,6 +505,7 @@ Object.keys(KYORUGI_CATEGORIES).forEach(divKey => {
                 gender,
                 weightClassName: wt.name,
                 shortLabel: wt.shortLabel,
+                weightLimit: formatKyorugiWeight(wt),
                 minWeight: wt.minWeight,
                 maxWeight: wt.maxWeight
             };
@@ -733,6 +757,7 @@ if (typeof window !== 'undefined') {
     window.TKD_ALL_CATEGORIES_REGISTRY = ALL_CATEGORIES_REGISTRY;
     window.findCategoryByCode = findCategoryByCode;
     window.validateAthleteWeight = validateAthleteWeight;
+    window.formatKyorugiWeight = formatKyorugiWeight;
 }
 if (typeof globalThis !== 'undefined') {
     globalThis.TKD_KYORUGI_CATEGORIES = KYORUGI_CATEGORIES;
@@ -743,9 +768,11 @@ if (typeof globalThis !== 'undefined') {
     globalThis.TKD_ALL_CATEGORIES_REGISTRY = ALL_CATEGORIES_REGISTRY;
     globalThis.findCategoryByCode = findCategoryByCode;
     globalThis.validateAthleteWeight = validateAthleteWeight;
+    globalThis.formatKyorugiWeight = formatKyorugiWeight;
 }
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
+        formatKyorugiWeight,
         TKD_BELTS, AGE_DIVISIONS, DISCIPLINES, WEIGHT_DIVISIONS,
         KYORUGI_CATEGORIES, TKD_KYORUGI_CATEGORIES: KYORUGI_CATEGORIES,
         POOMSAE_CATEGORIES, TKD_POOMSAE_CATEGORIES: POOMSAE_CATEGORIES,

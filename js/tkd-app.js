@@ -5513,17 +5513,35 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                                 </div>
 
                                 <!-- Age Division Selector -->
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                                    <div>
-                                        <label class="clean-input-label">Age Division *</label>
-                                        <select class="clean-input font-black text-slate-900" id="wiz-division">
-                                            <option value="children" ${regData.category === 'children' ? 'selected' : ''}>Children Division (Under 8 Years / Ages 4–7)</option>
-                                            <option value="sub-junior" ${regData.category === 'sub-junior' ? 'selected' : ''}>Sub-Junior Division (Ages 8–11)</option>
-                                            <option value="cadet" ${regData.category === 'cadet' ? 'selected' : ''}>Cadet Division (Ages 12–14)</option>
-                                            <option value="junior" ${regData.category === 'junior' ? 'selected' : ''}>Junior Division (Ages 15–17)</option>
-                                            <option value="senior" ${regData.category === 'senior' ? 'selected' : ''}>Senior Division (Ages 17+)</option>
+                                <div class="space-y-3">
+                                    <!-- Age Division Cards -->
+                                    <div class="space-y-1.5">
+                                        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                                            Kyorugi Age Division *
+                                        </label>
+                                        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2" id="wiz-div-cards-grid">
+                                            ${[
+                                                { id: 'children', label: 'CHILDREN', sub: 'Under 8 Years' },
+                                                { id: 'sub-junior', label: 'SUB-JUNIOR', sub: 'Ages 8–11' },
+                                                { id: 'cadet', label: 'CADET', sub: 'Ages 12–14' },
+                                                { id: 'junior', label: 'JUNIOR', sub: 'Ages 15–17' },
+                                                { id: 'senior', label: 'SENIOR', sub: 'Ages 18+' }
+                                            ].map(d => `
+                                                <div class="wiz-div-card p-2 rounded-lg border cursor-pointer text-center transition-all ${regData.category === d.id ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold ring-1 ring-blue-600' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}" data-div="${d.id}">
+                                                    <span class="text-xs block font-bold">${d.label}</span>
+                                                    <span class="text-[10px] text-slate-500 block">${d.sub}</span>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                        <select class="hidden" id="wiz-division">
+                                            <option value="children" ${regData.category === 'children' ? 'selected' : ''}>Children Division</option>
+                                            <option value="sub-junior" ${regData.category === 'sub-junior' ? 'selected' : ''}>Sub-Junior Division</option>
+                                            <option value="cadet" ${regData.category === 'cadet' ? 'selected' : ''}>Cadet Division</option>
+                                            <option value="junior" ${regData.category === 'junior' ? 'selected' : ''}>Junior Division</option>
+                                            <option value="senior" ${regData.category === 'senior' ? 'selected' : ''}>Senior Division</option>
                                         </select>
                                     </div>
+
                                     <div>
                                         <label class="clean-input-label">Estimated Scale Weight (kg)</label>
                                         <input type="number" step="0.1" class="clean-input font-mono font-bold" id="wiz-scale-weight" placeholder="e.g. 54.0" value="${regData.scaleWeight}">
@@ -5533,14 +5551,14 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                                 <!-- Weight Category Cards Grid -->
                                 <div class="space-y-2">
                                     <div class="flex items-center justify-between">
-                                        <label class="clean-input-label font-bold text-slate-900">
-                                            Select Weight Category (${regData.gender}) *
+                                        <label class="text-xs font-bold uppercase tracking-wider text-slate-800 block" id="wiz-weight-header-label">
+                                            Select Weight Class (${regData.gender} - ${regData.tier === 'FRESHERS' ? 'Freshers' : 'Regular'}) *
                                         </label>
-                                        <span class="text-[11px] font-mono text-blue-600 font-bold" id="wiz-selected-weight-badge">
-                                            Selected: ${regData.weightClassName || regData.weightClass} [${activeCatCode}]
+                                        <span class="text-[11px] text-slate-500 font-mono" id="wiz-weight-count-label">
+                                            Official Categories
                                         </span>
                                     </div>
-                                    <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2" id="wiz-weight-grid">
+                                    <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2.5" id="wiz-weight-grid">
                                         <!-- Dynamically generated weight cards -->
                                     </div>
                                 </div>
@@ -5821,6 +5839,21 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
         const activeCatCode = computeActiveCategoryCode();
         const badge = document.getElementById('wiz-selected-weight-badge');
         if (badge) badge.textContent = `Selected: ${regData.weightClassName || regData.weightClass} [${activeCatCode}]`;
+        const countLabel = document.getElementById('wiz-weight-count-label');
+        if (countLabel) countLabel.textContent = `${weights.length} Official Categories`;
+        const headerLabel = document.getElementById('wiz-weight-header-label');
+        if (headerLabel) headerLabel.textContent = `Select Weight Class (${gender} - ${tier === 'FRESHERS' ? 'Freshers' : 'Regular'}) *`;
+        
+        // Keep wizard division cards visual state synced
+        const divCards = document.querySelectorAll('.wiz-div-card');
+        divCards.forEach(card => {
+            const isCardSel = card.getAttribute('data-div') === cat;
+            if (isCardSel) {
+                card.className = 'wiz-div-card p-2 rounded-lg border cursor-pointer text-center transition-all border-blue-600 bg-blue-50 text-blue-700 font-bold ring-1 ring-blue-600';
+            } else {
+                card.className = 'wiz-div-card p-2 rounded-lg border cursor-pointer text-center transition-all border-slate-200 bg-white text-slate-700 hover:border-slate-300';
+            }
+        });
 
         const liveText = document.getElementById('wiz-live-category-code-text');
         const liveBadge = document.getElementById('wiz-live-category-code-badge');
@@ -5830,13 +5863,14 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
         grid.innerHTML = weights.map(w => {
             const wCode = (tier === 'FRESHERS') ? w.freshersCode : w.regularCode;
             const isSelected = regData.weightClass === w.shortLabel || regData.categoryCode === wCode;
+            const wtLimit = w.weightLimit || (typeof formatKyorugiWeight === 'function' ? formatKyorugiWeight(w) : (w.shortLabel || w.name));
             return `
-                <div class="wiz-wt-tile p-2 rounded-xl border-2 cursor-pointer transition-all text-center select-none ${isSelected ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-xs ring-2 ring-blue-100' : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50'}" data-wt="${w.shortLabel}" data-code="${wCode}">
-                    <div class="text-[11px] font-black text-slate-900 truncate">${w.shortName}</div>
-                    <div class="text-xs font-mono font-bold text-blue-700">${w.shortLabel}</div>
-                    <div class="text-[9px] text-slate-500 font-mono">${w.minWeight} - ${w.maxWeight} kg</div>
-                    <div class="text-[9px] font-mono font-bold mt-1 px-1 py-0.2 rounded ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'} truncate">
-                        ${wCode}
+                <div class="wiz-wt-tile p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between select-none ${isSelected ? 'border-blue-600 bg-blue-50/80 shadow-xs ring-2 ring-blue-600/30' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'}" data-wt="${w.shortLabel}" data-code="${wCode}">
+                    <span class="text-xs font-bold font-mono truncate ${isSelected ? 'text-blue-700' : 'text-slate-800'}">
+                        ${wtLimit}
+                    </span>
+                    <div class="w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ml-1.5 ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 bg-white'}">
+                        ${isSelected ? '<i class="fa-solid fa-check text-[8px] text-white"></i>' : ''}
                     </div>
                 </div>
             `;
@@ -13088,6 +13122,24 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
             const activeCardBorder = isReg ? 'border-indigo-600 bg-indigo-50/95 ring-2 ring-indigo-200 shadow-sm' : 'border-emerald-600 bg-emerald-50/95 ring-2 ring-emerald-200 shadow-sm';
             const codeBadgeStyle = isReg ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200';
 
+            // Kyorugi: Strict Minimalist Weight Tiles (Only Weight Limit e.g. "U 54 KG" + Radio Selector)
+            if (currentDisc === 'Kyorugi') {
+                return catList.map(cat => {
+                    const isSelected = selectedCode === cat.code || (selectedWeightClass === cat.name && (!selectedCategoryMeta || selectedCategoryMeta.tier.toLowerCase() === tierType));
+                    const wtLimit = cat.weightLimit || (typeof formatKyorugiWeight === 'function' ? formatKyorugiWeight(cat) : (cat.shortLabel || cat.name));
+                    return `
+                        <div class="weighin-category-tile p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between select-none ${isSelected ? 'border-blue-600 bg-blue-50/80 shadow-xs ring-2 ring-blue-600/30' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'}" data-cat-name="${cat.name}" data-cat-code="${cat.code}" data-cat-tier="${cat.tier}">
+                            <span class="text-xs font-bold font-mono truncate ${isSelected ? 'text-blue-700' : 'text-slate-800'}">
+                                ${wtLimit}
+                            </span>
+                            <div class="w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ml-1.5 ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 bg-white'}">
+                                ${isSelected ? '<i class="fa-solid fa-check text-[8px] text-white"></i>' : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
             return catList.map(cat => {
                 const isSelected = selectedCode === cat.code || (selectedWeightClass === cat.name && (!selectedCategoryMeta || selectedCategoryMeta.tier.toLowerCase() === tierType));
                 return `
@@ -13179,33 +13231,94 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                     </div>
 
                     <!-- Division, Gender & Tier Filters -->
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50/70 p-3 rounded-xl border border-slate-200/80">
-                        <div>
-                            <label class="text-[11px] font-black uppercase text-slate-700 tracking-wider block mb-1">Division:</label>
-                            <select id="weighin-select-division" class="tkd-select text-xs font-bold py-1.5 px-3 border-slate-300 rounded-lg w-full bg-white">
-                                <option value="senior" ${currentDiv === 'senior' ? 'selected' : ''}>Senior Division (Ages 17+)</option>
-                                <option value="junior" ${currentDiv === 'junior' ? 'selected' : ''}>Junior Division (Ages 15–17)</option>
-                                <option value="cadet" ${currentDiv === 'cadet' ? 'selected' : ''}>Cadet Division (Ages 12–14)</option>
-                                <option value="sub-junior" ${currentDiv === 'sub-junior' ? 'selected' : ''}>Sub-Junior Division (Ages 8–11)</option>
-                                <option value="children" ${currentDiv === 'children' ? 'selected' : ''}>Children Division (Under 8 / Ages 4–7)</option>
-                            </select>
+                    ${currentDisc === 'Kyorugi' ? `
+                        <div class="space-y-4 p-4 rounded-xl border border-blue-200 bg-blue-50/20">
+                            <!-- Tier Selector: Freshers vs Regular -->
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex items-center gap-3">
+                                    <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                        Kyorugi Classification:
+                                    </label>
+                                    <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                        <button type="button" class="weighin-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'freshers' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="freshers">
+                                            Kyorugi (Freshers)
+                                        </button>
+                                        <button type="button" class="weighin-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'regular' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="regular">
+                                            Kyorugi (Regular)
+                                        </button>
+                                        <button type="button" class="weighin-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="all">
+                                            Show Both
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                        Gender:
+                                    </label>
+                                    <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                        <button type="button" class="weighin-gender-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentGen === 'Male' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-gender="Male">
+                                            Male
+                                        </button>
+                                        <button type="button" class="weighin-gender-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentGen === 'Female' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-gender="Female">
+                                            Female
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Age Division Selection Cards -->
+                            <div class="space-y-1.5">
+                                <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                                    Kyorugi Age Division *
+                                </label>
+                                <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                    ${[
+                                        { id: 'children', label: 'CHILDREN', sub: 'Under 8 Years' },
+                                        { id: 'sub-junior', label: 'SUB-JUNIOR', sub: 'Ages 8–11' },
+                                        { id: 'cadet', label: 'CADET', sub: 'Ages 12–14' },
+                                        { id: 'junior', label: 'JUNIOR', sub: 'Ages 15–17' },
+                                        { id: 'senior', label: 'SENIOR', sub: 'Ages 18+' }
+                                    ].map(div => `
+                                        <div class="weighin-div-btn p-2 rounded-lg border cursor-pointer text-center transition-all ${currentDiv === div.id
+                                            ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold ring-1 ring-blue-600'
+                                            : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                                        }" data-div="${div.id}">
+                                            <span class="text-xs block">${div.label}</span>
+                                            <span class="text-[10px] text-slate-500 block">${div.sub}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <label class="text-[11px] font-black uppercase text-slate-700 tracking-wider block mb-1">Gender:</label>
-                            <select id="weighin-select-gender" class="tkd-select text-xs font-bold py-1.5 px-3 border-slate-300 rounded-lg w-full bg-white">
-                                <option value="Male" ${currentGen === 'Male' ? 'selected' : ''}>Male Categories</option>
-                                <option value="Female" ${currentGen === 'Female' ? 'selected' : ''}>Female Categories</option>
-                            </select>
+                    ` : `
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50/70 p-3 rounded-xl border border-slate-200/80">
+                            <div>
+                                <label class="text-[11px] font-black uppercase text-slate-700 tracking-wider block mb-1">Division:</label>
+                                <select id="weighin-select-division" class="tkd-select text-xs font-bold py-1.5 px-3 border-slate-300 rounded-lg w-full bg-white">
+                                    <option value="senior" ${currentDiv === 'senior' ? 'selected' : ''}>Senior Division (Ages 17+)</option>
+                                    <option value="junior" ${currentDiv === 'junior' ? 'selected' : ''}>Junior Division (Ages 15–17)</option>
+                                    <option value="cadet" ${currentDiv === 'cadet' ? 'selected' : ''}>Cadet Division (Ages 12–14)</option>
+                                    <option value="sub-junior" ${currentDiv === 'sub-junior' ? 'selected' : ''}>Sub-Junior Division (Ages 8–11)</option>
+                                    <option value="children" ${currentDiv === 'children' ? 'selected' : ''}>Children Division (Under 8 / Ages 4–7)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-black uppercase text-slate-700 tracking-wider block mb-1">Gender:</label>
+                                <select id="weighin-select-gender" class="tkd-select text-xs font-bold py-1.5 px-3 border-slate-300 rounded-lg w-full bg-white">
+                                    <option value="Male" ${currentGen === 'Male' ? 'selected' : ''}>Male Categories</option>
+                                    <option value="Female" ${currentGen === 'Female' ? 'selected' : ''}>Female Categories</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-black uppercase text-slate-700 tracking-wider block mb-1">Tier / Experience Filter:</label>
+                                <select id="weighin-select-tier" class="tkd-select text-xs font-bold py-1.5 px-3 border-slate-300 rounded-lg w-full bg-white">
+                                    <option value="all" ${currentTier === 'all' ? 'selected' : ''}>All Tiers (Show Both Regular &amp; Freshers Copies)</option>
+                                    <option value="regular" ${currentTier === 'regular' ? 'selected' : ''}>Regular Tier Only (Advanced / Black Belt)</option>
+                                    <option value="freshers" ${currentTier === 'freshers' ? 'selected' : ''}>Freshers Tier Only (Beginner / Color Belt)</option>
+                                </select>
+                            </div>
                         </div>
-                        <div>
-                            <label class="text-[11px] font-black uppercase text-slate-700 tracking-wider block mb-1">Tier / Experience Filter:</label>
-                            <select id="weighin-select-tier" class="tkd-select text-xs font-bold py-1.5 px-3 border-slate-300 rounded-lg w-full bg-white">
-                                <option value="all" ${currentTier === 'all' ? 'selected' : ''}>All Tiers (Show Both Regular &amp; Freshers Copies)</option>
-                                <option value="regular" ${currentTier === 'regular' ? 'selected' : ''}>Regular Tier Only (Advanced / Black Belt)</option>
-                                <option value="freshers" ${currentTier === 'freshers' ? 'selected' : ''}>Freshers Tier Only (Beginner / Color Belt)</option>
-                            </select>
-                        </div>
-                    </div>
+                    `}
 
                     <!-- Active Filter Notice Banner if category tile clicked -->
                     ${selectedCategoryMeta ? `
@@ -13233,20 +13346,16 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                     <div class="space-y-6 pt-2">
                         ${(currentTier === 'all' || currentTier === 'regular') && regularCategories.length > 0 ? `
                             <!-- 1. REGULAR CATEGORIES SECTION (Advanced / Black Belt) -->
-                            <div class="space-y-2.5">
+                            <div class="space-y-3">
                                 <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-2">
-                                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-black">🥋</span>
-                                        <h4 class="text-xs font-black text-indigo-950 tracking-wider uppercase">
-                                            Regular Division &bull; Advanced / Black Belt (${regularCategories.length} Categories)
-                                        </h4>
-                                        <span class="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded">
-                                            KY-REG-...
-                                        </span>
-                                    </div>
-                                    <span class="text-[11px] text-slate-500 font-medium">World Taekwondo Official Scale Limits</span>
+                                    <label class="text-xs font-bold uppercase tracking-wider text-slate-800 block">
+                                        SELECT WEIGHT CLASS (${currentGen.toUpperCase()} - REGULAR) *
+                                    </label>
+                                    <span class="text-[11px] text-slate-500 font-mono">
+                                        ${regularCategories.length} Official Categories
+                                    </span>
                                 </div>
-                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2.5">
+                                <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
                                     ${renderCategoryTiles(regularCategories, 'regular')}
                                 </div>
                             </div>
@@ -13254,20 +13363,16 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
 
                         ${(currentTier === 'all' || currentTier === 'freshers') && freshersCategories.length > 0 ? `
                             <!-- 2. FRESHERS CATEGORIES SECTION (Beginner / Color Belt) - SEPARATE COPY! -->
-                            <div class="space-y-2.5 ${(currentTier === 'all' && regularCategories.length > 0) ? 'pt-4 border-t border-slate-200' : ''}">
+                            <div class="space-y-3 ${(currentTier === 'all' && regularCategories.length > 0) ? 'pt-4 border-t border-slate-200' : ''}">
                                 <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-2">
-                                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-black">🔰</span>
-                                        <h4 class="text-xs font-black text-emerald-950 tracking-wider uppercase">
-                                            Freshers Division &bull; Beginner / Color Belt (${freshersCategories.length} Categories)
-                                        </h4>
-                                        <span class="text-[10px] font-mono font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
-                                            KY-FR-...
-                                        </span>
-                                    </div>
-                                    <span class="text-[11px] text-slate-500 font-medium">Color Belt &amp; Novice Championship Categories</span>
+                                    <label class="text-xs font-bold uppercase tracking-wider text-slate-800 block">
+                                        SELECT WEIGHT CLASS (${currentGen.toUpperCase()} - FRESHERS) *
+                                    </label>
+                                    <span class="text-[11px] text-slate-500 font-mono">
+                                        ${freshersCategories.length} Official Categories
+                                    </span>
                                 </div>
-                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2.5">
+                                <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
                                     ${renderCategoryTiles(freshersCategories, 'freshers')}
                                 </div>
                             </div>
@@ -20196,6 +20301,45 @@ ${templateBg ? `
 
                 // Official Weigh-In Desk Actions (Admin & Organizer Portals & Standalone View)
                 // Weight Category Tile Click (Filter Competitor Roster by Class & Tier)
+                // Weigh-in Tier Button Click
+                const tierBtn = e.target.closest('.weighin-tier-btn');
+                if (tierBtn) {
+                    e.preventDefault();
+                    const t = tierBtn.getAttribute('data-tier');
+                    window._weighInFilter = window._weighInFilter || {};
+                    window._weighInFilter.tier = t;
+                    window._weighInFilter.categoryCode = '';
+                    window._weighInFilter.weightClass = 'all';
+                    if (typeof window.refreshWeighInDesk === 'function') window.refreshWeighInDesk();
+                    return;
+                }
+
+                // Weigh-in Division Button Click
+                const divBtn = e.target.closest('.weighin-div-btn');
+                if (divBtn) {
+                    e.preventDefault();
+                    const d = divBtn.getAttribute('data-div');
+                    window._weighInFilter = window._weighInFilter || {};
+                    window._weighInFilter.division = d;
+                    window._weighInFilter.categoryCode = '';
+                    window._weighInFilter.weightClass = 'all';
+                    if (typeof window.refreshWeighInDesk === 'function') window.refreshWeighInDesk();
+                    return;
+                }
+
+                // Weigh-in Gender Button Click
+                const genBtn = e.target.closest('.weighin-gender-btn');
+                if (genBtn) {
+                    e.preventDefault();
+                    const g = genBtn.getAttribute('data-gender');
+                    window._weighInFilter = window._weighInFilter || {};
+                    window._weighInFilter.gender = g;
+                    window._weighInFilter.categoryCode = '';
+                    window._weighInFilter.weightClass = 'all';
+                    if (typeof window.refreshWeighInDesk === 'function') window.refreshWeighInDesk();
+                    return;
+                }
+
                 const catTile = e.target.closest('.weighin-category-tile');
                 if (catTile) {
                     e.preventDefault();
@@ -21202,82 +21346,169 @@ ${templateBg ? `
                             </div>
                         </div>
                     ` : `
-                        <!-- Official WT Selectors (Cascading Dropdowns) -->
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                            <!-- Dropdown 1: Age Division -->
-                            <div>
-                                <label class="text-[11px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
-                                    <i class="fa-solid fa-users-viewfinder text-blue-600 me-1"></i> Age Division
-                                </label>
-                                <select id="cat-select-division" class="tkd-select text-xs font-bold w-full py-2 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
-                                    <option value="senior" ${currentDiv === 'senior' ? 'selected' : ''}>Senior (Ages 17+)</option>
-                                    <option value="junior" ${currentDiv === 'junior' ? 'selected' : ''}>Junior (Ages 15–17)</option>
-                                    <option value="cadet" ${currentDiv === 'cadet' ? 'selected' : ''}>Cadet (Ages 12–14)</option>
-                                    <option value="sub-junior" ${currentDiv === 'sub-junior' ? 'selected' : ''}>Sub-Junior (Ages 8–11)</option>
-                                    <option value="children" ${currentDiv === 'children' ? 'selected' : ''}>Children (Under 8 / Ages 4–7)</option>
-                                </select>
-                            </div>
+                        <!-- Official Selectors -->
+                        ${currentDisc === 'Kyorugi' ? `
+                            <div class="space-y-4 pt-2">
+                                <!-- Kyorugi Classification & Gender Bar -->
+                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                    <div class="flex items-center gap-3">
+                                        <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                            Kyorugi Classification:
+                                        </label>
+                                        <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                            <button type="button" class="cat-k-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'freshers' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="freshers">
+                                                Kyorugi (Freshers)
+                                            </button>
+                                            <button type="button" class="cat-k-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'regular' || currentTier === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="regular">
+                                                Kyorugi (Regular)
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                            Gender:
+                                        </label>
+                                        <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                            <button type="button" class="cat-k-gender-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentGen === 'Male' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-gender="Male">
+                                                Male
+                                            </button>
+                                            <button type="button" class="cat-k-gender-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentGen === 'Female' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-gender="Female">
+                                                Female
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
 
-                            <!-- Dropdown 2: Gender -->
-                            <div>
-                                <label class="text-[11px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
-                                    <i class="fa-solid fa-venus-mars text-blue-600 me-1"></i> Gender
-                                </label>
-                                <select id="cat-select-gender" class="tkd-select text-xs font-bold w-full py-2 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
-                                    <option value="Male" ${currentGen === 'Male' ? 'selected' : ''}>Male</option>
-                                    <option value="Female" ${currentGen === 'Female' ? 'selected' : ''}>Female</option>
-                                </select>
+                                <!-- Age Division Cards -->
+                                <div class="space-y-1.5">
+                                    <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                                        Kyorugi Age Division *
+                                    </label>
+                                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                        ${[
+                                            { id: 'children', label: 'CHILDREN', sub: 'Under 8 Years' },
+                                            { id: 'sub-junior', label: 'SUB-JUNIOR', sub: 'Ages 8–11' },
+                                            { id: 'cadet', label: 'CADET', sub: 'Ages 12–14' },
+                                            { id: 'junior', label: 'JUNIOR', sub: 'Ages 15–17' },
+                                            { id: 'senior', label: 'SENIOR', sub: 'Ages 18+' }
+                                        ].map(div => `
+                                            <div class="cat-k-div-btn p-2 rounded-lg border cursor-pointer text-center transition-all ${currentDiv === div.id
+                                                ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold ring-1 ring-blue-600'
+                                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                                            }" data-div="${div.id}">
+                                                <span class="text-xs block font-bold">${div.label}</span>
+                                                <span class="text-[10px] text-slate-500 block">${div.sub}</span>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
                             </div>
+                        ` : `
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                                <!-- Dropdown 1: Age Division -->
+                                <div>
+                                    <label class="text-[11px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
+                                        <i class="fa-solid fa-users-viewfinder text-blue-600 me-1"></i> Age Division
+                                    </label>
+                                    <select id="cat-select-division" class="tkd-select text-xs font-bold w-full py-2 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
+                                        <option value="senior" ${currentDiv === 'senior' ? 'selected' : ''}>Senior (Ages 17+)</option>
+                                        <option value="junior" ${currentDiv === 'junior' ? 'selected' : ''}>Junior (Ages 15–17)</option>
+                                        <option value="cadet" ${currentDiv === 'cadet' ? 'selected' : ''}>Cadet (Ages 12–14)</option>
+                                        <option value="sub-junior" ${currentDiv === 'sub-junior' ? 'selected' : ''}>Sub-Junior (Ages 8–11)</option>
+                                        <option value="children" ${currentDiv === 'children' ? 'selected' : ''}>Children (Under 8 / Ages 4–7)</option>
+                                    </select>
+                                </div>
 
-                            <!-- Dropdown 3: Category Event / Weight Class & Code -->
-                            <div>
-                                <label class="text-[11px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
-                                    <i class="fa-solid fa-barcode text-blue-600 me-1"></i> Weight Class &amp; Code
-                                </label>
-                                <select id="cat-select-weight" class="tkd-select font-mono text-xs font-bold w-full py-2 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
-                                    ${availableOptions.map(opt => {
-                                        const isSel = (opt.code && opt.code === currentCode) || (!currentCode && opt.name === currentWeight);
-                                        const optLabel = opt.code ? `${opt.name} [${opt.code}]` : opt.name;
-                                        return `<option value="${opt.name}" data-code="${opt.code || ''}" ${isSel ? 'selected' : ''}>${optLabel}</option>`;
-                                    }).join('')}
-                                </select>
+                                <!-- Dropdown 2: Gender -->
+                                <div>
+                                    <label class="text-[11px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
+                                        <i class="fa-solid fa-venus-mars text-blue-600 me-1"></i> Gender
+                                    </label>
+                                    <select id="cat-select-gender" class="tkd-select text-xs font-bold w-full py-2 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
+                                        <option value="Male" ${currentGen === 'Male' ? 'selected' : ''}>Male</option>
+                                        <option value="Female" ${currentGen === 'Female' ? 'selected' : ''}>Female</option>
+                                    </select>
+                                </div>
+
+                                <!-- Dropdown 3: Category Event / Weight Class & Code -->
+                                <div>
+                                    <label class="text-[11px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
+                                        <i class="fa-solid fa-barcode text-blue-600 me-1"></i> Weight Class &amp; Code
+                                    </label>
+                                    <select id="cat-select-weight" class="tkd-select font-mono text-xs font-bold w-full py-2 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
+                                        ${availableOptions.map(opt => {
+                                            const isSel = (opt.code && opt.code === currentCode) || (!currentCode && opt.name === currentWeight);
+                                            const optLabel = opt.code ? `${opt.name} [${opt.code}]` : opt.name;
+                                            return `<option value="${opt.name}" data-code="${opt.code || ''}" ${isSel ? 'selected' : ''}>${optLabel}</option>`;
+                                        }).join('')}
+                                    </select>
+                                </div>
                             </div>
-                        </div>
+                        `}
 
                         ${availableOptions.length > 1 ? `
                             <!-- Quick Category Selector Grid -->
                             <div class="pt-3 border-t border-slate-100">
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-[10px] uppercase font-mono font-bold text-slate-500">
-                                        <i class="fa-solid fa-shapes me-1 text-blue-600"></i> Browse &amp; Select Category Card (${availableOptions.length - 1} Categories):
-                                    </span>
-                                    <span class="text-[10px] text-slate-400">Click any card to inspect qualified competitors</span>
-                                </div>
-                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                                    ${availableOptions.slice(1).map(opt => {
-                                        const isSel = (opt.code && opt.code === currentCode) || (!currentCode && opt.name === currentWeight);
-                                        const isFr = (opt.code || '').includes('-FR');
-                                        const athCount = allTournAthletes.filter(a => a.categoryCode === opt.code || (a.weightClass && a.weightClass.includes(opt.name))).length;
-                                        return `
-                                            <div class="cat-quick-tile p-2.5 rounded-xl border-2 cursor-pointer transition text-left flex flex-col justify-between ${isSel ? 'border-blue-600 bg-blue-50/90 text-blue-950 shadow-xs ring-2 ring-blue-200' : 'border-slate-200 bg-white hover:border-blue-300 text-slate-800'}" data-name="${opt.name}" data-code="${opt.code || ''}">
-                                                <div>
-                                                    <div class="flex items-center justify-between gap-1">
-                                                        <span class="text-[8.5px] font-bold px-1 rounded ${isFr ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'}">
-                                                            ${isFr ? 'FRESHERS' : 'REGULAR'}
+                                ${(currentDisc === 'Kyorugi' || currentDisc === 'all') ? `
+                                    <div class="space-y-3">
+                                        <div class="flex items-center justify-between">
+                                            <label class="text-xs font-bold uppercase tracking-wider text-slate-800 block">
+                                                SELECT WEIGHT CLASS (${currentGen.toUpperCase()} - ${currentTier === 'freshers' ? 'FRESHERS' : 'REGULAR'}) *
+                                            </label>
+                                            <span class="text-[11px] text-slate-500 font-mono">
+                                                ${availableOptions.length - 1} Official Categories
+                                            </span>
+                                        </div>
+                                        <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
+                                            ${availableOptions.slice(1).map(opt => {
+                                                const isSel = (opt.code && opt.code === currentCode) || (!currentCode && opt.name === currentWeight);
+                                                const wtLimit = opt.weightLimit || (typeof formatKyorugiWeight === 'function' ? formatKyorugiWeight(opt) : opt.name);
+                                                return `
+                                                    <div class="cat-quick-tile p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between select-none ${isSel ? 'border-blue-600 bg-blue-50/80 shadow-xs ring-2 ring-blue-600/30' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'}" data-name="${opt.name}" data-code="${opt.code || ''}">
+                                                        <span class="text-xs font-bold font-mono truncate ${isSel ? 'text-blue-700' : 'text-slate-800'}">
+                                                            ${wtLimit}
                                                         </span>
-                                                        <span class="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full ${athCount > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}">
-                                                            ${athCount}
-                                                        </span>
+                                                        <div class="w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ml-1.5 ${isSel ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 bg-white'}">
+                                                            ${isSel ? '<i class="fa-solid fa-check text-[8px] text-white"></i>' : ''}
+                                                        </div>
                                                     </div>
-                                                    <div class="font-black text-xs mt-1 truncate" title="${opt.name}">${opt.name}</div>
+                                                `;
+                                            }).join('')}
+                                        </div>
+                                    </div>
+                                ` : `
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-[10px] uppercase font-mono font-bold text-slate-500">
+                                            <i class="fa-solid fa-shapes me-1 text-blue-600"></i> Browse &amp; Select Category Card (${availableOptions.length - 1} Categories):
+                                        </span>
+                                        <span class="text-[10px] text-slate-400">Click any card to inspect qualified competitors</span>
+                                    </div>
+                                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                                        ${availableOptions.slice(1).map(opt => {
+                                            const isSel = (opt.code && opt.code === currentCode) || (!currentCode && opt.name === currentWeight);
+                                            const isFr = (opt.code || '').includes('-FR');
+                                            const athCount = allTournAthletes.filter(a => a.categoryCode === opt.code || (a.weightClass && a.weightClass.includes(opt.name))).length;
+                                            return `
+                                                <div class="cat-quick-tile p-2.5 rounded-xl border-2 cursor-pointer transition text-left flex flex-col justify-between ${isSel ? 'border-blue-600 bg-blue-50/90 text-blue-950 shadow-xs ring-2 ring-blue-200' : 'border-slate-200 bg-white hover:border-blue-300 text-slate-800'}" data-name="${opt.name}" data-code="${opt.code || ''}">
+                                                    <div>
+                                                        <div class="flex items-center justify-between gap-1">
+                                                            <span class="text-[8.5px] font-bold px-1 rounded ${isFr ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'}">
+                                                                ${isFr ? 'FRESHERS' : 'REGULAR'}
+                                                            </span>
+                                                            <span class="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full ${athCount > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}">
+                                                                ${athCount}
+                                                            </span>
+                                                        </div>
+                                                        <div class="font-black text-xs mt-1 truncate" title="${opt.name}">${opt.name}</div>
+                                                    </div>
+                                                    <div class="font-mono text-[9px] font-bold text-slate-500 mt-1 truncate">
+                                                        ${opt.code || ''}
+                                                    </div>
                                                 </div>
-                                                <div class="font-mono text-[9px] font-bold text-slate-500 mt-1 truncate">
-                                                    ${opt.code || ''}
-                                                </div>
-                                            </div>
-                                        `;
-                                    }).join('')}
-                                </div>
+                                            `;
+                                        }).join('')}
+                                    </div>
+                                `}
                             </div>
                         ` : ''}
                     `}
@@ -21502,6 +21733,36 @@ ${templateBg ? `
             _activeCategoryFilter.weightClass = chosen ? chosen.value : 'all';
             _activeCategoryFilter.categoryCode = chosen?.getAttribute('data-code') || '';
             renderCategoriesView(container);
+        });
+
+        // Kyorugi Classification pill switcher listener
+        container.querySelectorAll('.cat-k-tier-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                _activeCategoryFilter.tier = btn.getAttribute('data-tier');
+                _activeCategoryFilter.categoryCode = '';
+                _activeCategoryFilter.weightClass = 'all';
+                renderCategoriesView(container);
+            });
+        });
+
+        // Kyorugi Division card switcher listener
+        container.querySelectorAll('.cat-k-div-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                _activeCategoryFilter.division = btn.getAttribute('data-div');
+                _activeCategoryFilter.categoryCode = '';
+                _activeCategoryFilter.weightClass = 'all';
+                renderCategoriesView(container);
+            });
+        });
+
+        // Kyorugi Gender switcher listener
+        container.querySelectorAll('.cat-k-gender-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                _activeCategoryFilter.gender = btn.getAttribute('data-gender');
+                _activeCategoryFilter.categoryCode = '';
+                _activeCategoryFilter.weightClass = 'all';
+                renderCategoriesView(container);
+            });
         });
 
         // Quick Category Tile selection listener
