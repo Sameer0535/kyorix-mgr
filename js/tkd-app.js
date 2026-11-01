@@ -12940,19 +12940,32 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
             }));
         } else if (currentDisc === 'Speed Kicking') {
             const sObj = (window.TKD_SPEED_KICKING_CATEGORIES || {});
-            const list = [...(sObj.individual || []), ...(sObj.team || [])];
-            regularCategories = list.map(item => ({
+            const frList = (sObj.freshers || [(sObj.individual || [])[0]]).filter(Boolean);
+            const regList = (sObj.regular || [(sObj.individual || [])[1], (sObj.individual || [])[2], ...(sObj.team || [])]).filter(Boolean);
+
+            regularCategories = regList.map(item => ({
                 id: item.code,
                 name: item.name,
-                shortName: item.name,
+                shortName: item.technique || item.name,
                 shortLabel: item.division || item.ageLimit || '',
                 tier: 'Regular',
                 tierBadge: 'REGULAR',
                 tierLabel: 'Official Contest',
                 code: item.code,
-                athleteCount: athletes.filter(a => a.categoryCode === item.code).length
+                athleteCount: athletes.filter(a => a.categoryCode === item.code || (item.altCode && a.categoryCode === item.altCode)).length
             }));
-            freshersCategories = [];
+
+            freshersCategories = frList.map(item => ({
+                id: item.code,
+                name: item.name,
+                shortName: item.technique || item.name,
+                shortLabel: item.division || item.ageLimit || '',
+                tier: 'Freshers',
+                tierBadge: 'FRESHERS',
+                tierLabel: 'Beginner / Color Belt',
+                code: item.code,
+                athleteCount: athletes.filter(a => a.categoryCode === item.code || (item.altCode && a.categoryCode === item.altCode)).length
+            }));
         } else if (currentDisc === 'Virtual Taekwondo' || currentDisc === 'Virtual TKD') {
             const vObj = (window.TKD_VIRTUAL_TKD_CATEGORIES || {});
             const regList = [...((vObj.regular && vObj.regular.individual) || []), ...((vObj.regular && vObj.regular.mix) || [])];
@@ -20963,6 +20976,12 @@ ${templateBg ? `
             }
             if (aIsG4) return false;
 
+            // Direct Category Code match
+            if (currentCode) {
+                if (a.categoryCode && a.categoryCode === currentCode) return true;
+                return false;
+            }
+
             // Check discipline
             if (currentDisc !== 'all') {
                 const aDisc = (a.discipline || 'Kyorugi').toLowerCase();
@@ -21224,6 +21243,43 @@ ${templateBg ? `
                                 </select>
                             </div>
                         </div>
+
+                        ${availableOptions.length > 1 ? `
+                            <!-- Quick Category Selector Grid -->
+                            <div class="pt-3 border-t border-slate-100">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-[10px] uppercase font-mono font-bold text-slate-500">
+                                        <i class="fa-solid fa-shapes me-1 text-blue-600"></i> Browse &amp; Select Category Card (${availableOptions.length - 1} Categories):
+                                    </span>
+                                    <span class="text-[10px] text-slate-400">Click any card to inspect qualified competitors</span>
+                                </div>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                                    ${availableOptions.slice(1).map(opt => {
+                                        const isSel = (opt.code && opt.code === currentCode) || (!currentCode && opt.name === currentWeight);
+                                        const isFr = (opt.code || '').includes('-FR');
+                                        const athCount = allTournAthletes.filter(a => a.categoryCode === opt.code || (a.weightClass && a.weightClass.includes(opt.name))).length;
+                                        return `
+                                            <div class="cat-quick-tile p-2.5 rounded-xl border-2 cursor-pointer transition text-left flex flex-col justify-between ${isSel ? 'border-blue-600 bg-blue-50/90 text-blue-950 shadow-xs ring-2 ring-blue-200' : 'border-slate-200 bg-white hover:border-blue-300 text-slate-800'}" data-name="${opt.name}" data-code="${opt.code || ''}">
+                                                <div>
+                                                    <div class="flex items-center justify-between gap-1">
+                                                        <span class="text-[8.5px] font-bold px-1 rounded ${isFr ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'}">
+                                                            ${isFr ? 'FRESHERS' : 'REGULAR'}
+                                                        </span>
+                                                        <span class="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full ${athCount > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}">
+                                                            ${athCount}
+                                                        </span>
+                                                    </div>
+                                                    <div class="font-black text-xs mt-1 truncate" title="${opt.name}">${opt.name}</div>
+                                                </div>
+                                                <div class="font-mono text-[9px] font-bold text-slate-500 mt-1 truncate">
+                                                    ${opt.code || ''}
+                                                </div>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
                     `}
                 </div>
 
@@ -21446,6 +21502,15 @@ ${templateBg ? `
             _activeCategoryFilter.weightClass = chosen ? chosen.value : 'all';
             _activeCategoryFilter.categoryCode = chosen?.getAttribute('data-code') || '';
             renderCategoriesView(container);
+        });
+
+        // Quick Category Tile selection listener
+        container.querySelectorAll('.cat-quick-tile').forEach(tile => {
+            tile.addEventListener('click', () => {
+                _activeCategoryFilter.weightClass = tile.getAttribute('data-name');
+                _activeCategoryFilter.categoryCode = tile.getAttribute('data-code') || '';
+                renderCategoriesView(container);
+            });
         });
 
         tournSelect?.addEventListener('change', (e) => {

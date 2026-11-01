@@ -322,15 +322,15 @@ const BREAKING_CATEGORIES = {
 // ─────────────────────────────────────────────────────────────────────────────
 const SPEED_KICKING_CATEGORIES = {
     Individual: [
-        { name: 'Speed Kicking Individual (Freshers)', tier: 'Freshers', technique: 'General High Speed Kicking', division: 'Open (Ages 5–65)', code: 'SK-IND-FRESH' },
-        { name: 'Speed Kicking Individual (Regular) - Roundhouse Kick', tier: 'Regular', technique: 'Electronic Pad Roundhouse Strikes', division: 'Open (Ages 5–65)', code: 'SK-IND-REG-ROUNDHOUSE' },
-        { name: 'Speed Kicking Individual (Regular) - Turning Kick', tier: 'Regular', technique: 'Rotational Turning Kick Speed', division: 'Open (Ages 5–65)', code: 'SK-IND-REG-TURNING' }
+        { name: 'Speed Kicking Individual (Freshers) Front Kick', tier: 'Freshers', technique: 'Front Kick', division: 'Open (Ages 5–65)', code: 'SK-IND-FR-FRONT', altCode: 'SK-IND-FRESH' },
+        { name: 'Speed Kicking Individual (Regular) Round House Kick', tier: 'Regular', technique: 'Round House Kick', division: 'Open (Ages 5–65)', code: 'SK-IND-REG-ROUND', altCode: 'SK-IND-REG-ROUNDHOUSE' },
+        { name: 'Speed Kicking Individual (Regular) Turning Kick', tier: 'Regular', technique: 'Turning Kick', division: 'Open (Ages 5–65)', code: 'SK-IND-REG-TURN', altCode: 'SK-IND-REG-TURNING' }
     ],
     Team: [
-        { name: 'Speed Kicking Team (Male) Under 17 Yrs', gender: 'Male', ageLimit: 'Under 17 Years', code: 'SK-TEAM-M-U17' },
-        { name: 'Speed Kicking Team (Male) Over 17 Yrs', gender: 'Male', ageLimit: 'Over 17 Years', code: 'SK-TEAM-M-O17' },
-        { name: 'Speed Kicking Team (Female) Under 17 Yrs', gender: 'Female', ageLimit: 'Under 17 Years', code: 'SK-TEAM-F-U17' },
-        { name: 'Speed Kicking Team (Female) Over 17 Yrs', gender: 'Female', ageLimit: 'Over 17 Years', code: 'SK-TEAM-F-O17' }
+        { name: 'Speed Kicking Team (Male) Under 17 Years', gender: 'Male', ageLimit: 'Under 17 Years', code: 'SK-TEAM-M-U17' },
+        { name: 'Speed Kicking Team (Male) Over 17 Years', gender: 'Male', ageLimit: 'Over 17 Years', code: 'SK-TEAM-M-O17' },
+        { name: 'Speed Kicking Team (Female) Under 17 Years', gender: 'Female', ageLimit: 'Under 17 Years', code: 'SK-TEAM-F-U17' },
+        { name: 'Speed Kicking Team (Female) Over 17 Years', gender: 'Female', ageLimit: 'Over 17 Years', code: 'SK-TEAM-F-O17' }
     ]
 };
 
@@ -382,6 +382,14 @@ BREAKING_CATEGORIES.traditional = BREAKING_CATEGORIES.Traditional;
 
 SPEED_KICKING_CATEGORIES.individual = SPEED_KICKING_CATEGORIES.Individual;
 SPEED_KICKING_CATEGORIES.team = SPEED_KICKING_CATEGORIES.Team;
+SPEED_KICKING_CATEGORIES.freshers = [
+    SPEED_KICKING_CATEGORIES.Individual[0]
+];
+SPEED_KICKING_CATEGORIES.regular = [
+    SPEED_KICKING_CATEGORIES.Individual[1],
+    SPEED_KICKING_CATEGORIES.Individual[2],
+    ...SPEED_KICKING_CATEGORIES.Team
+];
 
 VIRTUAL_TKD_CATEGORIES.individual = VIRTUAL_TKD_CATEGORIES.Individual;
 VIRTUAL_TKD_CATEGORIES.mix = VIRTUAL_TKD_CATEGORIES.MixGender;
