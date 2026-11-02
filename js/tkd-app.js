@@ -12853,10 +12853,13 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
         const currentDiv = activeFilter.division || 'senior';
         const currentGen = activeFilter.gender || 'Male';
         const currentTier = (activeFilter.tier || 'all').toLowerCase();
+        const currentSubType = activeFilter.subType || (currentDisc === 'Poomsae' ? 'individual' : (currentDisc === 'Virtual Taekwondo' || currentDisc === 'Virtual TKD' ? 'individual' : (currentDisc === 'Speed Kicking' ? 'individual' : (currentDisc === 'Kyukpa' || currentDisc === 'Breaking' ? 'ebreaking' : 'all'))));
 
         // ────────────────────────────────────────────────────────────────────────
-        // BUILD SEPARATE COPIES OF CATEGORIES FOR REGULAR AND FRESHERS
+        // BUILD SEPARATE GROUPS & COPIES OF CATEGORIES (REGULAR & FRESHERS)
         // ────────────────────────────────────────────────────────────────────────
+        let regularGroups = [];
+        let freshersGroups = [];
         let regularCategories = [];
         let freshersCategories = [];
 
@@ -12880,6 +12883,7 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                     name: item.name,
                     shortName: item.shortName,
                     shortLabel: item.shortLabel,
+                    weightLimit: item.weightLimit || (typeof formatKyorugiWeight === 'function' ? formatKyorugiWeight(item) : item.shortLabel),
                     tier: 'Regular',
                     tierBadge: 'REGULAR',
                     tierLabel: 'Advanced / Black Belt',
@@ -12890,7 +12894,7 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                 };
             });
 
-            // 2. FRESHERS COPY of each weight class (The exact separate copy requested!)
+            // 2. FRESHERS COPY of each weight class
             freshersCategories = rawKList.map(item => {
                 const frCode = item.freshersCode;
                 const athCount = athletes.filter(a => {
@@ -12907,6 +12911,7 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                     name: item.name,
                     shortName: item.shortName,
                     shortLabel: item.shortLabel,
+                    weightLimit: item.weightLimit || (typeof formatKyorugiWeight === 'function' ? formatKyorugiWeight(item) : item.shortLabel),
                     tier: 'Freshers',
                     tierBadge: 'FRESHERS',
                     tierLabel: 'Beginner / Color Belt',
@@ -12916,68 +12921,107 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                     athleteCount: athCount
                 };
             });
+
+            regularGroups = [
+                { id: 'kyorugi', title: 'Kyorugi', label: 'SELECT WEIGHT CLASS (' + currentGen.toUpperCase() + ' - REGULAR) *', items: regularCategories }
+            ];
+            freshersGroups = [
+                { id: 'kyorugi', title: 'Kyorugi', label: 'SELECT WEIGHT CLASS (' + currentGen.toUpperCase() + ' - FRESHERS) *', items: freshersCategories }
+            ];
         } else if (currentDisc === 'Poomsae') {
             const pObj = (window.TKD_POOMSAE_CATEGORIES || {});
-            const regList = [...((pObj.regular && pObj.regular.individual) || []), ...((pObj.regular && pObj.regular.mix_pair) || []), ...((pObj.regular && pObj.regular.team) || [])];
-            const frList = [...((pObj.freshers && pObj.freshers.individual) || []), ...((pObj.freshers && pObj.freshers.mix_pair) || []), ...((pObj.freshers && pObj.freshers.team) || [])];
-
-            regularCategories = regList.map(item => ({
+            const mapP = (item, tier) => ({
                 id: item.code,
                 name: item.name,
                 shortName: item.name,
-                shortLabel: item.ageRange || '',
-                tier: 'Regular',
-                tierBadge: 'REGULAR',
-                tierLabel: 'Advanced / Black Belt',
+                shortLabel: item.ageLabel || item.ageRange || '',
+                tier: tier,
+                tierBadge: tier.toUpperCase(),
+                tierLabel: tier === 'Regular' ? 'Advanced / Black Belt' : 'Beginner / Color Belt',
                 code: item.code,
                 athleteCount: athletes.filter(a => a.categoryCode === item.code).length
-            }));
+            });
 
-            freshersCategories = frList.map(item => ({
-                id: item.code,
-                name: item.name,
-                shortName: item.name,
-                shortLabel: item.ageRange || '',
-                tier: 'Freshers',
-                tierBadge: 'FRESHERS',
-                tierLabel: 'Beginner / Color Belt',
-                code: item.code,
-                athleteCount: athletes.filter(a => a.categoryCode === item.code).length
-            }));
+            const regInd = (pObj.regular?.individual || []).map(i => mapP(i, 'Regular'));
+            const frInd = (pObj.freshers?.individual || []).map(i => mapP(i, 'Freshers'));
+
+            const regPair = (pObj.regular?.mix_pair || []).map(i => mapP(i, 'Regular'));
+            const frPair = (pObj.freshers?.mix_pair || []).map(i => mapP(i, 'Freshers'));
+
+            const regTeam = (pObj.regular?.team || []).map(i => mapP(i, 'Regular'));
+            const frTeam = (pObj.freshers?.team || []).map(i => mapP(i, 'Freshers'));
+
+            regularGroups = [
+                { id: 'individual', title: 'Individual Poomsae', label: 'SELECT INDIVIDUAL POOMSAE CATEGORY (REGULAR) *', items: regInd },
+                { id: 'mix_pair', title: 'Mix Pair Poomsae', label: 'SELECT MIX PAIR POOMSAE CATEGORY (REGULAR) *', items: regPair },
+                { id: 'team', title: 'Recognised Team Poomsae', label: 'SELECT RECOGNISED TEAM POOMSAE CATEGORY (REGULAR) *', items: regTeam }
+            ];
+            freshersGroups = [
+                { id: 'individual', title: 'Individual Poomsae', label: 'SELECT INDIVIDUAL POOMSAE CATEGORY (FRESHERS) *', items: frInd },
+                { id: 'mix_pair', title: 'Mix Pair Poomsae', label: 'SELECT MIX PAIR POOMSAE CATEGORY (FRESHERS) *', items: frPair },
+                { id: 'team', title: 'Recognised Team Poomsae', label: 'SELECT RECOGNISED TEAM POOMSAE CATEGORY (FRESHERS) *', items: frTeam }
+            ];
+            regularCategories = [...regInd, ...regPair, ...regTeam];
+            freshersCategories = [...frInd, ...frPair, ...frTeam];
         } else if (currentDisc === 'Kyukpa' || currentDisc === 'Breaking') {
             const bObj = (window.TKD_BREAKING_CATEGORIES || {});
-            const regList = [...(bObj.regular || []), ...(bObj.traditional || [])];
-            const frList = [...(bObj.freshers || [])];
-
-            regularCategories = regList.map(item => ({
+            const regE = (bObj.regular || []).map(item => ({
                 id: item.code,
                 name: item.name,
                 shortName: item.technique || item.name,
                 shortLabel: item.division || '',
                 tier: 'Regular',
                 tierBadge: 'REGULAR',
-                tierLabel: 'Advanced / Black Belt',
+                tierLabel: 'Electronic Impact Breaking',
                 code: item.code,
                 athleteCount: athletes.filter(a => a.categoryCode === item.code).length
             }));
-
-            freshersCategories = frList.map(item => ({
+            const frE = (bObj.freshers || []).map(item => ({
                 id: item.code,
                 name: item.name,
                 shortName: item.technique || item.name,
                 shortLabel: item.division || '',
                 tier: 'Freshers',
                 tierBadge: 'FRESHERS',
-                tierLabel: 'Beginner / Color Belt',
+                tierLabel: 'Electronic Impact Breaking',
                 code: item.code,
                 athleteCount: athletes.filter(a => a.categoryCode === item.code).length
             }));
+            const regTrad = (bObj.traditional || []).map(item => ({
+                id: item.code,
+                name: item.name,
+                shortName: item.technique || item.name,
+                shortLabel: item.division || '',
+                tier: 'Traditional',
+                tierBadge: 'TRADITIONAL',
+                tierLabel: 'Demo & High Jump Kyukpa',
+                code: item.code,
+                athleteCount: athletes.filter(a => a.categoryCode === item.code || (item.altCode && a.categoryCode === item.altCode)).length
+            }));
+
+            regularGroups = [
+                { id: 'ebreaking', title: 'E-Breaking', label: 'SELECT E-BREAKING CATEGORY (REGULAR) *', items: regE },
+                { id: 'traditional', title: 'Traditional Kyukpa & Demo', label: 'SELECT TRADITIONAL / DEMO CATEGORY *', items: regTrad }
+            ];
+            freshersGroups = [
+                { id: 'ebreaking', title: 'E-Breaking', label: 'SELECT E-BREAKING CATEGORY (FRESHERS) *', items: frE }
+            ];
+            regularCategories = [...regE, ...regTrad];
+            freshersCategories = [...frE];
         } else if (currentDisc === 'Speed Kicking') {
             const sObj = (window.TKD_SPEED_KICKING_CATEGORIES || {});
-            const frList = (sObj.freshers || [(sObj.individual || [])[0]]).filter(Boolean);
-            const regList = (sObj.regular || [(sObj.individual || [])[1], (sObj.individual || [])[2], ...(sObj.team || [])]).filter(Boolean);
-
-            regularCategories = regList.map(item => ({
+            const frInd = [(sObj.individual || [])[0]].filter(Boolean).map(item => ({
+                id: item.code,
+                name: item.name,
+                shortName: item.technique || item.name,
+                shortLabel: item.division || item.ageLimit || '',
+                tier: 'Freshers',
+                tierBadge: 'FRESHERS',
+                tierLabel: 'Beginner / Color Belt',
+                code: item.code,
+                athleteCount: athletes.filter(a => a.categoryCode === item.code || (item.altCode && a.categoryCode === item.altCode)).length
+            }));
+            const regInd = [(sObj.individual || [])[1], (sObj.individual || [])[2]].filter(Boolean).map(item => ({
                 id: item.code,
                 name: item.name,
                 shortName: item.technique || item.name,
@@ -12988,48 +13032,57 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                 code: item.code,
                 athleteCount: athletes.filter(a => a.categoryCode === item.code || (item.altCode && a.categoryCode === item.altCode)).length
             }));
-
-            freshersCategories = frList.map(item => ({
+            const regTeam = (sObj.team || []).map(item => ({
                 id: item.code,
                 name: item.name,
-                shortName: item.technique || item.name,
-                shortLabel: item.division || item.ageLimit || '',
-                tier: 'Freshers',
-                tierBadge: 'FRESHERS',
-                tierLabel: 'Beginner / Color Belt',
+                shortName: item.name,
+                shortLabel: item.gender + ' • ' + item.ageLimit,
+                tier: 'Regular',
+                tierBadge: 'TEAM RELAY',
+                tierLabel: '3 Athletes Team',
                 code: item.code,
-                athleteCount: athletes.filter(a => a.categoryCode === item.code || (item.altCode && a.categoryCode === item.altCode)).length
+                athleteCount: athletes.filter(a => a.categoryCode === item.code).length
             }));
+
+            regularGroups = [
+                { id: 'individual', title: 'Individual Speed Kicking', label: 'SELECT SPEED KICKING INDIVIDUAL CATEGORY (REGULAR) *', items: regInd },
+                { id: 'team', title: 'Speed Kicking Team Relay', label: 'SELECT SPEED KICKING TEAM RELAY CATEGORY (3 ATHLETES) *', items: regTeam }
+            ];
+            freshersGroups = [
+                { id: 'individual', title: 'Individual Speed Kicking', label: 'SELECT SPEED KICKING INDIVIDUAL CATEGORY (FRESHERS) *', items: frInd }
+            ];
+            regularCategories = [...regInd, ...regTeam];
+            freshersCategories = [...frInd];
         } else if (currentDisc === 'Virtual Taekwondo' || currentDisc === 'Virtual TKD') {
             const vObj = (window.TKD_VIRTUAL_TKD_CATEGORIES || {});
-            const regList = [...((vObj.regular && vObj.regular.individual) || []), ...((vObj.regular && vObj.regular.mix) || [])];
-            const frList = [...((vObj.freshers && vObj.freshers.individual) || []), ...((vObj.freshers && vObj.freshers.mix) || [])];
-
-            regularCategories = regList.map(item => ({
+            const mapV = (item, tier, mode) => ({
                 id: item.code,
-                name: `${item.name || item.division} (${item.ageRange})`,
+                name: 'Virtual TKD ' + mode + ' (' + item.division + ')',
                 shortName: item.division,
-                shortLabel: item.ageRange,
-                tier: 'Regular',
-                tierBadge: 'REGULAR',
-                tierLabel: 'Advanced',
+                shortLabel: item.ageRange || '',
+                tier: tier,
+                tierBadge: tier.toUpperCase(),
+                tierLabel: mode === 'Mix Gender' ? 'Mix Gender Esport' : 'Individual Esport',
                 code: item.code,
                 athleteCount: athletes.filter(a => a.categoryCode === item.code).length
-            }));
+            });
 
-            freshersCategories = frList.map(item => ({
-                id: item.code,
-                name: `${item.name || item.division} (${item.ageRange})`,
-                shortName: item.division,
-                shortLabel: item.ageRange,
-                tier: 'Freshers',
-                tierBadge: 'FRESHERS',
-                tierLabel: 'Novice',
-                code: item.code,
-                athleteCount: athletes.filter(a => a.categoryCode === item.code).length
-            }));
+            const regInd = (vObj.regular?.individual || []).map(i => mapV(i, 'Regular', 'Individual'));
+            const frInd = (vObj.freshers?.individual || []).map(i => mapV(i, 'Freshers', 'Individual'));
+            const regMix = (vObj.regular?.mix || []).map(i => mapV(i, 'Regular', 'Mix Gender'));
+            const frMix = (vObj.freshers?.mix || []).map(i => mapV(i, 'Freshers', 'Mix Gender'));
+
+            regularGroups = [
+                { id: 'individual', title: 'Virtual TKD Individual', label: 'SELECT VIRTUAL TKD INDIVIDUAL CATEGORY (REGULAR) *', items: regInd },
+                { id: 'mix', title: 'Virtual TKD Mix Gender', label: 'SELECT VIRTUAL TKD MIX GENDER CATEGORY (REGULAR) *', items: regMix }
+            ];
+            freshersGroups = [
+                { id: 'individual', title: 'Virtual TKD Individual', label: 'SELECT VIRTUAL TKD INDIVIDUAL CATEGORY (FRESHERS) *', items: frInd },
+                { id: 'mix', title: 'Virtual TKD Mix Gender', label: 'SELECT VIRTUAL TKD MIX GENDER CATEGORY (FRESHERS) *', items: frMix }
+            ];
+            regularCategories = [...regInd, ...regMix];
+            freshersCategories = [...frInd, ...frMix];
         }
-
         // Active selected category code or weightClass
         const selectedCode = activeFilter.categoryCode || '';
         const selectedWeightClass = activeFilter.weightClass || 'all';
@@ -13119,8 +13172,6 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
         function renderCategoryTiles(catList, tierType) {
             const isReg = tierType === 'regular';
             const badgeBg = isReg ? 'bg-indigo-100 text-indigo-800 border-indigo-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200';
-            const activeCardBorder = isReg ? 'border-indigo-600 bg-indigo-50/95 ring-2 ring-indigo-200 shadow-sm' : 'border-emerald-600 bg-emerald-50/95 ring-2 ring-emerald-200 shadow-sm';
-            const codeBadgeStyle = isReg ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200';
 
             // Kyorugi: Strict Minimalist Weight Tiles (Only Weight Limit e.g. "U 54 KG" + Radio Selector)
             if (currentDisc === 'Kyorugi') {
@@ -13140,42 +13191,63 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                 }).join('');
             }
 
+            // Poomsae, Virtual TKD, Speed Kicking, Breaking: Clean spacious cards matching prospectus
             return catList.map(cat => {
                 const isSelected = selectedCode === cat.code || (selectedWeightClass === cat.name && (!selectedCategoryMeta || selectedCategoryMeta.tier.toLowerCase() === tierType));
                 return `
-                    <div class="weighin-category-tile p-3 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between gap-1.5 select-none ${isSelected ? activeCardBorder : 'border-slate-200 bg-white hover:border-slate-400 hover:bg-slate-50/80 text-slate-800'}" data-cat-name="${cat.name}" data-cat-code="${cat.code}" data-cat-tier="${cat.tier}">
-                        <div>
-                            <div class="flex items-center justify-between gap-1">
-                                <span class="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded border ${badgeBg}">
-                                    ${cat.tierBadge}
-                                </span>
-                                <span class="text-[10px] font-bold px-1.5 py-0.2 rounded-full ${cat.athleteCount > 0 ? (isReg ? 'bg-indigo-200 text-indigo-900 font-black' : 'bg-emerald-200 text-emerald-900 font-black') : 'bg-slate-100 text-slate-500'}">
-                                    ${cat.athleteCount} ${cat.athleteCount === 1 ? 'ath' : 'aths'}
-                                </span>
-                            </div>
-                            <div class="mt-1">
-                                <strong class="text-xs font-black text-slate-900 truncate block">${cat.shortName || cat.name}</strong>
-                                <div class="text-[11px] font-mono font-bold ${isReg ? 'text-indigo-700' : 'text-emerald-700'} mt-0.5">${cat.shortLabel}</div>
-                            </div>
-                            ${(cat.minWeight !== undefined && cat.maxWeight !== undefined) ? `
-                                <div class="text-[10px] text-slate-500 font-mono mt-0.5 font-semibold">
-                                    ${cat.minWeight} kg – ${cat.maxWeight} kg
-                                </div>
-                            ` : ''}
+                    <div class="weighin-category-tile p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between select-none ${isSelected ? 'border-blue-600 bg-blue-50/90 shadow-xs ring-2 ring-blue-600/30' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'}" data-cat-name="${cat.name}" data-cat-code="${cat.code}" data-cat-tier="${cat.tier}">
+                        <div class="min-w-0 pr-2">
+                            <div class="text-xs font-black text-slate-900 leading-snug truncate" title="${cat.name}">${cat.name}</div>
+                            ${cat.shortLabel ? `<div class="text-[11px] text-slate-500 font-medium mt-0.5 truncate">${cat.shortLabel}</div>` : ''}
+                            <div class="text-[9.5px] font-mono font-bold text-blue-600 mt-1">${cat.code}</div>
                         </div>
-                        <div class="pt-1.5 border-t border-slate-100 flex items-center justify-between gap-1">
-                            <span class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${codeBadgeStyle} truncate">
-                                ${cat.code}
+                        <div class="flex items-center gap-2 shrink-0">
+                            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded ${cat.athleteCount > 0 ? (isReg ? 'bg-indigo-100 text-indigo-800 font-bold' : 'bg-emerald-100 text-emerald-800 font-bold') : 'bg-slate-100 text-slate-500'}">
+                                ${cat.athleteCount} aths
                             </span>
-                            <span class="text-[10px] font-bold ${isSelected ? (isReg ? 'text-indigo-800 font-black' : 'text-emerald-800 font-black') : 'text-blue-600 hover:underline'}">
-                                ${isSelected ? '● Active' : 'Select &rarr;'}
-                            </span>
+                            <div class="w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 bg-white'}">
+                                ${isSelected ? '<i class="fa-solid fa-check text-[9px] text-white"></i>' : ''}
+                            </div>
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
+        // Helper to render Category Groups with distinct section headers
+        function renderCategoryGroups(groups, tierType) {
+            const visibleGroups = (currentSubType && currentSubType !== 'all') 
+                ? groups.filter(g => g.id === currentSubType) 
+                : groups;
+
+            if (visibleGroups.length === 0) return '';
+
+            return visibleGroups.map((grp, gIdx) => {
+                if (!grp.items || grp.items.length === 0) return '';
+                const isKyorugi = currentDisc === 'Kyorugi';
+                const gridCols = isKyorugi 
+                    ? 'grid-cols-2 sm:grid-cols-4 md:grid-cols-5' 
+                    : (currentDisc === 'Poomsae' 
+                        ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' 
+                        : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3');
+
+                return `
+                    <div class="space-y-3 ${gIdx > 0 ? 'pt-5 border-t border-slate-200' : ''}">
+                        <div class="flex items-center justify-between">
+                            <label class="text-xs font-bold uppercase tracking-wider text-slate-800 block">
+                                ${grp.label}
+                            </label>
+                            <span class="text-[11px] text-slate-500 font-mono">
+                                ${grp.items.length} ${grp.items.length === 1 ? 'Category' : 'Official Categories'}
+                            </span>
+                        </div>
+                        <div class="grid ${gridCols} gap-2.5">
+                            ${renderCategoryTiles(grp.items, tierType)}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
         return `
             <div id="weighin-desk-root" class="space-y-6">
                 <!-- Desk Header & Actions -->
@@ -13230,7 +13302,7 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                         </div>
                     </div>
 
-                    <!-- Division, Gender & Tier Filters -->
+                    <!-- Discipline-Specific Classification & Event Type Filters -->
                     ${currentDisc === 'Kyorugi' ? `
                         <div class="space-y-4 p-4 rounded-xl border border-blue-200 bg-blue-50/20">
                             <!-- Tier Selector: Freshers vs Regular -->
@@ -13290,32 +13362,139 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
                                 </div>
                             </div>
                         </div>
+                    ` : currentDisc === 'Poomsae' ? `
+                        <div class="space-y-3 p-4 rounded-xl border border-blue-200 bg-blue-50/20">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                        Poomsae Classification:
+                                    </label>
+                                    <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                        <button type="button" class="weighin-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'freshers' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="freshers">
+                                            Poomsae (Freshers)
+                                        </button>
+                                        <button type="button" class="weighin-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'regular' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="regular">
+                                            Poomsae (Regular)
+                                        </button>
+                                        <button type="button" class="weighin-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="all">
+                                            Show Both
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                        Poomsae Event Type:
+                                    </label>
+                                    <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                        <button type="button" class="weighin-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'individual' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="individual">
+                                            Individual Poomsae
+                                        </button>
+                                        <button type="button" class="weighin-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'mix_pair' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="mix_pair">
+                                            Mix Pair Poomsae
+                                        </button>
+                                        <button type="button" class="weighin-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'team' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="team">
+                                            Recognised Team Poomsae
+                                        </button>
+                                        <button type="button" class="weighin-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="all">
+                                            Show All Types
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ` : (currentDisc === 'Virtual Taekwondo' || currentDisc === 'Virtual TKD') ? `
+                        <div class="space-y-3 p-4 rounded-xl border border-blue-200 bg-blue-50/20">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                        Virtual TKD Classification:
+                                    </label>
+                                    <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                        <button type="button" class="weighin-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'freshers' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="freshers">
+                                            Freshers
+                                        </button>
+                                        <button type="button" class="weighin-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'regular' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="regular">
+                                            Regular
+                                        </button>
+                                        <button type="button" class="weighin-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="all">
+                                            Show Both
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                        Event Type:
+                                    </label>
+                                    <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                        <button type="button" class="weighin-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'individual' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="individual">
+                                            Virtual TKD Individual
+                                        </button>
+                                        <button type="button" class="weighin-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'mix' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="mix">
+                                            Virtual TKD Mix Gender
+                                        </button>
+                                        <button type="button" class="weighin-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="all">
+                                            Show Both
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ` : currentDisc === 'Speed Kicking' ? `
+                        <div class="space-y-3 p-4 rounded-xl border border-blue-200 bg-blue-50/20">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                        Speed Kicking Classification:
+                                    </label>
+                                    <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                        <button type="button" class="weighin-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'freshers' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="freshers">
+                                            Freshers
+                                        </button>
+                                        <button type="button" class="weighin-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'regular' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="regular">
+                                            Regular
+                                        </button>
+                                        <button type="button" class="weighin-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="all">
+                                            Show Both
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                        Event Type:
+                                    </label>
+                                    <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                        <button type="button" class="weighin-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'individual' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="individual">
+                                            Individual Speed Kicking
+                                        </button>
+                                        <button type="button" class="weighin-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'team' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="team">
+                                            Team Relay (3 Athletes)
+                                        </button>
+                                        <button type="button" class="weighin-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="all">
+                                            Show Both
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     ` : `
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50/70 p-3 rounded-xl border border-slate-200/80">
-                            <div>
-                                <label class="text-[11px] font-black uppercase text-slate-700 tracking-wider block mb-1">Division:</label>
-                                <select id="weighin-select-division" class="tkd-select text-xs font-bold py-1.5 px-3 border-slate-300 rounded-lg w-full bg-white">
-                                    <option value="senior" ${currentDiv === 'senior' ? 'selected' : ''}>Senior Division (Ages 17+)</option>
-                                    <option value="junior" ${currentDiv === 'junior' ? 'selected' : ''}>Junior Division (Ages 15–17)</option>
-                                    <option value="cadet" ${currentDiv === 'cadet' ? 'selected' : ''}>Cadet Division (Ages 12–14)</option>
-                                    <option value="sub-junior" ${currentDiv === 'sub-junior' ? 'selected' : ''}>Sub-Junior Division (Ages 8–11)</option>
-                                    <option value="children" ${currentDiv === 'children' ? 'selected' : ''}>Children Division (Under 8 / Ages 4–7)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="text-[11px] font-black uppercase text-slate-700 tracking-wider block mb-1">Gender:</label>
-                                <select id="weighin-select-gender" class="tkd-select text-xs font-bold py-1.5 px-3 border-slate-300 rounded-lg w-full bg-white">
-                                    <option value="Male" ${currentGen === 'Male' ? 'selected' : ''}>Male Categories</option>
-                                    <option value="Female" ${currentGen === 'Female' ? 'selected' : ''}>Female Categories</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="text-[11px] font-black uppercase text-slate-700 tracking-wider block mb-1">Tier / Experience Filter:</label>
-                                <select id="weighin-select-tier" class="tkd-select text-xs font-bold py-1.5 px-3 border-slate-300 rounded-lg w-full bg-white">
-                                    <option value="all" ${currentTier === 'all' ? 'selected' : ''}>All Tiers (Show Both Regular &amp; Freshers Copies)</option>
-                                    <option value="regular" ${currentTier === 'regular' ? 'selected' : ''}>Regular Tier Only (Advanced / Black Belt)</option>
-                                    <option value="freshers" ${currentTier === 'freshers' ? 'selected' : ''}>Freshers Tier Only (Beginner / Color Belt)</option>
-                                </select>
+                        <div class="space-y-3 p-4 rounded-xl border border-blue-200 bg-blue-50/20">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                        Breaking Event Type:
+                                    </label>
+                                    <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                        <button type="button" class="weighin-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'ebreaking' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="ebreaking">
+                                            E-Breaking
+                                        </button>
+                                        <button type="button" class="weighin-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'traditional' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="traditional">
+                                            Traditional Kyukpa &amp; Demo
+                                        </button>
+                                        <button type="button" class="weighin-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="all">
+                                            Show All
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     `}
@@ -13344,42 +13523,21 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
 
                     <!-- DISTINCT CATEGORY COPIES: REGULAR DIVISION & FRESHERS DIVISION -->
                     <div class="space-y-6 pt-2">
-                        ${(currentTier === 'all' || currentTier === 'regular') && regularCategories.length > 0 ? `
+                        ${(currentTier === 'all' || currentTier === 'regular') && regularGroups.length > 0 ? `
                             <!-- 1. REGULAR CATEGORIES SECTION (Advanced / Black Belt) -->
-                            <div class="space-y-3">
-                                <div class="flex items-center justify-between">
-                                    <label class="text-xs font-bold uppercase tracking-wider text-slate-800 block">
-                                        SELECT WEIGHT CLASS (${currentGen.toUpperCase()} - REGULAR) *
-                                    </label>
-                                    <span class="text-[11px] text-slate-500 font-mono">
-                                        ${regularCategories.length} Official Categories
-                                    </span>
-                                </div>
-                                <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
-                                    ${renderCategoryTiles(regularCategories, 'regular')}
-                                </div>
+                            <div class="space-y-4">
+                                ${renderCategoryGroups(regularGroups, 'regular')}
                             </div>
                         ` : ''}
 
-                        ${(currentTier === 'all' || currentTier === 'freshers') && freshersCategories.length > 0 ? `
-                            <!-- 2. FRESHERS CATEGORIES SECTION (Beginner / Color Belt) - SEPARATE COPY! -->
-                            <div class="space-y-3 ${(currentTier === 'all' && regularCategories.length > 0) ? 'pt-4 border-t border-slate-200' : ''}">
-                                <div class="flex items-center justify-between">
-                                    <label class="text-xs font-bold uppercase tracking-wider text-slate-800 block">
-                                        SELECT WEIGHT CLASS (${currentGen.toUpperCase()} - FRESHERS) *
-                                    </label>
-                                    <span class="text-[11px] text-slate-500 font-mono">
-                                        ${freshersCategories.length} Official Categories
-                                    </span>
-                                </div>
-                                <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
-                                    ${renderCategoryTiles(freshersCategories, 'freshers')}
-                                </div>
+                        ${(currentTier === 'all' || currentTier === 'freshers') && freshersGroups.length > 0 ? `
+                            <!-- 2. FRESHERS CATEGORIES SECTION (Beginner / Color Belt) -->
+                            <div class="space-y-4 ${(currentTier === 'all' && regularGroups.length > 0) ? 'pt-6 border-t-2 border-slate-200' : ''}">
+                                ${renderCategoryGroups(freshersGroups, 'freshers')}
                             </div>
                         ` : ''}
                     </div>
                 </div>
-
                 <!-- 2. SEARCH & DIRECT SCALE CALL BAR -->
                 <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
                     <div class="flex items-center justify-between">
@@ -20532,6 +20690,8 @@ ${templateBg ? `
                 if (target.id === 'weighin-select-discipline') {
                     window._weighInFilter = window._weighInFilter || {};
                     window._weighInFilter.discipline = target.value;
+                    window._weighInFilter.categoryCode = '';
+                    window._weighInFilter.subType = '';
                     window._weighInFilter.weightClass = 'all';
                     if (typeof window.refreshWeighInDesk === 'function') window.refreshWeighInDesk();
                     return;
@@ -21039,6 +21199,7 @@ ${templateBg ? `
         const currentGen = _activeCategoryFilter.gender || 'Male';
         let currentWeight = _activeCategoryFilter.weightClass || 'all';
         let currentCode = _activeCategoryFilter.categoryCode || '';
+        const currentSubType = _activeCategoryFilter.subType || (currentDisc === 'Poomsae' ? 'individual' : (currentDisc === 'Virtual Taekwondo' || currentDisc === 'Virtual TKD' ? 'individual' : (currentDisc === 'Speed Kicking' ? 'individual' : (currentDisc === 'Kyukpa' || currentDisc === 'Breaking' ? 'ebreaking' : 'all'))));
 
         const isGroup4 = currentFormat === 'Group-4';
         const divLabels = {
@@ -21051,66 +21212,137 @@ ${templateBg ? `
 
         // Build list of available weight classes or events for the active selector
         let availableOptions = [{ name: 'All Weight Classes / Events', code: '', minWeight: null, maxWeight: null }];
+        let categoryGroups = [];
 
         if (currentDisc === 'all' || currentDisc === 'Kyorugi') {
             const tiersToQuery = currentTier === 'all' ? ['regular', 'freshers'] : [currentTier];
             tiersToQuery.forEach(t => {
-                const kList = (window.TKD_KYORUGI_CATEGORIES || {})[t]?.[currentDiv]?.[currentGen] || [];
+                const kList = (window.TKD_KYORUGI_CATEGORIES || {})[currentDiv]?.[currentGen] || [];
                 kList.forEach(k => {
-                    if (!availableOptions.find(o => o.code === k.code)) {
-                        availableOptions.push(k);
+                    const codeToUse = t === 'freshers' ? k.freshersCode : k.regularCode;
+                    if (!availableOptions.find(o => o.code === codeToUse)) {
+                        availableOptions.push({
+                            ...k,
+                            code: codeToUse,
+                            tier: t === 'freshers' ? 'Freshers' : 'Regular'
+                        });
                     }
                 });
             });
+            categoryGroups = [
+                { id: 'kyorugi', title: 'Kyorugi', label: 'SELECT WEIGHT CLASS (' + currentGen.toUpperCase() + ' - ' + (currentTier === 'freshers' ? 'FRESHERS' : 'REGULAR') + ') *', items: availableOptions.slice(1) }
+            ];
         } else if (currentDisc === 'Poomsae') {
+            const pObj = (window.TKD_POOMSAE_CATEGORIES || {});
             const tiersToQuery = currentTier === 'all' ? ['regular', 'freshers'] : [currentTier];
-            tiersToQuery.forEach(t => {
-                const pObj = (window.TKD_POOMSAE_CATEGORIES || {})[t] || {};
-                const list = [...(pObj.individual || []), ...(pObj.mix_pair || []), ...(pObj.team || [])];
-                list.forEach(p => {
-                    if (!availableOptions.find(o => o.code === p.code)) {
-                        availableOptions.push({ name: `${p.name} (${p.ageRange})`, code: p.code });
-                    }
-                });
-            });
-        } else if (currentDisc === 'Kyukpa' || currentDisc === 'Breaking') {
-            const tiersToQuery = currentTier === 'all' ? ['regular', 'freshers'] : [currentTier];
-            tiersToQuery.forEach(t => {
-                const bList = (window.TKD_BREAKING_CATEGORIES || {})[t] || [];
-                bList.forEach(b => {
-                    if (!availableOptions.find(o => o.code === b.code)) {
-                        availableOptions.push(b);
-                    }
-                });
-            });
-            const tradList = (window.TKD_BREAKING_CATEGORIES || {}).traditional || [];
-            tradList.forEach(b => {
-                if (!availableOptions.find(o => o.code === b.code)) {
-                    availableOptions.push(b);
-                }
-            });
-        } else if (currentDisc === 'Speed Kicking') {
-            const indList = (window.TKD_SPEED_KICKING_CATEGORIES || {}).individual || [];
-            indList.forEach(s => {
-                if (!availableOptions.find(o => o.code === s.code)) availableOptions.push(s);
-            });
-            const teamList = (window.TKD_SPEED_KICKING_CATEGORIES || {}).team || [];
-            teamList.forEach(s => {
-                if (!availableOptions.find(o => o.code === s.code)) availableOptions.push(s);
-            });
-        } else if (currentDisc === 'Virtual Taekwondo' || currentDisc === 'Virtual TKD') {
-            const tiersToQuery = currentTier === 'all' ? ['regular', 'freshers'] : [currentTier];
-            tiersToQuery.forEach(t => {
-                const vObj = (window.TKD_VIRTUAL_TKD_CATEGORIES || {})[t] || {};
-                const list = [...(vObj.individual || []), ...(vObj.mix || [])];
-                list.forEach(v => {
-                    if (!availableOptions.find(o => o.code === v.code)) {
-                        availableOptions.push({ name: `${v.name} (${v.ageRange})`, code: v.code });
-                    }
-                });
-            });
-        }
+            
+            let indList = [];
+            let pairList = [];
+            let teamList = [];
 
+            tiersToQuery.forEach(t => {
+                const tierObj = pObj[t] || {};
+                (tierObj.individual || []).forEach(p => {
+                    const item = { ...p, tier: t === 'freshers' ? 'Freshers' : 'Regular', shortLabel: p.ageLabel || p.ageRange || '' };
+                    indList.push(item);
+                    availableOptions.push(item);
+                });
+                (tierObj.mix_pair || []).forEach(p => {
+                    const item = { ...p, tier: t === 'freshers' ? 'Freshers' : 'Regular', shortLabel: p.ageLabel || p.ageRange || '' };
+                    pairList.push(item);
+                    availableOptions.push(item);
+                });
+                (tierObj.team || []).forEach(p => {
+                    const item = { ...p, tier: t === 'freshers' ? 'Freshers' : 'Regular', shortLabel: p.ageLabel || p.ageRange || '' };
+                    teamList.push(item);
+                    availableOptions.push(item);
+                });
+            });
+
+            categoryGroups = [
+                { id: 'individual', title: 'Individual Poomsae', label: 'SELECT INDIVIDUAL POOMSAE CATEGORY (' + (currentTier === 'freshers' ? 'FRESHERS' : (currentTier === 'regular' ? 'REGULAR' : 'OFFICIAL')) + ') *', items: indList },
+                { id: 'mix_pair', title: 'Mix Pair Poomsae', label: 'SELECT MIX PAIR POOMSAE CATEGORY (' + (currentTier === 'freshers' ? 'FRESHERS' : (currentTier === 'regular' ? 'REGULAR' : 'OFFICIAL')) + ') *', items: pairList },
+                { id: 'team', title: 'Recognised Team Poomsae', label: 'SELECT RECOGNISED TEAM POOMSAE CATEGORY (' + (currentTier === 'freshers' ? 'FRESHERS' : (currentTier === 'regular' ? 'REGULAR' : 'OFFICIAL')) + ') *', items: teamList }
+            ];
+        } else if (currentDisc === 'Kyukpa' || currentDisc === 'Breaking') {
+            const bObj = (window.TKD_BREAKING_CATEGORIES || {});
+            const tiersToQuery = currentTier === 'all' ? ['regular', 'freshers'] : [currentTier];
+            let eList = [];
+            let tradList = [];
+
+            tiersToQuery.forEach(t => {
+                const bList = bObj[t] || [];
+                bList.forEach(b => {
+                    const item = { ...b, tier: t === 'freshers' ? 'Freshers' : 'Regular', shortLabel: b.division || '' };
+                    eList.push(item);
+                    availableOptions.push(item);
+                });
+            });
+            (bObj.traditional || []).forEach(b => {
+                const item = { ...b, tier: 'Traditional', shortLabel: b.division || '' };
+                tradList.push(item);
+                availableOptions.push(item);
+            });
+
+            categoryGroups = [
+                { id: 'ebreaking', title: 'E-Breaking', label: 'SELECT E-BREAKING CATEGORY (' + (currentTier === 'freshers' ? 'FRESHERS' : (currentTier === 'regular' ? 'REGULAR' : 'OFFICIAL')) + ') *', items: eList },
+                { id: 'traditional', title: 'Traditional Kyukpa & Demo', label: 'SELECT TRADITIONAL / DEMO CATEGORY *', items: tradList }
+            ];
+        } else if (currentDisc === 'Speed Kicking') {
+            const sObj = (window.TKD_SPEED_KICKING_CATEGORIES || {});
+            let indList = [];
+            let teamList = [];
+
+            if (currentTier === 'freshers' || currentTier === 'all') {
+                const fr = (sObj.individual || [])[0];
+                if (fr) {
+                    const item = { ...fr, tier: 'Freshers', shortLabel: fr.division || '' };
+                    indList.push(item);
+                    availableOptions.push(item);
+                }
+            }
+            if (currentTier === 'regular' || currentTier === 'all') {
+                [(sObj.individual || [])[1], (sObj.individual || [])[2]].filter(Boolean).forEach(r => {
+                    const item = { ...r, tier: 'Regular', shortLabel: r.division || '' };
+                    indList.push(item);
+                    availableOptions.push(item);
+                });
+                (sObj.team || []).forEach(tm => {
+                    const item = { ...tm, tier: 'Regular', shortLabel: tm.gender + ' • ' + tm.ageLimit };
+                    teamList.push(item);
+                    availableOptions.push(item);
+                });
+            }
+
+            categoryGroups = [
+                { id: 'individual', title: 'Individual Speed Kicking', label: 'SELECT SPEED KICKING INDIVIDUAL CATEGORY *', items: indList },
+                { id: 'team', title: 'Team Relay', label: 'SELECT SPEED KICKING TEAM RELAY CATEGORY (3 ATHLETES) *', items: teamList }
+            ];
+        } else if (currentDisc === 'Virtual Taekwondo' || currentDisc === 'Virtual TKD') {
+            const vObj = (window.TKD_VIRTUAL_TKD_CATEGORIES || {});
+            const tiersToQuery = currentTier === 'all' ? ['regular', 'freshers'] : [currentTier];
+            let indList = [];
+            let mixList = [];
+
+            tiersToQuery.forEach(t => {
+                const tierObj = vObj[t] || {};
+                (tierObj.individual || []).forEach(v => {
+                    const item = { ...v, name: 'Virtual TKD Individual (' + v.division + ')', shortName: v.division, shortLabel: v.ageRange, tier: t === 'freshers' ? 'Freshers' : 'Regular' };
+                    indList.push(item);
+                    availableOptions.push(item);
+                });
+                (tierObj.mix || []).forEach(v => {
+                    const item = { ...v, name: 'Virtual TKD Mix Gender (' + v.division + ')', shortName: v.division, shortLabel: v.ageRange, tier: t === 'freshers' ? 'Freshers' : 'Regular' };
+                    mixList.push(item);
+                    availableOptions.push(item);
+                });
+            });
+
+            categoryGroups = [
+                { id: 'individual', title: 'Virtual TKD Individual', label: 'SELECT VIRTUAL TKD INDIVIDUAL CATEGORY (' + (currentTier === 'freshers' ? 'FRESHERS' : (currentTier === 'regular' ? 'REGULAR' : 'OFFICIAL')) + ') *', items: indList },
+                { id: 'mix', title: 'Virtual TKD Mix Gender', label: 'SELECT VIRTUAL TKD MIX GENDER CATEGORY (' + (currentTier === 'freshers' ? 'FRESHERS' : (currentTier === 'regular' ? 'REGULAR' : 'OFFICIAL')) + ') *', items: mixList }
+            ];
+        }
         // Smart category matching
         function matchesAthlete(a) {
             const aIsG4 = a.competitionFormat === 'Group-4' || (a.category && a.category.includes('Group-4')) || a.group4Category;
@@ -21403,112 +21635,206 @@ ${templateBg ? `
                                     </div>
                                 </div>
                             </div>
+                        ` : currentDisc === 'Poomsae' ? `
+                            <div class="space-y-3 p-4 rounded-xl border border-blue-200 bg-blue-50/20 pt-2">
+                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                    <div class="flex items-center gap-2">
+                                        <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                            Poomsae Classification:
+                                        </label>
+                                        <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                            <button type="button" class="cat-k-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'freshers' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="freshers">
+                                                Poomsae (Freshers)
+                                            </button>
+                                            <button type="button" class="cat-k-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'regular' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="regular">
+                                                Poomsae (Regular)
+                                            </button>
+                                            <button type="button" class="cat-k-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="all">
+                                                Show Both
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                            Poomsae Event Type:
+                                        </label>
+                                        <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                            <button type="button" class="cat-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'individual' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="individual">
+                                                Individual Poomsae
+                                            </button>
+                                            <button type="button" class="cat-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'mix_pair' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="mix_pair">
+                                                Mix Pair Poomsae
+                                            </button>
+                                            <button type="button" class="cat-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'team' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="team">
+                                                Recognised Team Poomsae
+                                            </button>
+                                            <button type="button" class="cat-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="all">
+                                                Show All Types
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ` : (currentDisc === 'Virtual Taekwondo' || currentDisc === 'Virtual TKD') ? `
+                            <div class="space-y-3 p-4 rounded-xl border border-blue-200 bg-blue-50/20 pt-2">
+                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                    <div class="flex items-center gap-2">
+                                        <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                            Virtual TKD Classification:
+                                        </label>
+                                        <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                            <button type="button" class="cat-k-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'freshers' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="freshers">
+                                                Freshers
+                                            </button>
+                                            <button type="button" class="cat-k-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'regular' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="regular">
+                                                Regular
+                                            </button>
+                                            <button type="button" class="cat-k-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="all">
+                                                Show Both
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                            Event Type:
+                                        </label>
+                                        <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                            <button type="button" class="cat-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'individual' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="individual">
+                                                Virtual TKD Individual
+                                            </button>
+                                            <button type="button" class="cat-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'mix' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="mix">
+                                                Virtual TKD Mix Gender
+                                            </button>
+                                            <button type="button" class="cat-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="all">
+                                                Show Both
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ` : currentDisc === 'Speed Kicking' ? `
+                            <div class="space-y-3 p-4 rounded-xl border border-blue-200 bg-blue-50/20 pt-2">
+                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                    <div class="flex items-center gap-2">
+                                        <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                            Speed Kicking Classification:
+                                        </label>
+                                        <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                            <button type="button" class="cat-k-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'freshers' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="freshers">
+                                                Freshers
+                                            </button>
+                                            <button type="button" class="cat-k-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'regular' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="regular">
+                                                Regular
+                                            </button>
+                                            <button type="button" class="cat-k-tier-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentTier === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-tier="all">
+                                                Show Both
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                            Event Type:
+                                        </label>
+                                        <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                            <button type="button" class="cat-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'individual' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="individual">
+                                                Individual Speed Kicking
+                                            </button>
+                                            <button type="button" class="cat-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'team' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="team">
+                                                Team Relay (3 Athletes)
+                                            </button>
+                                            <button type="button" class="cat-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="all">
+                                                Show Both
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         ` : `
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                                <!-- Dropdown 1: Age Division -->
-                                <div>
-                                    <label class="text-[11px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
-                                        <i class="fa-solid fa-users-viewfinder text-blue-600 me-1"></i> Age Division
-                                    </label>
-                                    <select id="cat-select-division" class="tkd-select text-xs font-bold w-full py-2 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
-                                        <option value="senior" ${currentDiv === 'senior' ? 'selected' : ''}>Senior (Ages 17+)</option>
-                                        <option value="junior" ${currentDiv === 'junior' ? 'selected' : ''}>Junior (Ages 15–17)</option>
-                                        <option value="cadet" ${currentDiv === 'cadet' ? 'selected' : ''}>Cadet (Ages 12–14)</option>
-                                        <option value="sub-junior" ${currentDiv === 'sub-junior' ? 'selected' : ''}>Sub-Junior (Ages 8–11)</option>
-                                        <option value="children" ${currentDiv === 'children' ? 'selected' : ''}>Children (Under 8 / Ages 4–7)</option>
-                                    </select>
-                                </div>
-
-                                <!-- Dropdown 2: Gender -->
-                                <div>
-                                    <label class="text-[11px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
-                                        <i class="fa-solid fa-venus-mars text-blue-600 me-1"></i> Gender
-                                    </label>
-                                    <select id="cat-select-gender" class="tkd-select text-xs font-bold w-full py-2 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
-                                        <option value="Male" ${currentGen === 'Male' ? 'selected' : ''}>Male</option>
-                                        <option value="Female" ${currentGen === 'Female' ? 'selected' : ''}>Female</option>
-                                    </select>
-                                </div>
-
-                                <!-- Dropdown 3: Category Event / Weight Class & Code -->
-                                <div>
-                                    <label class="text-[11px] uppercase font-black tracking-wider text-slate-600 font-mono block mb-1.5">
-                                        <i class="fa-solid fa-barcode text-blue-600 me-1"></i> Weight Class &amp; Code
-                                    </label>
-                                    <select id="cat-select-weight" class="tkd-select font-mono text-xs font-bold w-full py-2 px-3 border-slate-300 rounded-xl bg-slate-50 text-slate-900 cursor-pointer focus:ring-2 focus:ring-blue-500">
-                                        ${availableOptions.map(opt => {
-                                            const isSel = (opt.code && opt.code === currentCode) || (!currentCode && opt.name === currentWeight);
-                                            const optLabel = opt.code ? `${opt.name} [${opt.code}]` : opt.name;
-                                            return `<option value="${opt.name}" data-code="${opt.code || ''}" ${isSel ? 'selected' : ''}>${optLabel}</option>`;
-                                        }).join('')}
-                                    </select>
+                            <div class="space-y-3 p-4 rounded-xl border border-blue-200 bg-blue-50/20 pt-2">
+                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                    <div class="flex items-center gap-2">
+                                        <label class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                            Breaking Event Type:
+                                        </label>
+                                        <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                            <button type="button" class="cat-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'ebreaking' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="ebreaking">
+                                                E-Breaking
+                                            </button>
+                                            <button type="button" class="cat-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'traditional' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="traditional">
+                                                Traditional Kyukpa &amp; Demo
+                                            </button>
+                                            <button type="button" class="cat-subtype-btn px-3 py-1 rounded-md text-xs font-bold transition-all ${currentSubType === 'all' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}" data-subtype="all">
+                                                Show All
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         `}
-
                         ${availableOptions.length > 1 ? `
-                            <!-- Quick Category Selector Grid -->
-                            <div class="pt-3 border-t border-slate-100">
-                                ${(currentDisc === 'Kyorugi' || currentDisc === 'all') ? `
-                                    <div class="space-y-3">
-                                        <div class="flex items-center justify-between">
-                                            <label class="text-xs font-bold uppercase tracking-wider text-slate-800 block">
-                                                SELECT WEIGHT CLASS (${currentGen.toUpperCase()} - ${currentTier === 'freshers' ? 'FRESHERS' : 'REGULAR'}) *
-                                            </label>
-                                            <span class="text-[11px] text-slate-500 font-mono">
-                                                ${availableOptions.length - 1} Official Categories
-                                            </span>
-                                        </div>
-                                        <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
-                                            ${availableOptions.slice(1).map(opt => {
-                                                const isSel = (opt.code && opt.code === currentCode) || (!currentCode && opt.name === currentWeight);
-                                                const wtLimit = opt.weightLimit || (typeof formatKyorugiWeight === 'function' ? formatKyorugiWeight(opt) : opt.name);
-                                                return `
-                                                    <div class="cat-quick-tile p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between select-none ${isSel ? 'border-blue-600 bg-blue-50/80 shadow-xs ring-2 ring-blue-600/30' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'}" data-name="${opt.name}" data-code="${opt.code || ''}">
-                                                        <span class="text-xs font-bold font-mono truncate ${isSel ? 'text-blue-700' : 'text-slate-800'}">
-                                                            ${wtLimit}
-                                                        </span>
-                                                        <div class="w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ml-1.5 ${isSel ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 bg-white'}">
-                                                            ${isSel ? '<i class="fa-solid fa-check text-[8px] text-white"></i>' : ''}
+                            <!-- Quick Category Selector Grid (Segregated by Event Type) -->
+                            <div class="pt-3 border-t border-slate-100 space-y-5">
+                                ${categoryGroups.map((grp, gIdx) => {
+                                    if (currentSubType && currentSubType !== 'all' && grp.id !== currentSubType) return '';
+                                    if (!grp.items || grp.items.length === 0) return '';
+                                    
+                                    const isKyorugi = currentDisc === 'Kyorugi' || currentDisc === 'all';
+                                    const gridCols = isKyorugi 
+                                        ? 'grid-cols-2 sm:grid-cols-4 md:grid-cols-5' 
+                                        : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+
+                                    return `
+                                        <div class="space-y-3 ${gIdx > 0 ? 'pt-4 border-t border-slate-200' : ''}">
+                                            <div class="flex items-center justify-between">
+                                                <label class="text-xs font-bold uppercase tracking-wider text-slate-800 block">
+                                                    ${grp.label}
+                                                </label>
+                                                <span class="text-[11px] text-slate-500 font-mono">
+                                                    ${grp.items.length} ${grp.items.length === 1 ? 'Category' : 'Official Categories'}
+                                                </span>
+                                            </div>
+                                            <div class="grid ${gridCols} gap-2.5">
+                                                ${grp.items.map(opt => {
+                                                    const isSel = (opt.code && opt.code === currentCode) || (!currentCode && opt.name === currentWeight);
+                                                    const isFr = (opt.code || '').includes('-FR') || (opt.tier === 'Freshers');
+                                                    const athCount = allTournAthletes.filter(a => a.categoryCode === opt.code || (a.weightClass && a.weightClass.includes(opt.name))).length;
+                                                    
+                                                    if (isKyorugi) {
+                                                        const wtLimit = opt.weightLimit || (typeof formatKyorugiWeight === 'function' ? formatKyorugiWeight(opt) : opt.name);
+                                                        return `
+                                                            <div class="cat-quick-tile p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between select-none ${isSel ? 'border-blue-600 bg-blue-50/80 shadow-xs ring-2 ring-blue-600/30' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'}" data-name="${opt.name}" data-code="${opt.code || ''}">
+                                                                <span class="text-xs font-bold font-mono truncate ${isSel ? 'text-blue-700' : 'text-slate-800'}">
+                                                                    ${wtLimit}
+                                                                </span>
+                                                                <div class="w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ml-1.5 ${isSel ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 bg-white'}">
+                                                                    ${isSel ? '<i class="fa-solid fa-check text-[8px] text-white"></i>' : ''}
+                                                                </div>
+                                                            </div>
+                                                        `;
+                                                    }
+
+                                                    return `
+                                                        <div class="cat-quick-tile p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between select-none ${isSel ? 'border-blue-600 bg-blue-50/90 shadow-xs ring-2 ring-blue-600/30' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'}" data-name="${opt.name}" data-code="${opt.code || ''}">
+                                                            <div class="min-w-0 pr-2">
+                                                                <div class="text-xs font-black text-slate-900 leading-snug truncate" title="${opt.name}">${opt.name}</div>
+                                                                ${opt.shortLabel ? `<div class="text-[11px] text-slate-500 font-medium mt-0.5 truncate">${opt.shortLabel}</div>` : ''}
+                                                                <div class="text-[9.5px] font-mono font-bold text-blue-600 mt-1">${opt.code || ''}</div>
+                                                            </div>
+                                                            <div class="flex items-center gap-2 shrink-0">
+                                                                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded ${athCount > 0 ? (isFr ? 'bg-emerald-100 text-emerald-800 font-bold' : 'bg-indigo-100 text-indigo-800 font-bold') : 'bg-slate-100 text-slate-500'}">
+                                                                    ${athCount} aths
+                                                                </span>
+                                                                <div class="w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${isSel ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 bg-white'}">
+                                                                    ${isSel ? '<i class="fa-solid fa-check text-[9px] text-white"></i>' : ''}
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                `;
-                                            }).join('')}
+                                                    `;
+                                                }).join('')}
+                                            </div>
                                         </div>
-                                    </div>
-                                ` : `
-                                    <div class="flex items-center justify-between mb-2">
-                                        <span class="text-[10px] uppercase font-mono font-bold text-slate-500">
-                                            <i class="fa-solid fa-shapes me-1 text-blue-600"></i> Browse &amp; Select Category Card (${availableOptions.length - 1} Categories):
-                                        </span>
-                                        <span class="text-[10px] text-slate-400">Click any card to inspect qualified competitors</span>
-                                    </div>
-                                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                                        ${availableOptions.slice(1).map(opt => {
-                                            const isSel = (opt.code && opt.code === currentCode) || (!currentCode && opt.name === currentWeight);
-                                            const isFr = (opt.code || '').includes('-FR');
-                                            const athCount = allTournAthletes.filter(a => a.categoryCode === opt.code || (a.weightClass && a.weightClass.includes(opt.name))).length;
-                                            return `
-                                                <div class="cat-quick-tile p-2.5 rounded-xl border-2 cursor-pointer transition text-left flex flex-col justify-between ${isSel ? 'border-blue-600 bg-blue-50/90 text-blue-950 shadow-xs ring-2 ring-blue-200' : 'border-slate-200 bg-white hover:border-blue-300 text-slate-800'}" data-name="${opt.name}" data-code="${opt.code || ''}">
-                                                    <div>
-                                                        <div class="flex items-center justify-between gap-1">
-                                                            <span class="text-[8.5px] font-bold px-1 rounded ${isFr ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'}">
-                                                                ${isFr ? 'FRESHERS' : 'REGULAR'}
-                                                            </span>
-                                                            <span class="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full ${athCount > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}">
-                                                                ${athCount}
-                                                            </span>
-                                                        </div>
-                                                        <div class="font-black text-xs mt-1 truncate" title="${opt.name}">${opt.name}</div>
-                                                    </div>
-                                                    <div class="font-mono text-[9px] font-bold text-slate-500 mt-1 truncate">
-                                                        ${opt.code || ''}
-                                                    </div>
-                                                </div>
-                                            `;
-                                        }).join('')}
-                                    </div>
-                                `}
+                                    `;
+                                }).join('')}
                             </div>
                         ` : ''}
                     `}
@@ -21733,6 +22059,17 @@ ${templateBg ? `
             _activeCategoryFilter.weightClass = chosen ? chosen.value : 'all';
             _activeCategoryFilter.categoryCode = chosen?.getAttribute('data-code') || '';
             renderCategoriesView(container);
+        });
+
+        
+        // Categories Event SubType Button Click (Individual / Mix Pair / Team)
+        container.querySelectorAll('.cat-subtype-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                _activeCategoryFilter.subType = btn.getAttribute('data-subtype');
+                _activeCategoryFilter.categoryCode = '';
+                _activeCategoryFilter.weightClass = 'all';
+                renderCategoriesView(container);
+            });
         });
 
         // Kyorugi Classification pill switcher listener
