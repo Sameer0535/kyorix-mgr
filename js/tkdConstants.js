@@ -273,45 +273,45 @@ const POOMSAE_CATEGORIES = {
             { name: 'Recognised Individual (Under 50 Yrs)', ageLabel: 'Ages 41–50 (Born 1974–1983)', code: 'PO-IND-REG-U50' },
             { name: 'Recognised Individual (Under 60 Yrs)', ageLabel: 'Ages 51–60 (Born 1964–1973)', code: 'PO-IND-REG-U60' },
             { name: 'Recognised Individual (Under 65 Yrs)', ageLabel: 'Ages 61–65 (Born 1959–1963)', code: 'PO-IND-REG-U65' },
-            { name: 'Recognised Individual (Over 65 Yrs)', ageLabel: '66 Years & Over (Born 1958 & Before)', code: 'PO-IND-REG-O65' }
+            { name: 'Recognised Individual (Over 65 Yrs)', ageLabel: '66 Years And Over (Born 1958 And Before)', code: 'PO-IND-REG-O65' }
         ]
     },
     pair: {
         id: 'pair',
         name: 'Recognised Mix Pair Poomsae (1 Male + 1 Female)',
         Freshers: [
-            { name: 'Recognised Mix Pair (Children)', ageLabel: 'Under 12 Years / Ages 5–11', code: 'PO-PAIR-FR-CHILD' },
-            { name: 'Recognised Mix Pair (Sub Junior)', ageLabel: 'Ages 10–11', code: 'PO-PAIR-FR-SUBJUN' },
-            { name: 'Recognised Mix Pair (Cadet)', ageLabel: 'Ages 12–14', code: 'PO-PAIR-FR-CADET' }
+            { name: 'Recognised Mix Pair (Children)', ageLabel: 'Under 12 Years / Ages 5–11 (Born After 2014)', code: 'PO-PAIR-FR-CHILD' },
+            { name: 'Recognised Mix Pair (Sub Junior)', ageLabel: 'Ages 10–11 (Born 2013–2014)', code: 'PO-PAIR-FR-SUBJUN' },
+            { name: 'Recognised Mix Pair (Cadet)', ageLabel: 'Ages 12–14 (Born 2010–2012)', code: 'PO-PAIR-FR-CADET' }
         ],
         Regular: [
-            { name: 'Recognised Mix Pair (Children)', ageLabel: 'Under 12 Years / Ages 5–11', code: 'PO-PAIR-REG-CHILD' },
-            { name: 'Recognised Mix Pair (Sub Junior)', ageLabel: 'Ages 10–11', code: 'PO-PAIR-REG-SUBJUN' },
-            { name: 'Recognised Mix Pair (Cadet)', ageLabel: 'Ages 12–14', code: 'PO-PAIR-REG-CADET' },
-            { name: 'Recognised Mix Pair (Junior)', ageLabel: 'Ages 15–17', code: 'PO-PAIR-REG-JUN' },
-            { name: 'Recognised Mix Pair (Under 30 Yrs)', ageLabel: 'Ages 18–30', code: 'PO-PAIR-REG-U30' },
-            { name: 'Recognised Mix Pair (Under 40 Yrs)', ageLabel: 'Ages 31–40', code: 'PO-PAIR-REG-U40' },
-            { name: 'Recognised Mix Pair (Under 50 Yrs)', ageLabel: 'Ages 41–50', code: 'PO-PAIR-REG-U50' },
-            { name: 'Recognised Mix Pair (Under 60 Yrs)', ageLabel: 'Ages 51–60', code: 'PO-PAIR-REG-U60' },
-            { name: 'Recognised Mix Pair (Over 60 Yrs)', ageLabel: '61 Years & Over', code: 'PO-PAIR-REG-O60' }
+            { name: 'Recognised Mix Pair (Children)', ageLabel: 'Under 12 Years / Ages 5–11 (Born After 2014)', code: 'PO-PAIR-REG-CHILD' },
+            { name: 'Recognised Mix Pair (Sub Junior)', ageLabel: 'Ages 10–11 (Born 2013–2014)', code: 'PO-PAIR-REG-SUBJUN' },
+            { name: 'Recognised Mix Pair (Cadet)', ageLabel: 'Ages 12–14 (Born 2010–2012)', code: 'PO-PAIR-REG-CADET' },
+            { name: 'Recognised Mix Pair (Junior)', ageLabel: 'Ages 15–17 (Born 2007–2009)', code: 'PO-PAIR-REG-JUN' },
+            { name: 'Recognised Mix Pair (Under 30 Yrs)', ageLabel: 'Ages 18–30 (Born 1994–2006)', code: 'PO-PAIR-REG-U30' },
+            { name: 'Recognised Mix Pair (Under 40 Yrs)', ageLabel: 'Ages 31–40 (Born 1984–1993)', code: 'PO-PAIR-REG-U40' },
+            { name: 'Recognised Mix Pair (Under 50 Yrs)', ageLabel: 'Ages 41–50 (Born 1974–1983)', code: 'PO-PAIR-REG-U50' },
+            { name: 'Recognised Mix Pair (Under 60 Yrs)', ageLabel: 'Ages 51–60 (Born 1964–1973)', code: 'PO-PAIR-REG-U60' },
+            { name: 'Recognised Mix Pair (Over 60 Yrs)', ageLabel: '61 Years And Over (Born 1963 And Before)', code: 'PO-PAIR-REG-O60' }
         ]
     },
     team: {
         id: 'team',
         name: 'Recognised Team Poomsae (3 Male or 3 Female)',
         Freshers: [
-            { name: 'Recognised Team (Children)', ageLabel: 'Under 12 Years / Ages 5–11', code: 'PO-TEAM-FR-CHILD' },
-            { name: 'Recognised Team (Sub Junior)', ageLabel: 'Ages 10–11', code: 'PO-TEAM-FR-SUBJUN' },
-            { name: 'Recognised Team (Cadet)', ageLabel: 'Ages 12–14', code: 'PO-TEAM-FR-CADET' }
+            { name: 'Recognised Team Male / Female (Children)', ageLabel: 'Under 12 Years / Ages 5–11 (Born After 2014)', code: 'PO-TEAM-FR-CHILD' },
+            { name: 'Recognised Team Male / Female (Sub Junior)', ageLabel: 'Ages 10–11 (Born 2013–2014)', code: 'PO-TEAM-FR-SUBJUN' },
+            { name: 'Recognised Team Male / Female (Cadet)', ageLabel: 'Ages 12–14 (Born 2010–2012)', code: 'PO-TEAM-FR-CADET' }
         ],
         Regular: [
-            { name: 'Recognised Team (Cadet)', ageLabel: 'Ages 12–14', code: 'PO-TEAM-REG-CADET' },
-            { name: 'Recognised Team (Junior)', ageLabel: 'Ages 15–17', code: 'PO-TEAM-REG-JUN' },
-            { name: 'Recognised Team (Under 30 Yrs)', ageLabel: 'Ages 18–30', code: 'PO-TEAM-REG-U30' },
-            { name: 'Recognised Team (Under 40 Yrs)', ageLabel: 'Ages 31–40', code: 'PO-TEAM-REG-U40' },
-            { name: 'Recognised Team (Under 50 Yrs)', ageLabel: 'Ages 41–50', code: 'PO-TEAM-REG-U50' },
-            { name: 'Recognised Team (Under 60 Yrs)', ageLabel: 'Ages 51–60', code: 'PO-TEAM-REG-U60' },
-            { name: 'Recognised Team (Over 60 Yrs)', ageLabel: '61 Years & Over', code: 'PO-TEAM-REG-O60' }
+            { name: 'Recognised Team Male / Female (Cadet)', ageLabel: 'Ages 12–14 (Born 2010–2012)', code: 'PO-TEAM-REG-CADET' },
+            { name: 'Recognised Team Male / Female (Junior)', ageLabel: 'Ages 15–17 (Born 2007–2009)', code: 'PO-TEAM-REG-JUN' },
+            { name: 'Recognised Team Male / Female (Under 30 Yrs)', ageLabel: 'Ages 18–30 (Born 1994–2006)', code: 'PO-TEAM-REG-U30' },
+            { name: 'Recognised Team Male / Female (Under 40 Yrs)', ageLabel: 'Ages 31–40 (Born 1984–1993)', code: 'PO-TEAM-REG-U40' },
+            { name: 'Recognised Team Male / Female (Under 50 Yrs)', ageLabel: 'Ages 41–50 (Born 1974–1983)', code: 'PO-TEAM-REG-U50' },
+            { name: 'Recognised Team Male / Female (Under 60 Yrs)', ageLabel: 'Ages 51–60 (Born 1964–1973)', code: 'PO-TEAM-REG-U60' },
+            { name: 'Recognised Team Male / Female (Over 60 Yrs)', ageLabel: '61 Years And Over (Born 1963 And Before)', code: 'PO-TEAM-REG-O60' }
         ]
     }
 };
@@ -568,6 +568,9 @@ SPEED_KICKING_DATA.Individual.forEach(sk => {
         division: sk.division,
         name: sk.name
     };
+    if (sk.altCode) {
+        ALL_CATEGORIES_REGISTRY[sk.altCode] = ALL_CATEGORIES_REGISTRY[sk.code];
+    }
 });
 SPEED_KICKING_DATA.Team.forEach(sk => {
     ALL_CATEGORIES_REGISTRY[sk.code] = {
