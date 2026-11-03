@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tkd-scorer-v13';
+const CACHE_NAME = 'tkd-scorer-v14';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
