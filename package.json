@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Kyorix Elite Martial Arts Event Operations & Championship Management Platform",
   "scripts": {
-    "build": "echo 'Build OK'",
+    "build": "echo 'Build complete'",
     "dev": "node local-server.js"
   },
   "keywords": [
