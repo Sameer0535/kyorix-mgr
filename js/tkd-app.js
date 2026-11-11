@@ -8397,7 +8397,20 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
     // ────────────────────────────────────────────────────────────────────────
     function renderAthleteDashboard(container, user, activeSubTab = 'overview') {
         const athletes = store.getAthletes();
-        const currentAthlete = (user.athleteId ? store.getAthlete(user.athleteId) : athletes[0]) || athletes[0];
+        const defaultAthlete = {
+            id: user.athleteId || user.id || "ath-default",
+            athleteId: user.athleteId || user.id || "ATH-IND-001",
+            name: user.name || "Competitor",
+            discipline: user.discipline || "Kyorugi",
+            division: user.division || "Senior",
+            gender: user.gender || "Male",
+            weightClass: user.weightClass || "Senior Male Under 58 kg",
+            status: "Pending",
+            weighInStatus: "Pending",
+            belt: "Black Belt (1st Dan)",
+            dojangName: "Independent Competitor"
+        };
+        const currentAthlete = (user.athleteId ? store.getAthlete(user.athleteId) : athletes[0]) || athletes[0] || defaultAthlete;
         const tournaments = store.getTournaments();
         const selectedTournId = store.getSelectedTournamentId();
         const activeTourn = store.getTournament(selectedTournId) || tournaments[0] || null;
@@ -14425,7 +14438,17 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
         const selectedTournId = store.getSelectedTournamentId();
         const tourn = store.getTournament(selectedTournId) || tournaments[0] || SEED_TOURNAMENTS[0];
         const dojangs = store.getDojangs();
-        const currentDojang = (user && user.dojangId ? store.getDojang(user.dojangId) : dojangs[0]) || dojangs[0];
+        const defaultDojang = {
+            id: (user && user.dojangId) || "dojang-default",
+            name: (user && (user.academyName || user.name)) || "Affiliated Martial Arts Academy",
+            masterName: (user && user.name) || "Head Coach",
+            shortCode: "TKD",
+            uid: (user && user.uid) || "9681",
+            city: "Championship City",
+            licenseNo: "KKW-ACAD-9681",
+            logo: null
+        };
+        const currentDojang = (user && user.dojangId ? store.getDojang(user.dojangId) : dojangs[0]) || dojangs[0] || defaultDojang;
         const currentUser = user || store.getCurrentUser() || { name: currentDojang.masterName };
 
         container.innerHTML = `
