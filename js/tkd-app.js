@@ -4224,58 +4224,54 @@ if (typeof window !== 'undefined') {
             id: 'individual',
             name: 'Recognised Individual Poomsae',
             Freshers: [
-                { name: 'Recognised Individual (Children)', ageLabel: 'Under 12 Years / Ages 5–11 (Born After 2014)', code: 'PO-IND-FR-CHILD' },
-                { name: 'Recognised Individual (Sub Junior)', ageLabel: 'Ages 10–11 (Born 2013–2014)', code: 'PO-IND-FR-SUBJUN' },
-                { name: 'Recognised Individual (Cadet)', ageLabel: 'Ages 12–14 (Born 2010–2012)', code: 'PO-IND-FR-CADET' }
+                { name: 'Recognised Individual (Children)', ageLabel: 'Under 12 Years / Ages 5–11 (Born After 2014)', ageRange: 'Under 12 Yrs (Ages 5–11)', code: 'PO-IND-FR-CHILD', type: 'INDIVIDUAL', tier: 'FRESHERS', division: 'Children' },
+                { name: 'Recognised Individual (Sub Junior)', ageLabel: 'Ages 10–11 (Born 2013–2014)', ageRange: 'Ages 10–11 (2013–2014)', code: 'PO-IND-FR-SUBJUN', type: 'INDIVIDUAL', tier: 'FRESHERS', division: 'Sub-Junior' },
+                { name: 'Recognised Individual (Cadet)', ageLabel: 'Ages 12–14 (Born 2010–2012)', ageRange: 'Ages 12–14 (2010–2012)', code: 'PO-IND-FR-CADET', type: 'INDIVIDUAL', tier: 'FRESHERS', division: 'Cadet' }
             ],
             Regular: [
-                { name: 'Recognised Individual (Sub Junior)', ageLabel: 'Ages 10–11 (Born 2013–2014)', code: 'PO-IND-REG-SUBJUN' },
-                { name: 'Recognised Individual (Cadet)', ageLabel: 'Ages 12–14 (Born 2010–2012)', code: 'PO-IND-REG-CADET' },
-                { name: 'Recognised Individual (Junior)', ageLabel: 'Ages 15–17 (Born 2007–2009)', code: 'PO-IND-REG-JUN' },
-                { name: 'Recognised Individual (Under 30 Yrs)', ageLabel: 'Ages 18–30 (Born 1994–2006)', code: 'PO-IND-REG-U30' },
-                { name: 'Recognised Individual (Under 40 Yrs)', ageLabel: 'Ages 31–40 (Born 1984–1993)', code: 'PO-IND-REG-U40' },
-                { name: 'Recognised Individual (Under 50 Yrs)', ageLabel: 'Ages 41–50 (Born 1974–1983)', code: 'PO-IND-REG-U50' },
-                { name: 'Recognised Individual (Under 60 Yrs)', ageLabel: 'Ages 51–60 (Born 1964–1973)', code: 'PO-IND-REG-U60' },
-                { name: 'Recognised Individual (Under 65 Yrs)', ageLabel: 'Ages 61–65 (Born 1959–1963)', code: 'PO-IND-REG-U65' },
-                { name: 'Recognised Individual (Over 65 Yrs)', ageLabel: '66 Years & Over (Born 1958 & Before)', code: 'PO-IND-REG-O65' }
+                { name: 'Recognised Individual (Junior I)', ageLabel: 'Under 12 Years (Born 2014 & After)', ageRange: 'Under 12 Yrs (Born 2014+)', code: 'PO-IND-REG-JUN1', type: 'INDIVIDUAL', tier: 'REGULAR', division: 'Children / Sub-Junior' },
+                { name: 'Recognised Individual (Junior II)', ageLabel: 'Under 15 Years (Born 2011–2013)', ageRange: 'Under 15 Yrs (2011–2013)', code: 'PO-IND-REG-JUN2', type: 'INDIVIDUAL', tier: 'REGULAR', division: 'Cadet' },
+                { name: 'Recognised Individual (Junior III)', ageLabel: 'Under 18 Years (Born 2008–2010)', ageRange: 'Under 18 Yrs (2008–2010)', code: 'PO-IND-REG-JUN3', type: 'INDIVIDUAL', tier: 'REGULAR', division: 'Junior' },
+                { name: 'Recognised Individual (Senior I)', ageLabel: 'Under 29 Years (Born 1997–2007)', ageRange: 'Under 29 Yrs (1997–2007)', code: 'PO-IND-REG-SEN1', type: 'INDIVIDUAL', tier: 'REGULAR', division: 'Senior' },
+                { name: 'Recognised Individual (Senior II)', ageLabel: 'Under 39 Years (Born 1987–1996)', ageRange: 'Under 39 Yrs (1987–1996)', code: 'PO-IND-REG-SEN2', type: 'INDIVIDUAL', tier: 'REGULAR', division: 'Senior' },
+                { name: 'Recognised Individual (Senior III)', ageLabel: 'Under 49 Years (Born 1977–1986)', ageRange: 'Under 49 Yrs (1977–1986)', code: 'PO-IND-REG-SEN3', type: 'INDIVIDUAL', tier: 'REGULAR', division: 'Senior' },
+                { name: 'Recognised Individual (Senior IV)', ageLabel: 'Under 59 Years (Born 1967–1976)', ageRange: 'Under 59 Yrs (1967–1976)', code: 'PO-IND-REG-SEN4', type: 'INDIVIDUAL', tier: 'REGULAR', division: 'Senior' },
+                { name: 'Recognised Individual (Master I)', ageLabel: 'Under 69 Years (Born 1957–1966)', ageRange: 'Under 69 Yrs (1957–1966)', code: 'PO-IND-REG-MAS1', type: 'INDIVIDUAL', tier: 'REGULAR', division: 'Master' },
+                { name: 'Recognised Individual (Master II)', ageLabel: 'Over 70 Years (Born 1956 & Before)', ageRange: 'Over 70 Yrs (Born <= 1956)', code: 'PO-IND-REG-MAS2', type: 'INDIVIDUAL', tier: 'REGULAR', division: 'Master' }
             ]
         },
         pair: {
             id: 'pair',
             name: 'Recognised Mix Pair Poomsae (1 Male + 1 Female)',
             Freshers: [
-                { name: 'Recognised Mix Pair (Children)', ageLabel: 'Under 12 Years / Ages 5–11', code: 'PO-PAIR-FR-CHILD' },
-                { name: 'Recognised Mix Pair (Sub Junior)', ageLabel: 'Ages 10–11', code: 'PO-PAIR-FR-SUBJUN' },
-                { name: 'Recognised Mix Pair (Cadet)', ageLabel: 'Ages 12–14', code: 'PO-PAIR-FR-CADET' }
+                { name: 'Recognised Mix Pair (Children)', ageLabel: 'Under 12 Years / Ages 5–11 (Born After 2014)', ageRange: 'Under 12 Yrs (Ages 5–11)', code: 'PO-PAIR-FR-CHILD', type: 'PAIR', tier: 'FRESHERS' },
+                { name: 'Recognised Mix Pair (Sub Junior)', ageLabel: 'Ages 10–11 (Born 2013–2014)', ageRange: 'Ages 10–11 (2013–2014)', code: 'PO-PAIR-FR-SUBJUN', type: 'PAIR', tier: 'FRESHERS' },
+                { name: 'Recognised Mix Pair (Cadet)', ageLabel: 'Ages 12–14 (Born 2010–2012)', ageRange: 'Ages 12–14 (2010–2012)', code: 'PO-PAIR-FR-CADET', type: 'PAIR', tier: 'FRESHERS' }
             ],
             Regular: [
-                { name: 'Recognised Mix Pair (Children)', ageLabel: 'Under 12 Years / Ages 5–11', code: 'PO-PAIR-REG-CHILD' },
-                { name: 'Recognised Mix Pair (Sub Junior)', ageLabel: 'Ages 10–11', code: 'PO-PAIR-REG-SUBJUN' },
-                { name: 'Recognised Mix Pair (Cadet)', ageLabel: 'Ages 12–14', code: 'PO-PAIR-REG-CADET' },
-                { name: 'Recognised Mix Pair (Junior)', ageLabel: 'Ages 15–17', code: 'PO-PAIR-REG-JUN' },
-                { name: 'Recognised Mix Pair (Under 30 Yrs)', ageLabel: 'Ages 18–30', code: 'PO-PAIR-REG-U30' },
-                { name: 'Recognised Mix Pair (Under 40 Yrs)', ageLabel: 'Ages 31–40', code: 'PO-PAIR-REG-U40' },
-                { name: 'Recognised Mix Pair (Under 50 Yrs)', ageLabel: 'Ages 41–50', code: 'PO-PAIR-REG-U50' },
-                { name: 'Recognised Mix Pair (Under 60 Yrs)', ageLabel: 'Ages 51–60', code: 'PO-PAIR-REG-U60' },
-                { name: 'Recognised Mix Pair (Over 60 Yrs)', ageLabel: '61 Years & Over', code: 'PO-PAIR-REG-O60' }
+                { name: 'Recognised Mix Pair (Children)', ageLabel: 'Under 12 Years / Ages 5–11 (Born After 2014)', ageRange: 'Under 12 Yrs (Born 2014+)', code: 'PO-PAIR-REG-CHILD', type: 'PAIR', tier: 'REGULAR' },
+                { name: 'Recognised Mix Pair (Sub Junior)', ageLabel: 'Ages 10–11 (Born 2013–2014)', ageRange: 'Ages 10–11 (2013–2014)', code: 'PO-PAIR-REG-SUBJUN', type: 'PAIR', tier: 'REGULAR' },
+                { name: 'Recognised Mix Pair (Cadet)', ageLabel: 'Ages 12–14 (Born 2010–2012)', ageRange: 'Ages 12–14 (2010–2012)', code: 'PO-PAIR-REG-CADET', type: 'PAIR', tier: 'REGULAR' },
+                { name: 'Recognised Mix Pair (Junior)', ageLabel: 'Ages 15–17 (Born 2007–2009)', ageRange: 'Ages 15–17 (2007–2009)', code: 'PO-PAIR-REG-JUN', type: 'PAIR', tier: 'REGULAR' },
+                { name: 'Recognised Mix Pair (Under 30 Yrs)', ageLabel: 'Ages 18–30 (Born 1994–2006)', ageRange: 'Ages 18–30 (1994–2006)', code: 'PO-PAIR-REG-U30', type: 'PAIR', tier: 'REGULAR' },
+                { name: 'Recognised Mix Pair (Above 30 Yrs)', ageLabel: '31 Years & Over (Born 1993 & Before)', ageRange: '31+ Yrs (Born <= 1993)', code: 'PO-PAIR-REG-A30', type: 'PAIR', tier: 'REGULAR' }
             ]
         },
         team: {
             id: 'team',
-            name: 'Recognised Team Poomsae (3 Male or 3 Female)',
+            name: 'Recognised Team Poomsae (3 Competitors: All Male or All Female)',
             Freshers: [
-                { name: 'Recognised Team (Children)', ageLabel: 'Under 12 Years / Ages 5–11', code: 'PO-TEAM-FR-CHILD' },
-                { name: 'Recognised Team (Sub Junior)', ageLabel: 'Ages 10–11', code: 'PO-TEAM-FR-SUBJUN' },
-                { name: 'Recognised Team (Cadet)', ageLabel: 'Ages 12–14', code: 'PO-TEAM-FR-CADET' }
+                { name: 'Recognised Team Male / Female (Children)', ageLabel: 'Under 12 Years / Ages 5–11 (Born After 2014)', ageRange: 'Under 12 Yrs (Ages 5–11)', code: 'PO-TEAM-FR-CHILD', type: 'TEAM', tier: 'FRESHERS' },
+                { name: 'Recognised Team Male / Female (Sub Junior)', ageLabel: 'Ages 10–11 (Born 2013–2014)', ageRange: 'Ages 10–11 (2013–2014)', code: 'PO-TEAM-FR-SUBJUN', type: 'TEAM', tier: 'FRESHERS' },
+                { name: 'Recognised Team Male / Female (Cadet)', ageLabel: 'Ages 12–14 (Born 2010–2012)', ageRange: 'Ages 12–14 (2010–2012)', code: 'PO-TEAM-FR-CADET', type: 'TEAM', tier: 'FRESHERS' }
             ],
             Regular: [
-                { name: 'Recognised Team (Cadet)', ageLabel: 'Ages 12–14', code: 'PO-TEAM-REG-CADET' },
-                { name: 'Recognised Team (Junior)', ageLabel: 'Ages 15–17', code: 'PO-TEAM-REG-JUN' },
-                { name: 'Recognised Team (Under 30 Yrs)', ageLabel: 'Ages 18–30', code: 'PO-TEAM-REG-U30' },
-                { name: 'Recognised Team (Under 40 Yrs)', ageLabel: 'Ages 31–40', code: 'PO-TEAM-REG-U40' },
-                { name: 'Recognised Team (Under 50 Yrs)', ageLabel: 'Ages 41–50', code: 'PO-TEAM-REG-U50' },
-                { name: 'Recognised Team (Under 60 Yrs)', ageLabel: 'Ages 51–60', code: 'PO-TEAM-REG-U60' },
-                { name: 'Recognised Team (Over 60 Yrs)', ageLabel: '61 Years & Over', code: 'PO-TEAM-REG-O60' }
+                { name: 'Recognised Team Male / Female (Children)', ageLabel: 'Under 12 Years / Ages 5–11 (Born After 2014)', ageRange: 'Under 12 Yrs (Born 2014+)', code: 'PO-TEAM-REG-CHILD', type: 'TEAM', tier: 'REGULAR' },
+                { name: 'Recognised Team Male / Female (Sub Junior)', ageLabel: 'Ages 10–11 (Born 2013–2014)', ageRange: 'Ages 10–11 (2013–2014)', code: 'PO-TEAM-REG-SUBJUN', type: 'TEAM', tier: 'REGULAR' },
+                { name: 'Recognised Team Male / Female (Cadet)', ageLabel: 'Ages 12–14 (Born 2010–2012)', ageRange: 'Ages 12–14 (2010–2012)', code: 'PO-TEAM-REG-CADET', type: 'TEAM', tier: 'REGULAR' },
+                { name: 'Recognised Team Male / Female (Junior)', ageLabel: 'Ages 15–17 (Born 2007–2009)', ageRange: 'Ages 15–17 (2007–2009)', code: 'PO-TEAM-REG-JUN', type: 'TEAM', tier: 'REGULAR' },
+                { name: 'Recognised Team Male / Female (Under 30 Yrs)', ageLabel: 'Ages 18–30 (Born 1994–2006)', ageRange: 'Ages 18–30 (1994–2006)', code: 'PO-TEAM-REG-U30', type: 'TEAM', tier: 'REGULAR' },
+                { name: 'Recognised Team Male / Female (Above 30 Yrs)', ageLabel: '31 Years & Over (Born 1993 & Before)', ageRange: '31+ Yrs (Born <= 1993)', code: 'PO-TEAM-REG-A30', type: 'TEAM', tier: 'REGULAR' }
             ]
         }
     };
@@ -4612,7 +4608,7 @@ const ALL_CATEGORIES_REGISTRY = {};
             const sub = isPair ? POOMSAE_CATEGORIES.pair : isTeam ? POOMSAE_CATEGORIES.team : POOMSAE_CATEGORIES.individual;
             const list = tier === 'FRESHERS' ? sub.Freshers : sub.Regular;
             const found = list.find(c => rawCat.includes(c.code.toLowerCase()) || rawWt.includes(c.code.toLowerCase()) || rawCat.includes(c.name.toLowerCase()) || rawWt.includes(c.name.toLowerCase()));
-            return found ? found.code : (list[0] ? list[0].code : 'PO-IND-REG-U30');
+            return found ? found.code : (list[0] ? list[0].code : 'PO-IND-REG-SEN1');
         }
 
         if (disc.includes('kyukpa') || disc.includes('breaking')) {
@@ -5172,8 +5168,8 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
         maxWeight: 55.0,
         scaleWeight: 54.0,
         poomsaeSubType: 'individual',
-        poomsaeCode: 'PO-IND-REG-JUN',
-        poomsaeClass: 'Recognised Individual (Junior)',
+        poomsaeCode: 'PO-IND-REG-JUN3',
+        poomsaeClass: 'Recognised Individual (Junior III)',
         breakingTier: 'REGULAR',
         breakingCode: 'BRK-REG-KNIFE-HAND',
         breakingTechnique: 'E-Breaking (Regular) - Knife Hand',
@@ -5217,7 +5213,7 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
             return tier === 'FRESHERS' ? 'KY-FR-JUN-M-U55' : 'KY-REG-JUN-M-U55';
         }
         if (disc === 'Poomsae') {
-            return regData.poomsaeCode || 'PO-IND-REG-JUN';
+            return regData.poomsaeCode || 'PO-IND-REG-JUN3';
         }
         if (disc === 'E-Breaking & Kyukpa' || disc === 'Kyukpa') {
             return regData.breakingCode || 'BRK-REG-KNIFE-HAND';
@@ -5899,7 +5895,7 @@ function openParticipantRegistrationModal(tournId = 'tourn-kukkiwon-2026', tourn
         const list = (regData.tier === 'FRESHERS') ? sub.Freshers : sub.Regular;
         pSelect.innerHTML = list.map(c => `
             <option value="${c.code}" ${c.code === regData.poomsaeCode ? 'selected' : ''}>
-                ${c.name} — ${c.ageLabel} [${c.code}]
+                ${c.name} — ${c.ageRange || c.ageLabel} [${c.code}]
             </option>
         `).join('');
         if (list.length > 0 && !list.some(c => c.code === regData.poomsaeCode)) {
